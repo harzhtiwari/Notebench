@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
+import { X } from "@phosphor-icons/react/X";
 import { cn } from "../lib/utils.js";
 
 const Dialog = DialogPrimitive.Root;
@@ -15,7 +15,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-[var(--nb-scrim,rgba(20,33,61,0.48))] backdrop-blur-xs transition-opacity data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-50 bg-[var(--nb-scrim)] backdrop-blur-xs transition-opacity data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
     )}
     {...props}
@@ -32,13 +32,13 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[var(--nb-r-sheet,12px)] border border-[var(--nb-edge,#B9C2CA)] bg-[var(--nb-sheet,#F6F8F9)] p-6 shadow-xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[var(--nb-r-sheet)] border border-[var(--nb-edge)] bg-[var(--nb-sheet)] p-6 shadow-xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
         className
       )}
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-[var(--nb-r-mark,3px)] p-1 text-[var(--nb-ink-2,#33405E)] opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-[2px] focus-visible:outline-[var(--nb-ink,#14213D)] disabled:pointer-events-none">
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-[var(--nb-r-mark)] p-1 text-[var(--nb-ink-2)] opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-[2px] focus-visible:outline-[var(--nb-ink)] disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
@@ -82,7 +82,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      "text-lg font-semibold leading-none tracking-tight text-[var(--nb-ink,#14213D)]",
+      "text-lg font-semibold leading-none tracking-tight text-[var(--nb-ink)]",
       className
     )}
     {...props}
@@ -96,7 +96,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-sm text-[var(--nb-ink-2,#33405E)]", className)}
+    className={cn("text-sm text-[var(--nb-ink-2)]", className)}
     {...props}
   />
 ));

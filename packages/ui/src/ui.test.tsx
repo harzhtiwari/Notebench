@@ -7,12 +7,18 @@ import {
   Button,
   buttonVariants,
   Input,
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
+  Sheet,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetContent,
+  SheetFooter,
+  Well,
+  WellHeader,
+  WellTitle,
+  WellDescription,
+  WellContent,
+  WellFooter,
   Dialog,
   DialogTrigger,
   DialogContent,
@@ -110,29 +116,51 @@ describe("@notebook/ui Design System & Primitives", () => {
   });
 
   // ==========================================================================
-  // SEAM 3: CARD LAYOUT SEAM
+  // SEAM 3: SURFACE PRIMITIVES (Sheet, Well)
   // ==========================================================================
-  describe("Seam 3: Card Layout", () => {
-    it("renders Card with header, title, description, content, and footer", () => {
+  describe("Seam 3: Surface Layout (Sheet & Well)", () => {
+    it("renders Sheet with header, title, description, content, and footer", () => {
       render(
-        <Card>
-          <CardHeader>
-            <CardTitle>Q3 Research</CardTitle>
-            <CardDescription>Quarterly analysis report</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <Sheet>
+          <SheetHeader>
+            <SheetTitle>Q3 Research</SheetTitle>
+            <SheetDescription>Quarterly analysis report</SheetDescription>
+          </SheetHeader>
+          <SheetContent>
             <p>Body content goes here</p>
-          </CardContent>
-          <CardFooter>
+          </SheetContent>
+          <SheetFooter>
             <span>Last updated 2 days ago</span>
-          </CardFooter>
-        </Card>
+          </SheetFooter>
+        </Sheet>
       );
 
       expect(screen.getByText("Q3 Research")).toBeDefined();
       expect(screen.getByText("Quarterly analysis report")).toBeDefined();
       expect(screen.getByText("Body content goes here")).toBeDefined();
       expect(screen.getByText("Last updated 2 days ago")).toBeDefined();
+    });
+
+    it("renders Well for sidebar/utility sections", () => {
+      render(
+        <Well>
+          <WellHeader>
+            <WellTitle>Active Sources</WellTitle>
+            <WellDescription>3 sources selected</WellDescription>
+          </WellHeader>
+          <WellContent>
+            <p>Source list item</p>
+          </WellContent>
+          <WellFooter>
+            <span>Filter enabled</span>
+          </WellFooter>
+        </Well>
+      );
+
+      expect(screen.getByText("Active Sources")).toBeDefined();
+      expect(screen.getByText("3 sources selected")).toBeDefined();
+      expect(screen.getByText("Source list item")).toBeDefined();
+      expect(screen.getByText("Filter enabled")).toBeDefined();
     });
   });
 
