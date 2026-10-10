@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  dco:
+    name: DCO Sign-off Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify DCO Sign-off
+        run: |
+          TARGET_BASE="${{ github.event.pull_request.base.sha || 'HEAD~1' }}"
+          TARGET_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          for commit in $(git rev-list --no-merges "$TARGET_BASE..$TARGET_HEAD"); do
+            if ! git log -1 --format=%B "$commit" | grep -q "^Signed-off-by: "; then
+              echo "Commit $commit lacks a DCO sign-off. Please rebase and sign off with git commit -s"
+              exit 1
+            fi
+          done
+
+  quality-gate:
+    name: Test & Build Matrix
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [22]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - name: Install Astral uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile || pnpm install
+      - name: Dependency License Verification
+        run: pnpm lint:licenses
+      - name: Architectural Guardrails
+        run: pnpm guard
+      - name: Dead Code Audit
+        run: pnpm knip
+      - name: Production Build
+        run: pnpm build
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      - name: Unit & Domain Tests
+        run: pnpm test
+      - name: Verify Examples (Smoke Test)
+        run: pnpm --filter "example-*" test
+      - name: Backup & Restore Verification (Dry Run)
+        if: runner.os == 'Linux'
+        run: |
+          bash scripts/backup.sh .tmp/backups
+          LATEST_BACKUP=$(ls -d .tmp/backups/* | tail -n 1)
+          bash scripts/restore.sh "$LATEST_BACKUP"
+          rm -rf .tmp/backups .notebook
+      - name: Changeset Check (Advisory in Alpha)
+        if: runner.os == 'Linux' && github.event_name == 'pull_request'
+        run: pnpm changeset status --since=origin/main || true
+      - name: Upload Logs on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-logs-${{ matrix.os }}-node${{ matrix.node }}
+          path: |
+            .tmp/logs/
+            .tmp/reports/
+          retention-days: 7

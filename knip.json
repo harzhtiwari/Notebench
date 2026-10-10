@@ -1,0 +1,22 @@
+{
+  "$schema": "https://unpkg.com/knip@5/overview/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.ts"]
+    },
+    "apps/*": {
+      "entry": ["src/index.ts", "src/app/**/page.tsx", "src/app/**/layout.tsx"]
+    },
+    "packages/*": {},
+    "examples/*": {}
+  },
+  "rules": {
+    "duplicates": "off"
+  },
+  "ignoreDependencies": [
+    "@stryker-mutator/vitest-runner",
+    "drizzle-kit",
+    "pino-pretty",
+    "pino-roll"
+  ]
+}

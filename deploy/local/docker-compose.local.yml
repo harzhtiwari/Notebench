@@ -1,0 +1,19 @@
+services:
+  notebench-dev:
+    build:
+      context: ../..
+      dockerfile: deploy/production/Dockerfile
+      target: builder
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+      - "127.0.0.1:${SERVER_PORT:-4000}:4000"
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: ${WEB_PORT:-3000}
+    volumes:
+      - ../../packages:/app/packages
+      - ../../apps:/app/apps
+      - ../../tools:/app/tools
+    command: pnpm dev
