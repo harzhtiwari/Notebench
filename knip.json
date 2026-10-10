@@ -4,8 +4,9 @@
     ".": {
       "entry": ["scripts/*.ts"]
     },
-    "apps/*": {
-      "entry": ["src/index.ts", "src/app/**/page.tsx", "src/app/**/layout.tsx"]
+    "apps/server": {},
+    "apps/web": {
+      "entry": ["src/app/**/page.tsx", "src/app/**/layout.tsx"]
     },
     "packages/*": {},
     "examples/*": {}
@@ -17,6 +18,7 @@
     "@stryker-mutator/vitest-runner",
     "drizzle-kit",
     "pino-pretty",
-    "pino-roll"
+    "pino-roll",
+    "next"
   ]
 }
