@@ -21,3 +21,6 @@ export * from "./settings/index.js";
 // Inter-Process Communication & JSON-RPC 2.0
 export * from "./ipc/index.js";
 
+// Hybrid Retrieval & Vector Store Contracts
+export * from "./retrieval/index.js";
+

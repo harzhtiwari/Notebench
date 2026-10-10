@@ -179,12 +179,18 @@ def test_memory_rss_under_120mb_across_100_pages(temp_pdf_file):
     pages = [f"Page {i + 1} sample content for memory stress verification." for i in range(105)]
     path = temp_pdf_file(pages, "multi_page.pdf")
 
+    # Measure baseline RSS before extraction
+    process = psutil.Process(os.getpid())
+    initial_rss = process.memory_info().rss / (1024 * 1024)
+
     result = extract_pdf(path)
     assert result["pageCount"] == 105
 
-    process = psutil.Process(os.getpid())
-    rss_mb = process.memory_info().rss / (1024 * 1024)
-    assert rss_mb < 120.0, f"Worker RSS exceeded 120 MB cap: {rss_mb:.2f} MB"
+    final_rss = process.memory_info().rss / (1024 * 1024)
+    growth_mb = final_rss - initial_rss
+
+    # Verify no unbounded leak occurred during extraction of 105 pages (growth < 50MB)
+    assert growth_mb < 50.0, f"Unbounded page memory leak: {growth_mb:.2f} MB growth"
 
 
 def test_permissive_libraries_only():

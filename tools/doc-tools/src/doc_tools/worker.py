@@ -10,6 +10,8 @@ import sys
 import time
 from typing import Any, Dict, Optional
 
+from doc_tools.docx import extract_docx
+from doc_tools.embedding import embed_batch, embed_query
 from doc_tools.pdf import extract_pdf, preflight_pdf
 
 
@@ -62,7 +64,7 @@ def handle_get_worker_info(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         "version": "0.1.0",
         "pythonVersion": sys.version.split()[0],
         "workerPid": os.getpid(),
-        "capabilities": ["pdfplumber", "pypdf", "docx", "pptx"],
+        "capabilities": ["pdfplumber", "pypdf", "docx", "pptx", "fastembed"],
     }
 
 
@@ -82,11 +84,46 @@ def handle_pdf_extract(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     return extract_pdf(params["filePath"], max_pages=max_pages)
 
 
+def handle_docx_extract(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not params or not params.get("filePath"):
+        raise ValueError("Missing 'filePath' in params")
+    return extract_docx(params["filePath"])
+
+
+def handle_embedding_embed_batch(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not params or "texts" not in params:
+        raise ValueError("Missing 'texts' in params")
+    texts = params["texts"]
+    if not isinstance(texts, list):
+        raise ValueError("'texts' must be a list of strings")
+    model = params.get("model")
+    if model:
+        return embed_batch(texts, model_name=str(model))
+    return embed_batch(texts)
+
+
+def handle_embedding_embed_query(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not params or "text" not in params:
+        raise ValueError("Missing 'text' in params")
+    text = params["text"]
+    if not isinstance(text, str):
+        raise ValueError("'text' must be a string")
+    model = params.get("model")
+    if model:
+        return embed_query(text, model_name=str(model))
+    return embed_query(text)
+
+
 HANDLERS = {
     "ping": handle_ping,
     "get_worker_info": handle_get_worker_info,
     "pdf_preflight": handle_pdf_preflight,
     "pdf_extract": handle_pdf_extract,
+    "docx_extract": handle_docx_extract,
+    "embedding_embed_batch": handle_embedding_embed_batch,
+    "embedding.embed_batch": handle_embedding_embed_batch,
+    "embedding_embed_query": handle_embedding_embed_query,
+    "embedding.embed_query": handle_embedding_embed_query,
 }
 
 

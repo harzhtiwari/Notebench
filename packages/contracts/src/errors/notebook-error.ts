@@ -83,3 +83,18 @@ export class ValidationError extends NotebookError {
   readonly code = "VALIDATION_ERROR" as const;
   readonly statusCode = 400 as const;
 }
+
+export class PayloadTooLargeError extends NotebookError {
+  readonly code = "PAYLOAD_TOO_LARGE" as const;
+  readonly statusCode = 413 as const;
+}
+
+export class InvalidContentTypeError extends NotebookError {
+  readonly code = "INVALID_CONTENT_TYPE" as const;
+  readonly statusCode = 415 as const;
+}
+
+export class DuplicateSourceError extends NotebookError {
+  readonly code = "DUPLICATE_SOURCE" as const;
+  readonly statusCode = 409 as const;
+}

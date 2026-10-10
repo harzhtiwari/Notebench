@@ -5,6 +5,7 @@ description = "Pure MIT/Apache document processing worker pool for Notebench"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastembed>=0.4.0",
     "pdfplumber>=0.11.0",
     "pypdf>=5.0.0",
     "python-docx>=1.1.0",

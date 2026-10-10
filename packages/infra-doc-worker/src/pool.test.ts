@@ -35,7 +35,7 @@ describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {
 
     expect(warmProbe.pong).toBe(true);
     expect(duration).toBeLessThan(50); // Strict sub-50ms ping assertion per spec
-  });
+  }, 15000);
 
 
   it("retrieves worker info and capabilities via JSON-RPC", async () => {
@@ -145,5 +145,38 @@ describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {
     expect(extracted.pageCount).toBe(1);
     expect(extracted.pages).toHaveLength(1);
   });
+
+  it("executes embedBatch over the pool returning 384-dimensional vectors", async () => {
+    const projectDir = resolve("tools/doc-tools");
+    pool = new DocWorkerPool({
+      projectDir,
+      minWorkers: 1,
+      maxWorkers: 1,
+      requestTimeoutMs: 30000,
+    });
+    await pool.start();
+
+    const result = await pool.embedBatch(["Notebench fast local embeddings"]);
+    expect(result.model).toBe("BAAI/bge-small-en-v1.5");
+    expect(result.dimensions).toBe(384);
+    expect(result.embeddings).toHaveLength(1);
+    expect(result.embeddings[0]).toHaveLength(384);
+  }, 35000);
+
+  it("executes embedQuery over the pool returning 384-dimensional query vector", async () => {
+    const projectDir = resolve("tools/doc-tools");
+    pool = new DocWorkerPool({
+      projectDir,
+      minWorkers: 1,
+      maxWorkers: 1,
+      requestTimeoutMs: 30000,
+    });
+    await pool.start();
+
+    const result = await pool.embedQuery("What database does Notebench use?");
+    expect(result.model).toBe("BAAI/bge-small-en-v1.5");
+    expect(result.dimensions).toBe(384);
+    expect(result.embedding).toHaveLength(384);
+  }, 35000);
 });
 

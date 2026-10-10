@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import os from "node:os";
 import { resolve } from "node:path";
 import { createLogger, type Logger } from "@notebook/logger";
@@ -10,6 +11,14 @@ import {
   PdfPreflightResultSchema,
   type PdfExtractResult,
   PdfExtractResultSchema,
+  type DocxExtractorPort,
+  type DocxExtractResult,
+  DocxExtractResultSchema,
+  type EmbeddingPort,
+  type EmbeddingBatchResult,
+  EmbeddingBatchResultSchema,
+  type EmbeddingQueryResult,
+  EmbeddingQueryResultSchema,
   ParserFailedError,
 } from "@notebook/contracts";
 import { DocWorkerProcess } from "./worker-process.js";
@@ -35,7 +44,7 @@ export interface WorkerExitInfo {
   unexpected: boolean;
 }
 
-export class DocWorkerPool implements PdfExtractorPort {
+export class DocWorkerPool implements PdfExtractorPort, DocxExtractorPort, EmbeddingPort {
   private readonly projectDir: string;
   private readonly minWorkers: number;
   private readonly maxWorkers: number;
@@ -46,7 +55,19 @@ export class DocWorkerPool implements PdfExtractorPort {
   private isStopped = false;
 
   constructor(options: DocWorkerPoolOptions = {}) {
-    this.projectDir = options.projectDir ?? resolve(process.cwd(), "tools/doc-tools");
+    let docToolsDir = options.projectDir;
+    if (!docToolsDir || !existsSync(docToolsDir)) {
+      let curr = process.cwd();
+      for (let i = 0; i < 5; i++) {
+        const candidate = resolve(curr, "tools/doc-tools");
+        if (existsSync(candidate)) {
+          docToolsDir = candidate;
+          break;
+        }
+        curr = resolve(curr, "..");
+      }
+    }
+    this.projectDir = docToolsDir ?? resolve(process.cwd(), "tools/doc-tools");
     const cpus = os.cpus()?.length ?? 2;
     // Cap at min(2, os.cpus() - 1) per Settled Decision 9.2
     const defaultConcurrency = Math.min(2, Math.max(1, cpus - 1));
@@ -139,6 +160,34 @@ export class DocWorkerPool implements PdfExtractorPort {
     return PdfExtractResultSchema.parse(raw);
   }
 
+  public async extractDocx(filePath: string): Promise<DocxExtractResult> {
+    const raw = await this.send<unknown>("docx_extract", { filePath });
+    return DocxExtractResultSchema.parse(raw);
+  }
+
+  public async embedBatch(
+    texts: string[],
+    options?: { model?: string | undefined }
+  ): Promise<EmbeddingBatchResult> {
+    const params: Record<string, unknown> = { texts };
+    if (options?.model !== undefined) {
+      params["model"] = options.model;
+    }
+    const raw = await this.send<unknown>("embedding_embed_batch", params);
+    return EmbeddingBatchResultSchema.parse(raw);
+  }
+
+  public async embedQuery(
+    text: string,
+    options?: { model?: string | undefined }
+  ): Promise<EmbeddingQueryResult> {
+    const params: Record<string, unknown> = { text };
+    if (options?.model !== undefined) {
+      params["model"] = options.model;
+    }
+    const raw = await this.send<unknown>("embedding_embed_query", params);
+    return EmbeddingQueryResultSchema.parse(raw);
+  }
 
   public stats(): DocWorkerPoolStats {
     const active = this.workers.filter((w) => w.alive);
