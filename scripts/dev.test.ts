@@ -11,6 +11,7 @@ import {
   writeDevRunState,
   cleanDevRunState,
   killProcessTree,
+  stripAnsi,
   startDev,
 } from "./dev.js";
 
@@ -157,6 +158,18 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
     });
   });
 
+  describe("stripAnsi Utility", () => {
+    it("strips standard 8/16 colors and formatting resets", () => {
+      const colored = "\x1b[36m[dev]\x1b[0m \x1b[31mError message\x1b[0m";
+      expect(stripAnsi(colored)).toBe("[dev] Error message");
+    });
+
+    it("strips bold, dim, and truecolor escape sequences", () => {
+      const truecolor = "\x1b[1m\x1b[38;2;173;127;168m▲ Next.js 15.5.27\x1b[39m\x1b[22m";
+      expect(stripAnsi(truecolor)).toBe("▲ Next.js 15.5.27");
+    });
+  });
+
   describe("startDev Orchestrator Lifecycle", () => {
     class MockProcess extends EventEmitter {
       public readonly pid: number;
@@ -213,15 +226,17 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
       expect(logContent).toContain("[dev]");
       expect(logContent).toContain("Initializing Notebench Development Orchestrator");
 
-      // Test process output teeing through stdout events
-      processes[0]?.stdout.emit("data", Buffer.from("Server listening on 3001\n"));
-      processes[1]?.stdout.emit("data", Buffer.from("Ready in 2s\n"));
+      // Test process output teeing through stdout events with ANSI escape codes
+      processes[0]?.stdout.emit("data", Buffer.from("\x1b[32mServer listening on 3001\x1b[0m\n"));
+      processes[1]?.stdout.emit("data", Buffer.from("\x1b[1m\x1b[32mReady in 2s\x1b[39m\x1b[22m\n"));
 
       const updatedLog = readFileSync(join(logsDir, "dev.log"), "utf-8");
       expect(updatedLog).toContain("[server]");
       expect(updatedLog).toContain("Server listening on 3001");
       expect(updatedLog).toContain("[web]");
       expect(updatedLog).toContain("Ready in 2s");
+      // dev.log must be completely free of raw ANSI control codes
+      expect(updatedLog).not.toContain("\x1b");
 
       // Shutdown cleans up files
       result.shutdown();

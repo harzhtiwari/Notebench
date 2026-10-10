@@ -235,8 +235,16 @@ export function killProcessTree(proc: ChildProcess | { pid?: number | undefined;
 
 
 /**
+ * Strips ANSI escape sequences (colors, font weights, cursor resets) so written log files are clean plain text.
+ */
+export function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]|\x1b\([a-zA-Z]/g, "");
+}
+
+/**
  * Attaches a line-buffered tee reader that prefixes each line with a colored process tag
- * and writes simultaneously to the terminal output stream and the active dev.log file stream.
+ * and writes simultaneously to the terminal output stream and the active dev.log file stream (clean plain text).
  */
 export function attachPrefixedTee(
   stream: NodeJS.ReadableStream | null | undefined,
@@ -253,16 +261,18 @@ export function attachPrefixedTee(
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
     for (const line of lines) {
-      const tagged = `${colorCode}[${tag}]\x1b[0m ${line}\n`;
-      targetOut.write(tagged);
-      logFn(tagged);
+      const coloredLine = `${colorCode}[${tag}]\x1b[0m ${line}\n`;
+      const cleanLine = `[${tag}] ${stripAnsi(line)}\n`;
+      targetOut.write(coloredLine);
+      logFn(cleanLine);
     }
   });
   stream.on("end", () => {
     if (buffer.length > 0) {
-      const tagged = `${colorCode}[${tag}]\x1b[0m ${buffer}\n`;
-      targetOut.write(tagged);
-      logFn(tagged);
+      const coloredLine = `${colorCode}[${tag}]\x1b[0m ${buffer}\n`;
+      const cleanLine = `[${tag}] ${stripAnsi(buffer)}\n`;
+      targetOut.write(coloredLine);
+      logFn(cleanLine);
       buffer = "";
     }
   });
@@ -303,7 +313,7 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
 
   const appendToLog = (line: string) => {
     try {
-      appendFileSync(logFile, line, "utf-8");
+      appendFileSync(logFile, stripAnsi(line), "utf-8");
     } catch {
       // Best-effort disk write
     }
@@ -312,13 +322,13 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
   const logDev = (message: string) => {
     const line = `\x1b[36m[dev]\x1b[0m ${message}\n`;
     process.stdout.write(line);
-    appendToLog(line);
+    appendToLog(`[dev] ${message}\n`);
   };
 
   const logDevErr = (message: string) => {
     const line = `\x1b[31m[dev]\x1b[0m ${message}\n`;
     process.stderr.write(line);
-    appendToLog(line);
+    appendToLog(`[dev] ${message}\n`);
   };
 
   logDev(`🚀 Initializing Notebench Development Orchestrator`);
