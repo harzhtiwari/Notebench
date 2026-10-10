@@ -79,7 +79,38 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
       expect(body.memory).toBeDefined();
       expect(body.memory.rss).toBeGreaterThan(0);
     });
+
+    it("GET /api/doctor returns doc-worker probe results when pool is configured", async () => {
+      const mockPool = {
+        ping: async () => ({
+          pong: true as const,
+          timestamp: 123456789,
+          pythonVersion: "3.12.0",
+          workerPid: 9999,
+        }),
+      };
+
+      const serverWithWorker = await buildServer({
+        docWorkerPool: mockPool,
+        logger: false,
+      });
+
+      const response = await serverWithWorker.inject({
+        method: "GET",
+        url: "/api/doctor",
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.docWorker).toBeDefined();
+      expect(body.docWorker.status).toBe("ok");
+      expect(body.docWorker.pong).toBe(true);
+      expect(body.docWorker.pythonVersion).toBe("3.12.0");
+
+      await serverWithWorker.close();
+    });
   });
+
 
   describe("Static SPA & HTML5 History API Routing", () => {
     it("GET / serves index.html", async () => {

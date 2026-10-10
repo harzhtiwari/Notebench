@@ -17,3 +17,7 @@ export * from "./common/pagination.js";
 
 // Declarative Settings Registry
 export * from "./settings/index.js";
+
+// Inter-Process Communication & JSON-RPC 2.0
+export * from "./ipc/index.js";
+

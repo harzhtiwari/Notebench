@@ -4,18 +4,21 @@ import fastifyStatic from "@fastify/static";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { createLogger, type Logger } from "@notebook/logger";
-import type { NotebookErrorCode } from "@notebook/contracts";
+import type { NotebookErrorCode, DocWorkerProbe } from "@notebook/contracts";
 
 export interface BuildServerOptions extends FastifyServerOptions {
   staticDir?: string | undefined;
   customLogger?: Logger | undefined;
+  docWorkerPool?: DocWorkerProbe | undefined;
 }
+
+
 
 /**
  * Builds and configures the Notebench Fastify composition root.
  */
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
-  const { staticDir, customLogger, ...fastifyOptions } = options;
+  const { staticDir, customLogger, docWorkerPool, ...fastifyOptions } = options;
 
   const appLogger = customLogger ?? createLogger({ name: "server", level: "info" });
 
@@ -42,14 +45,33 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   // System diagnostic endpoint
   app.get("/api/doctor", async () => {
     appLogger.debug("Doctor diagnostics probe requested");
+
+    let docWorkerStatus: unknown = undefined;
+    if (docWorkerPool) {
+      try {
+        const pingResult = await docWorkerPool.ping();
+        docWorkerStatus = {
+          status: "ok",
+          ...pingResult,
+        };
+      } catch (err: unknown) {
+        docWorkerStatus = {
+          status: "error",
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    }
+
     return {
       status: "ok",
       version: "0.1.0",
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       memory: process.memoryUsage(),
+      ...(docWorkerStatus !== undefined ? { docWorker: docWorkerStatus } : {}),
     };
   });
+
 
   // Static SPA assets & HTML5 history fallback
   const resolvedStaticDir = staticDir ?? resolve(process.cwd(), "apps/web/out");

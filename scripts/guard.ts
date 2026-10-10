@@ -28,7 +28,8 @@ function getAllFiles(dir: string, extension: string[] = [".ts", ".tsx"]): string
         entry.name === "dist" ||
         entry.name === ".next" ||
         entry.name === ".turbo" ||
-        entry.name === ".tmp"
+        entry.name === ".tmp" ||
+        entry.name === ".venv"
       ) {
         continue;
       }

@@ -229,6 +229,9 @@ importers:
       '@notebook/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@notebook/infra-doc-worker':
+        specifier: workspace:*
+        version: link:../../packages/infra-doc-worker
       '@notebook/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -424,6 +427,28 @@ importers:
       drizzle-kit:
         specifier: ^0.31.11
         version: 0.31.11
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.5
+        version: 3.2.7(@types/node@22.20.5)(happy-dom@17.6.3)(jiti@2.7.0)(supports-color@7.2.0)(tsx@4.23.15)(yaml@2.9.1)
+
+  packages/infra-doc-worker:
+    dependencies:
+      '@notebook/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@notebook/logger':
+        specifier: workspace:*
+        version: link:../logger
+    devDependencies:
+      '@notebook/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: ^22.13.1
+        version: 22.20.5
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
