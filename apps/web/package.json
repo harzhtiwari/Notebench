@@ -11,15 +11,18 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@notebook/ui": "workspace:*",
     "next": "^15.1.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@notebook/tsconfig": "workspace:*",
+    "@testing-library/react": "^16.2.0",
     "@types/node": "^22.13.1",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
+    "happy-dom": "^17.1.8",
     "typescript": "^5.7.3"
   }
 }

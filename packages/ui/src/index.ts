@@ -9,3 +9,4 @@ export * from "./components/dropdown-menu.js";
 export * from "./components/tabs.js";
 export * from "./components/scroll-area.js";
 export * from "./components/accordion.js";
+export * from "./components/resizable.js";

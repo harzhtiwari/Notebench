@@ -1,0 +1,16 @@
+@import "@notebook/ui/tokens.css";
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: var(--nb-font-ui);
+  background-color: var(--nb-ground);
+  color: var(--nb-ink);
+}
