@@ -1,21 +1,13 @@
 {
   "extends": "@notebook/tsconfig/nextjs.json",
   "compilerOptions": {
-    "jsx": "preserve",
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
-    "allowJs": true
+    "allowJs": false
   },
   "include": [
-    "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules"
+    ".next/types/**/*.ts",
+    "next-env.d.ts",
+    "out/types/**/*.ts"
   ]
 }

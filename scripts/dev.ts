@@ -270,6 +270,7 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
   const serverProcess = spawnProcess(pnpmCmd, ["--filter", "server", "dev"], {
     cwd: root,
     stdio: "inherit",
+    shell: process.platform === "win32",
     detached: process.platform !== "win32",
     env: {
       ...process.env,
@@ -278,9 +279,10 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
     },
   });
 
-  const webProcess = spawnProcess(pnpmCmd, ["--filter", "web", "dev", "--", "-H", "127.0.0.1"], {
+  const webProcess = spawnProcess(pnpmCmd, ["--filter", "web", "dev"], {
     cwd: root,
     stdio: "inherit",
+    shell: process.platform === "win32",
     detached: process.platform !== "win32",
     env: {
       ...process.env,
