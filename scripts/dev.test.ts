@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import net from "node:net";
-import { readFileSync, existsSync, rmSync, mkdirSync } from "node:fs";
+import { readFileSync, existsSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
 import type { ChildProcess } from "node:child_process";
@@ -14,15 +14,16 @@ import {
   startDev,
 } from "./dev.js";
 
-const TEST_DIR = join(process.cwd(), ".tmp", "scratch", "dev-test-" + Date.now());
+let TEST_DIR: string;
 
 describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
   beforeEach(() => {
+    TEST_DIR = join(process.cwd(), ".tmp", "scratch", "dev-test-" + Date.now() + "-" + Math.random().toString(36).slice(2));
     mkdirSync(TEST_DIR, { recursive: true });
   });
 
   afterEach(() => {
-    if (existsSync(TEST_DIR)) {
+    if (TEST_DIR && existsSync(TEST_DIR)) {
       rmSync(TEST_DIR, { recursive: true, force: true });
     }
   });
@@ -86,19 +87,21 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
         join(TEST_DIR, ".notebook", "vault"),
         join(TEST_DIR, ".tmp", "cache"),
         join(TEST_DIR, ".tmp", "logs"),
-        join(TEST_DIR, ".tmp", "run"),
         join(TEST_DIR, ".tmp", "reports"),
         join(TEST_DIR, ".tmp", "scratch"),
+        join(TEST_DIR, ".tmp", "ports"),
+        join(TEST_DIR, ".tmp", "pids"),
       ];
 
       for (const dir of expectedDirs) {
         expect(existsSync(dir), `Directory ${dir} should exist`).toBe(true);
       }
+      expect(existsSync(join(TEST_DIR, ".tmp", "run")), "Directory .tmp/run should not exist").toBe(false);
     });
   });
 
-  describe("Ephemeral Run State Lifecycle (.tmp/run/)", () => {
-    it("writes assigned ports and PIDs to .tmp/run/ (and legacy .tmp/ports/)", () => {
+  describe("Ephemeral Run State Lifecycle (.tmp/ports/ & .tmp/pids/)", () => {
+    it("writes assigned ports to .tmp/ports/ and PIDs to .tmp/pids/", () => {
       ensureStorageLayout(TEST_DIR);
 
       writeDevRunState(TEST_DIR, {
@@ -108,25 +111,21 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
         serverPid: 5678,
       });
 
-      const runDir = join(TEST_DIR, ".tmp", "run");
-      expect(existsSync(join(runDir, "web.port"))).toBe(true);
-      expect(readFileSync(join(runDir, "web.port"), "utf-8")).toBe("3000");
-
-      expect(existsSync(join(runDir, "server.port"))).toBe(true);
-      expect(readFileSync(join(runDir, "server.port"), "utf-8")).toBe("3001");
-
-      expect(existsSync(join(runDir, "web.pid"))).toBe(true);
-      expect(readFileSync(join(runDir, "web.pid"), "utf-8")).toBe("1234");
-
-      expect(existsSync(join(runDir, "server.pid"))).toBe(true);
-      expect(readFileSync(join(runDir, "server.pid"), "utf-8")).toBe("5678");
-
-      // Also verify backward compatibility in .tmp/ports/
       const portsDir = join(TEST_DIR, ".tmp", "ports");
       expect(existsSync(join(portsDir, "web.port"))).toBe(true);
       expect(readFileSync(join(portsDir, "web.port"), "utf-8")).toBe("3000");
+
       expect(existsSync(join(portsDir, "server.port"))).toBe(true);
       expect(readFileSync(join(portsDir, "server.port"), "utf-8")).toBe("3001");
+
+      const pidsDir = join(TEST_DIR, ".tmp", "pids");
+      expect(existsSync(join(pidsDir, "web.pid"))).toBe(true);
+      expect(readFileSync(join(pidsDir, "web.pid"), "utf-8")).toBe("1234");
+
+      expect(existsSync(join(pidsDir, "server.pid"))).toBe(true);
+      expect(readFileSync(join(pidsDir, "server.pid"), "utf-8")).toBe("5678");
+
+      expect(existsSync(join(TEST_DIR, ".tmp", "run"))).toBe(false);
     });
 
     it("cleans up ephemeral port and PID files on shutdown", () => {
@@ -141,15 +140,13 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
 
       cleanDevRunState(TEST_DIR);
 
-      const runDir = join(TEST_DIR, ".tmp", "run");
-      expect(existsSync(join(runDir, "web.port"))).toBe(false);
-      expect(existsSync(join(runDir, "server.port"))).toBe(false);
-      expect(existsSync(join(runDir, "web.pid"))).toBe(false);
-      expect(existsSync(join(runDir, "server.pid"))).toBe(false);
-
       const portsDir = join(TEST_DIR, ".tmp", "ports");
       expect(existsSync(join(portsDir, "web.port"))).toBe(false);
       expect(existsSync(join(portsDir, "server.port"))).toBe(false);
+
+      const pidsDir = join(TEST_DIR, ".tmp", "pids");
+      expect(existsSync(join(pidsDir, "web.pid"))).toBe(false);
+      expect(existsSync(join(pidsDir, "server.pid"))).toBe(false);
     });
   });
 
@@ -164,6 +161,8 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
     class MockProcess extends EventEmitter {
       public readonly pid: number;
       public killed = false;
+      public stdout = new EventEmitter();
+      public stderr = new EventEmitter();
 
       constructor(pid: number) {
         super();
@@ -176,7 +175,7 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
       }
     }
 
-    it("spawns server and web processes and writes runtime state", async () => {
+    it("spawns server and web processes and writes runtime state and logs", async () => {
       const spawned: Array<{ cmd: string; args: string[]; env: NodeJS.ProcessEnv | undefined }> = [];
       const processes: MockProcess[] = [];
 
@@ -198,19 +197,38 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
       expect(result.webPort).toBeGreaterThanOrEqual(3000);
       expect(result.serverPort).toBeGreaterThanOrEqual(3001);
 
-      // Verify files in .tmp/run/
-      const runDir = join(TEST_DIR, ".tmp", "run");
-      expect(existsSync(join(runDir, "web.port"))).toBe(true);
-      expect(existsSync(join(runDir, "server.port"))).toBe(true);
-      expect(existsSync(join(runDir, "web.pid"))).toBe(true);
-      expect(existsSync(join(runDir, "server.pid"))).toBe(true);
+      // Verify files in .tmp/ports/ and .tmp/pids/
+      const portsDir = join(TEST_DIR, ".tmp", "ports");
+      const pidsDir = join(TEST_DIR, ".tmp", "pids");
+      expect(existsSync(join(portsDir, "web.port"))).toBe(true);
+      expect(existsSync(join(portsDir, "server.port"))).toBe(true);
+      expect(existsSync(join(pidsDir, "web.pid"))).toBe(true);
+      expect(existsSync(join(pidsDir, "server.pid"))).toBe(true);
+      expect(existsSync(join(TEST_DIR, ".tmp", "run"))).toBe(false);
+
+      // Verify .tmp/logs/dev.log was created and contains orchestrator initialization
+      const logsDir = join(TEST_DIR, ".tmp", "logs");
+      expect(existsSync(join(logsDir, "dev.log"))).toBe(true);
+      const logContent = readFileSync(join(logsDir, "dev.log"), "utf-8");
+      expect(logContent).toContain("[dev]");
+      expect(logContent).toContain("Initializing Notebench Development Orchestrator");
+
+      // Test process output teeing through stdout events
+      processes[0]?.stdout.emit("data", Buffer.from("Server listening on 3001\n"));
+      processes[1]?.stdout.emit("data", Buffer.from("Ready in 2s\n"));
+
+      const updatedLog = readFileSync(join(logsDir, "dev.log"), "utf-8");
+      expect(updatedLog).toContain("[server]");
+      expect(updatedLog).toContain("Server listening on 3001");
+      expect(updatedLog).toContain("[web]");
+      expect(updatedLog).toContain("Ready in 2s");
 
       // Shutdown cleans up files
       result.shutdown();
-      expect(existsSync(join(runDir, "web.port"))).toBe(false);
-      expect(existsSync(join(runDir, "server.port"))).toBe(false);
-      expect(existsSync(join(runDir, "web.pid"))).toBe(false);
-      expect(existsSync(join(runDir, "server.pid"))).toBe(false);
+      expect(existsSync(join(portsDir, "web.port"))).toBe(false);
+      expect(existsSync(join(portsDir, "server.port"))).toBe(false);
+      expect(existsSync(join(pidsDir, "web.pid"))).toBe(false);
+      expect(existsSync(join(pidsDir, "server.pid"))).toBe(false);
     });
 
     it("triggers shutdown when server child process exits prematurely", async () => {
@@ -227,8 +245,8 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
         spawnFn: mockSpawn,
       });
 
-      const runDir = join(TEST_DIR, ".tmp", "run");
-      expect(existsSync(join(runDir, "server.port"))).toBe(true);
+      const portsDir = join(TEST_DIR, ".tmp", "ports");
+      expect(existsSync(join(portsDir, "server.port"))).toBe(true);
 
       // Simulate server crash
       const serverProc = processes[0];
@@ -236,8 +254,29 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
       serverProc?.emit("exit", 1);
 
       // Port file should be removed on shutdown
-      expect(existsSync(join(runDir, "server.port"))).toBe(false);
+      expect(existsSync(join(portsDir, "server.port"))).toBe(false);
+    });
+
+    it("rotates dev.log to dev.prev.log when a previous session log exists", async () => {
+      const logsDir = join(TEST_DIR, ".tmp", "logs");
+      mkdirSync(logsDir, { recursive: true });
+      writeFileSync(join(logsDir, "dev.log"), "prior run log content\n", "utf-8");
+
+      const mockSpawn = (() => {
+        const proc = new MockProcess(30000);
+        return proc as unknown as ChildProcess;
+      }) as unknown as typeof import("node:child_process").spawn;
+
+      const result = await startDev({
+        root: TEST_DIR,
+        spawnFn: mockSpawn,
+      });
+
+      expect(existsSync(join(logsDir, "dev.prev.log"))).toBe(true);
+      expect(readFileSync(join(logsDir, "dev.prev.log"), "utf-8")).toBe("prior run log content\n");
+      expect(existsSync(join(logsDir, "dev.log"))).toBe(true);
+
+      result.shutdown();
     });
   });
 });
-
