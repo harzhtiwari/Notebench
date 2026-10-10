@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { spawn, execSync, ChildProcess } from "node:child_process";
-import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, rmSync, existsSync, renameSync, appendFileSync } from "node:fs";
 import net from "node:net";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -135,7 +135,6 @@ export function ensureStorageLayout(root: string): void {
   const ephemeralDirs = [
     join(root, ".tmp", "cache"),
     join(root, ".tmp", "logs"),
-    join(root, ".tmp", "run"),
     join(root, ".tmp", "reports"),
     join(root, ".tmp", "scratch"),
     join(root, ".tmp", "ports"),
@@ -148,47 +147,37 @@ export function ensureStorageLayout(root: string): void {
 }
 
 /**
- * Records active development ports and PIDs into .tmp/run/ (and .tmp/ports/ / .tmp/pids/ for legacy compatibility).
+ * Records active development ports and PIDs into .tmp/ports/ and .tmp/pids/.
  */
 export function writeDevRunState(root: string, state: DevRunState): void {
-  const runDir = join(root, ".tmp", "run");
   const portsDir = join(root, ".tmp", "ports");
   const pidsDir = join(root, ".tmp", "pids");
 
-  mkdirSync(runDir, { recursive: true });
   mkdirSync(portsDir, { recursive: true });
   mkdirSync(pidsDir, { recursive: true });
 
   if (state.webPort !== undefined) {
-    writeFileSync(join(runDir, "web.port"), String(state.webPort), "utf-8");
     writeFileSync(join(portsDir, "web.port"), String(state.webPort), "utf-8");
   }
 
   if (state.serverPort !== undefined) {
-    writeFileSync(join(runDir, "server.port"), String(state.serverPort), "utf-8");
     writeFileSync(join(portsDir, "server.port"), String(state.serverPort), "utf-8");
   }
 
   if (state.webPid !== undefined) {
-    writeFileSync(join(runDir, "web.pid"), String(state.webPid), "utf-8");
     writeFileSync(join(pidsDir, "web.pid"), String(state.webPid), "utf-8");
   }
 
   if (state.serverPid !== undefined) {
-    writeFileSync(join(runDir, "server.pid"), String(state.serverPid), "utf-8");
     writeFileSync(join(pidsDir, "server.pid"), String(state.serverPid), "utf-8");
   }
 }
 
 /**
- * Cleans up ephemeral port and PID files from .tmp/run/, .tmp/ports/, and .tmp/pids/.
+ * Cleans up ephemeral port and PID files from .tmp/ports/ and .tmp/pids/.
  */
 export function cleanDevRunState(root: string): void {
   const filesToRemove = [
-    join(root, ".tmp", "run", "web.port"),
-    join(root, ".tmp", "run", "server.port"),
-    join(root, ".tmp", "run", "web.pid"),
-    join(root, ".tmp", "run", "server.pid"),
     join(root, ".tmp", "ports", "web.port"),
     join(root, ".tmp", "ports", "server.port"),
     join(root, ".tmp", "pids", "web.pid"),
@@ -244,6 +233,51 @@ export function killProcessTree(proc: ChildProcess | { pid?: number | undefined;
   }
 }
 
+
+/**
+ * Strips ANSI escape sequences (colors, font weights, cursor resets) so written log files are clean plain text.
+ */
+export function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]|\x1b\([a-zA-Z]/g, "");
+}
+
+/**
+ * Attaches a line-buffered tee reader that prefixes each line with a colored process tag
+ * and writes simultaneously to the terminal output stream and the active dev.log file stream (clean plain text).
+ */
+export function attachPrefixedTee(
+  stream: NodeJS.ReadableStream | null | undefined,
+  tag: string,
+  colorCode: string,
+  targetOut: NodeJS.WriteStream,
+  logFn: (line: string) => void
+): void {
+  if (!stream) return;
+  let buffer = "";
+  stream.on("data", (chunk: Buffer | string) => {
+    const text = chunk.toString();
+    buffer += text;
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      const coloredLine = `${colorCode}[${tag}]\x1b[0m ${line}\n`;
+      const cleanLine = `[${tag}] ${stripAnsi(line)}\n`;
+      targetOut.write(coloredLine);
+      logFn(cleanLine);
+    }
+  });
+  stream.on("end", () => {
+    if (buffer.length > 0) {
+      const coloredLine = `${colorCode}[${tag}]\x1b[0m ${buffer}\n`;
+      const cleanLine = `[${tag}] ${stripAnsi(buffer)}\n`;
+      targetOut.write(coloredLine);
+      logFn(cleanLine);
+      buffer = "";
+    }
+  });
+}
+
 /**
  * Main development orchestrator.
  */
@@ -258,10 +292,50 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
 
   writeDevRunState(root, { webPort, serverPort });
 
-  console.log(`\n🚀 Initializing Notebench Development Orchestrator`);
-  console.log(`   - Fastify Daemon: http://127.0.0.1:${serverPort}`);
-  console.log(`   - Next.js Web UI: http://127.0.0.1:${webPort}`);
-  console.log(`   - Port mappings recorded in .tmp/run/ (and .tmp/ports/)\n`);
+  const logsDir = join(root, ".tmp", "logs");
+  mkdirSync(logsDir, { recursive: true });
+  const logFile = join(logsDir, "dev.log");
+  const prevLogFile = join(logsDir, "dev.prev.log");
+
+  if (existsSync(logFile)) {
+    try {
+      if (existsSync(prevLogFile)) {
+        rmSync(prevLogFile, { force: true });
+      }
+      renameSync(logFile, prevLogFile);
+    } catch {
+      // Ignore rotation errors and fallback to truncate/overwrite
+    }
+  }
+
+  // Ensure fresh dev.log file exists
+  writeFileSync(logFile, "", "utf-8");
+
+  const appendToLog = (line: string) => {
+    try {
+      appendFileSync(logFile, stripAnsi(line), "utf-8");
+    } catch {
+      // Best-effort disk write
+    }
+  };
+
+  const logDev = (message: string) => {
+    const line = `\x1b[36m[dev]\x1b[0m ${message}\n`;
+    process.stdout.write(line);
+    appendToLog(`[dev] ${message}\n`);
+  };
+
+  const logDevErr = (message: string) => {
+    const line = `\x1b[31m[dev]\x1b[0m ${message}\n`;
+    process.stderr.write(line);
+    appendToLog(`[dev] ${message}\n`);
+  };
+
+  logDev(`🚀 Initializing Notebench Development Orchestrator`);
+  logDev(`   - Fastify Daemon: http://127.0.0.1:${serverPort}`);
+  logDev(`   - Next.js Web UI: http://127.0.0.1:${webPort}`);
+  logDev(`   - Port mappings recorded in .tmp/ports/ and PIDs in .tmp/pids/`);
+  logDev(`   - Terminal session log streamed to .tmp/logs/dev.log`);
 
   const pnpmCmd = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
   const spawnProcess = options.spawnFn ?? spawn;
@@ -269,10 +343,12 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
 
   const serverProcess = spawnProcess(pnpmCmd, ["--filter", "server", "dev"], {
     cwd: root,
-    stdio: "inherit",
+    stdio: ["inherit", "pipe", "pipe"],
+    shell: process.platform === "win32",
     detached: process.platform !== "win32",
     env: {
       ...process.env,
+      FORCE_COLOR: "1",
       HOST: "127.0.0.1",
       PORT: String(serverPort),
     },
@@ -280,16 +356,23 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
 
   const webProcess = spawnProcess(pnpmCmd, ["--filter", "web", "dev"], {
     cwd: root,
-    stdio: "inherit",
+    stdio: ["inherit", "pipe", "pipe"],
+    shell: process.platform === "win32",
     detached: process.platform !== "win32",
     env: {
       ...process.env,
+      FORCE_COLOR: "1",
       HOST: "127.0.0.1",
       PORT: String(webPort),
       NEXT_PUBLIC_SERVER_PORT: String(serverPort),
       NEXT_PUBLIC_API_URL: `http://127.0.0.1:${serverPort}`,
     },
   });
+
+  attachPrefixedTee(serverProcess.stdout, "server", "\x1b[34m", process.stdout, appendToLog);
+  attachPrefixedTee(serverProcess.stderr, "server", "\x1b[31m", process.stderr, appendToLog);
+  attachPrefixedTee(webProcess.stdout, "web", "\x1b[35m", process.stdout, appendToLog);
+  attachPrefixedTee(webProcess.stderr, "web", "\x1b[31m", process.stderr, appendToLog);
 
   writeDevRunState(root, {
     webPort,
@@ -302,7 +385,7 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
     if (isShuttingDown) return;
     isShuttingDown = true;
 
-    console.log("\n🛑 Gracefully shutting down development servers...");
+    logDev("🛑 Gracefully shutting down development servers...");
     killProcessTree(serverProcess);
     killProcessTree(webProcess);
     cleanDevRunState(root);
@@ -314,25 +397,25 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
 
   serverProcess.on("exit", (code) => {
     if (!isShuttingDown) {
-      console.error(`\n❌ Fastify daemon exited prematurely with code ${code}`);
+      logDevErr(`Fastify daemon exited prematurely with code ${code}`);
       shutdown(code ?? 1);
     }
   });
 
   webProcess.on("exit", (code) => {
     if (!isShuttingDown) {
-      console.error(`\n❌ Next.js Web UI exited prematurely with code ${code}`);
+      logDevErr(`Next.js Web UI exited prematurely with code ${code}`);
       shutdown(code ?? 1);
     }
   });
 
   serverProcess.on("error", (err) => {
-    console.error("Fastify process spawn error:", err);
+    logDevErr(`Fastify process spawn error: ${String(err)}`);
     shutdown(1);
   });
 
   webProcess.on("error", (err) => {
-    console.error("Next.js process spawn error:", err);
+    logDevErr(`Next.js process spawn error: ${String(err)}`);
     shutdown(1);
   });
 

@@ -26,9 +26,11 @@ function getAllFiles(dir: string, extension: string[] = [".ts", ".tsx"]): string
       if (
         entry.name === "node_modules" ||
         entry.name === "dist" ||
+        entry.name === "out" ||
         entry.name === ".next" ||
         entry.name === ".turbo" ||
-        entry.name === ".tmp"
+        entry.name === ".tmp" ||
+        entry.name === ".venv"
       ) {
         continue;
       }

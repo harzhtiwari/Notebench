@@ -1,0 +1,32 @@
+{
+  "name": "@notebook/infra-vectorstore",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@notebook/contracts": "workspace:*",
+    "better-sqlite3": "12.11.1",
+    "sqlite-vec": "^0.1.9"
+  },
+  "devDependencies": {
+    "@notebook/tsconfig": "workspace:*",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.13.1",
+    "tsdown": "^0.23.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

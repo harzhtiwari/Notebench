@@ -1,0 +1,30 @@
+{
+  "name": "@notebook/domain-parser",
+  "version": "0.1.0",
+  "description": "Document parsing and layout extraction domain service",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@notebook/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@notebook/tsconfig": "workspace:*",
+    "@types/node": "^22.13.1",
+    "tsdown": "^0.23.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

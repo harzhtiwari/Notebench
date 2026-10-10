@@ -1,0 +1,98 @@
+/* tokens.css (self-contained, no external imports) */
+:root {
+  color-scheme: light;
+
+  /* surfaces */
+  --nb-ground: #E8ECEF;
+  --nb-sheet: #F6F8F9;
+  --nb-well: #D8DEE3;
+  --nb-edge: #B9C2CA;
+
+  /* ink */
+  --nb-ink: #14213D;
+  --nb-ink-2: #33405E;
+  --nb-ink-3: #5B6781;
+  --nb-ink-inv: #F6F8F9;
+
+  /* marker: sourced content only */
+  --nb-marker: #D6358F;
+  --nb-marker-text: #9C1465;
+  --nb-marker-wash: #FFB3DB;
+  --nb-marker-swipe: rgba(255, 140, 200, 0.42);
+  --nb-on-marker: #14213D;
+
+  /* status */
+  --nb-ok: #1E6B55;
+  --nb-ok-wash: #D3EADF;
+  --nb-warn: #7A5200;
+  --nb-warn-wash: #F2DFA8;
+  --nb-danger: #8E1B30;
+  --nb-danger-wash: #F4D9DD;
+
+  /* overlays */
+  --nb-scrim: rgba(20, 33, 61, 0.48);
+  --nb-select: rgba(20, 33, 61, 0.18);
+  --nb-hatch: rgba(20, 33, 61, 0.09);
+
+  /* radius by role */
+  --nb-r-mark: 3px;
+  --nb-r-control: 6px;
+  --nb-r-tab: 10px;
+  --nb-r-sheet: 12px;
+
+  /* elevation */
+  --nb-shadow-1: 0 1px 0 rgba(20, 33, 61, 0.10), 0 8px 20px -10px rgba(20, 33, 61, 0.32);
+  --nb-shadow-2: 0 1px 0 rgba(20, 33, 61, 0.12), 0 24px 48px -16px rgba(20, 33, 61, 0.40);
+
+  /* typography */
+  --nb-font-ui: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --nb-font-read: "Literata", "Iowan Old Style", Georgia, serif;
+  --nb-font-code: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Consolas, monospace;
+
+  /* animation */
+  --nb-dur-fast: 120ms;
+  --nb-dur-base: 200ms;
+  --nb-dur-swipe: 420ms;
+  --nb-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+:root[data-theme="dark"],
+.dark {
+  color-scheme: dark;
+
+  /* surfaces */
+  --nb-ground: #0E1526;
+  --nb-sheet: #182238;
+  --nb-well: #141D33;
+  --nb-edge: #2C3957;
+
+  /* ink */
+  --nb-ink: #E4E9F2;
+  --nb-ink-2: #A9B4CA;
+  --nb-ink-3: #7F8BA6;
+  --nb-ink-inv: #0E1526;
+
+  /* marker: sourced content only */
+  --nb-marker: #FF6FB5;
+  --nb-marker-text: #FFA8D2;
+  --nb-marker-wash: #FF9CCD;
+  --nb-marker-swipe: rgba(255, 92, 173, 0.34);
+  --nb-on-marker: #14213D;
+
+  /* status */
+  --nb-ok: #6FCBA8;
+  --nb-ok-wash: #12362B;
+  --nb-warn: #E3B857;
+  --nb-warn-wash: #3A2E0E;
+  --nb-danger: #F0877A;
+  --nb-danger-wash: #3F1A20;
+
+  /* overlays */
+  --nb-scrim: rgba(4, 8, 16, 0.64);
+  --nb-select: rgba(228, 233, 242, 0.22);
+  --nb-hatch: rgba(228, 233, 242, 0.10);
+
+  /* elevation */
+  --nb-shadow-1: 0 1px 0 rgba(0, 0, 0, 0.2), 0 8px 20px -10px rgba(0, 0, 0, 0.4);
+  --nb-shadow-2: 0 1px 0 rgba(0, 0, 0, 0.3), 0 24px 48px -16px rgba(0, 0, 0, 0.6);
+}

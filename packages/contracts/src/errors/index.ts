@@ -8,5 +8,8 @@ export {
   UnauthorizedError,
   NotFoundError,
   ValidationError,
+  PayloadTooLargeError,
+  InvalidContentTypeError,
+  DuplicateSourceError,
   type SerializedNotebookError,
 } from "./notebook-error.js";

@@ -18,7 +18,7 @@ Before declaring any task complete, verify with the relevant gates:
 ## 2. Core Architectural Invariants (Grilled & Enforced)
 - **Topology (ADR 0001)**: Decoupled client-daemon. Fastify (`apps/server`) is the sole execution entrypoint and production composition root serving REST, SSE, and static SPA export (`apps/web/out`). Next.js standalone server mode is banned.
 - **Realtime Transport**: Strict HTTP REST + Server-Sent Events (SSE) via `@notebook/contracts`. WebSockets are banned. Large uploads stream direct-to-disk (`.notebook/uploads/`).
-- **State Taxonomy (ADR 0004)**: Persistent data lives strictly in `.notebook/` (`db/`, `uploads/`, `artifacts/`, `vault/`); disposable data strictly in `.tmp/` (`cache/`, `run/`, `logs/`). Root dot-folders and root state dirs are banned.
+- **State Taxonomy (ADR 0004)**: Persistent data lives strictly in `.notebook/` (`db/`, `uploads/`, `artifacts/`, `vault/`); disposable data strictly in `.tmp/` (`cache/`, `ports/`, `pids/`, `logs/`). Root dot-folders and root state dirs are banned.
 - **Dual-Dialect Storage**: Drizzle ORM in `packages/infra-db` (SQLite WAL in dev, PostgreSQL in prod). `packages/infra-vectorstore` (`sqlite-vec` in dev, `pgvector` in prod). Domains connect solely via interfaces.
 - **Python Worker (ADR 0003)**: `tools/doc-tools` managed via Astral `uv sync`. Bounded process pool communicating via line-delimited stdio JSON-RPC IPC. Pure MIT/Apache-2.0 only (`pdfplumber`, `pypdf`, `python-docx`, `python-pptx`). PyMuPDF (`fitz`) is strictly banned.
 - **Living Media & Surgical Editing**: Artifact AST nodes have immutable UUIDs. Surgical updates modify target blocks only and MUST enforce bit-for-bit sibling invariance via RFC 8785 JCS SHA-256 canonical digests.
