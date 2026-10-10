@@ -121,4 +121,29 @@ describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {
     // Sending request after stopped should throw
     await expect(pool.ping()).rejects.toThrow();
   });
+
+  it("executes preflightPdf and extractPdf over the pool", async () => {
+    const projectDir = resolve("tools/doc-tools");
+    pool = new DocWorkerPool({
+      projectDir,
+      minWorkers: 1,
+      maxWorkers: 1,
+    });
+    await pool.start();
+
+    const { writeFileSync, mkdirSync } = await import("node:fs");
+    const testPdfPath = resolve(".tmp/cache/test_pool.pdf");
+    mkdirSync(resolve(".tmp/cache"), { recursive: true });
+    const content = "BT /F1 14 Tf 50 700 Td (Notebench pool test) Tj ET";
+    const pdfData = `%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj\n4 0 obj << /Length ${content.length} >>\nstream\n${content}\nendstream\nendobj\n5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000244 00000 n \n0000000340 00000 n \ntrailer << /Size 6 /Root 1 0 R >>\nstartxref\n415\n%%EOF\n`;
+    writeFileSync(testPdfPath, pdfData, "latin1");
+
+    const preflight = await pool.preflightPdf(testPdfPath);
+    expect(preflight.pageCount).toBe(1);
+
+    const extracted = await pool.extractPdf(testPdfPath);
+    expect(extracted.pageCount).toBe(1);
+    expect(extracted.pages).toHaveLength(1);
+  });
 });
+

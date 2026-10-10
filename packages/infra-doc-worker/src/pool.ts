@@ -5,6 +5,11 @@ import { createLogger, type Logger } from "@notebook/logger";
 import {
   type DocWorkerPingResult,
   type DocWorkerInfoResult,
+  type PdfExtractorPort,
+  type PdfPreflightResult,
+  PdfPreflightResultSchema,
+  type PdfExtractResult,
+  PdfExtractResultSchema,
   ParserFailedError,
 } from "@notebook/contracts";
 import { DocWorkerProcess } from "./worker-process.js";
@@ -30,7 +35,7 @@ export interface WorkerExitInfo {
   unexpected: boolean;
 }
 
-export class DocWorkerPool {
+export class DocWorkerPool implements PdfExtractorPort {
   private readonly projectDir: string;
   private readonly minWorkers: number;
   private readonly maxWorkers: number;
@@ -116,6 +121,24 @@ export class DocWorkerPool {
   public async getWorkerInfo(): Promise<DocWorkerInfoResult> {
     return this.send<DocWorkerInfoResult>("get_worker_info");
   }
+
+  public async preflightPdf(filePath: string): Promise<PdfPreflightResult> {
+    const raw = await this.send<unknown>("pdf_preflight", { filePath });
+    return PdfPreflightResultSchema.parse(raw);
+  }
+
+  public async extractPdf(
+    filePath: string,
+    options?: { maxPages?: number | undefined }
+  ): Promise<PdfExtractResult> {
+    const params: { filePath: string; maxPages?: number } = { filePath };
+    if (options?.maxPages !== undefined) {
+      params.maxPages = options.maxPages;
+    }
+    const raw = await this.send<unknown>("pdf_extract", params);
+    return PdfExtractResultSchema.parse(raw);
+  }
+
 
   public stats(): DocWorkerPoolStats {
     const active = this.workers.filter((w) => w.alive);

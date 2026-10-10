@@ -10,6 +10,9 @@ import sys
 import time
 from typing import Any, Dict, Optional
 
+from doc_tools.pdf import extract_pdf, preflight_pdf
+
+
 JSON_RPC_VERSION = "2.0"
 
 # Standard JSON-RPC error codes
@@ -63,10 +66,29 @@ def handle_get_worker_info(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def handle_pdf_preflight(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+
+    if not params or not params.get("filePath"):
+        raise ValueError("Missing 'filePath' in params")
+    return preflight_pdf(params["filePath"])
+
+
+def handle_pdf_extract(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not params or not params.get("filePath"):
+        raise ValueError("Missing 'filePath' in params")
+    max_pages = params.get("maxPages")
+    if max_pages is not None:
+        max_pages = int(max_pages)
+    return extract_pdf(params["filePath"], max_pages=max_pages)
+
+
 HANDLERS = {
     "ping": handle_ping,
     "get_worker_info": handle_get_worker_info,
+    "pdf_preflight": handle_pdf_preflight,
+    "pdf_extract": handle_pdf_extract,
 }
+
 
 
 def dispatch_request(req: Dict[str, Any]) -> Dict[str, Any]:
