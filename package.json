@@ -1,0 +1,55 @@
+{
+  "name": "notebench",
+  "version": "0.1.0",
+  "description": "Open-source, web-first Google NotebookLM alternative with living editable media and surgical AI editing.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/harzhtiwari/Notebench.git"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.8.1",
+  "scripts": {
+    "dev": "tsx scripts/dev.ts",
+    "build": "turbo run build --cache-dir=.tmp/cache/turbo",
+    "typecheck": "turbo run typecheck --cache-dir=.tmp/cache/turbo",
+    "lint": "turbo run lint --cache-dir=.tmp/cache/turbo",
+    "lint:licenses": "license-checker-rseidelsohn --production --excludePrivatePackages --onlyAllow 'MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD'",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "tsx scripts/e2e.ts",
+    "test:mutation": "stryker run",
+    "guard": "tsx scripts/guard.ts",
+    "doctor": "tsx scripts/doctor.ts",
+    "check:env": "tsx scripts/doctor.ts",
+    "knip": "knip",
+    "backup": "tsx scripts/backup.ts",
+    "restore": "tsx scripts/restore.ts",
+    "clean": "turbo run clean",
+    "postinstall": "node -e \"if (require('fs').existsSync('tools/doc-tools')) require('child_process').execSync('uv sync --project tools/doc-tools', {stdio: 'inherit'})\""
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.12",
+    "@playwright/test": "^1.50.1",
+    "@stryker-mutator/core": "^8.7.1",
+    "@stryker-mutator/vitest-runner": "^8.7.1",
+    "@total-typescript/ts-reset": "^0.6.1",
+    "@types/node": "^22.13.1",
+    "@vitest/coverage-v8": "^5.0.3",
+    "dotenv": "^16.4.7",
+    "get-port": "^7.1.0",
+    "knip": "^5.43.6",
+    "lefthook": "^1.10.10",
+    "license-checker-rseidelsohn": "^4.4.2",
+    "tsdown": "^0.23.0",
+    "tsx": "^4.19.2",
+    "turbo": "^2.4.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

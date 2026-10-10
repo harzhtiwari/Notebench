@@ -1,0 +1,17 @@
+# Caddyfile — Reverse Proxy with automatic HTTPS for Notebench
+# Replace your-domain.com with your actual public domain name.
+
+{$NOTEBENCH_DOMAIN:localhost} {
+    encode gzip zstd
+
+    # Route all requests to Fastify backend on dynamic port
+    reverse_proxy 127.0.0.1:{$PORT:-3000} {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+
+        # Support Server-Sent Events (SSE) streaming without buffering
+        flush_interval -1
+    }
+}

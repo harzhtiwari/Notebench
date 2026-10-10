@@ -1,0 +1,14 @@
+pre-commit:
+  parallel: false
+  commands:
+    guard:
+      run: pnpm guard
+    typecheck:
+      run: pnpm typecheck
+    lint:
+      run: pnpm lint
+
+commit-msg:
+  commands:
+    dco:
+      run: node scripts/check-dco.js {1}

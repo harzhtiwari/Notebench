@@ -1,0 +1,22 @@
+services:
+  notebench:
+    build:
+      context: ../..
+      dockerfile: deploy/production/Dockerfile
+    image: ghcr.io/notebench/notebench:latest
+    restart: always
+    ports:
+      - "${HOST:-127.0.0.1}:${PORT:-3000}:${CONTAINER_PORT:-3000}"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: ${CONTAINER_PORT:-3000}
+      DATABASE_URL: file:/app/.notebook/state/app.sqlite
+      NOTEBENCH_DATA_DIR: /app/.notebook
+      DO_NOT_TRACK: 1
+      NOTEBENCH_TELEMETRY_DISABLED: 1
+    volumes:
+      - notebench-data:/app/.notebook
+
+volumes:
+  notebench-data:
