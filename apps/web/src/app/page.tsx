@@ -1,15 +1,31 @@
-import React from "react";
+"use client";
+
+import React, { useState } from "react";
 import { WorkspaceShell } from "../components/workspace-shell";
 import { Well, WellTitle, WellDescription, Button, Input } from "@notebook/ui";
+import { SettingsDialog } from "../components/settings";
 
 export default function HomePage() {
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   const sourcesContent = (
     <div className="flex flex-col gap-2">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs text-[var(--nb-ink-2)]">2 sources in context</span>
-        <Button variant="outline" size="sm" className="h-7 text-xs">
-          + Add sources
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsSettingsOpen(true)}
+            aria-label="Settings"
+            className="h-7 px-2 text-xs"
+          >
+            Settings
+          </Button>
+          <Button variant="outline" size="sm" className="h-7 text-xs">
+            + Add sources
+          </Button>
+        </div>
       </div>
       <Well className="p-3">
         <div className="flex items-start justify-between">
@@ -127,11 +143,14 @@ export default function HomePage() {
   );
 
   return (
-    <WorkspaceShell
-      sourcesSlot={sourcesContent}
-      centerSlot={centerContent}
-      composerSlot={composerContent}
-      studioSlot={studioContent}
-    />
+    <>
+      <WorkspaceShell
+        sourcesSlot={sourcesContent}
+        centerSlot={centerContent}
+        composerSlot={composerContent}
+        studioSlot={studioContent}
+      />
+      <SettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
+    </>
   );
 }

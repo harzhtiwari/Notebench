@@ -14,3 +14,6 @@ export * from "./entities/index.js";
 
 // Common DTOs
 export * from "./common/pagination.js";
+
+// Declarative Settings Registry
+export * from "./settings/index.js";

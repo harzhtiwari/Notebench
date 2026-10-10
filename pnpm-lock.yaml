@@ -257,6 +257,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@notebook/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@notebook/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -326,6 +329,28 @@ importers:
       '@types/node':
         specifier: ^22.13.1
         version: 22.20.5
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.5
+        version: 3.2.7(@types/node@22.20.5)(happy-dom@17.6.3)(jiti@2.7.0)(supports-color@7.2.0)(tsx@4.23.15)(yaml@2.9.1)
+
+  packages/domain-account:
+    dependencies:
+      '@notebook/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+    devDependencies:
+      '@notebook/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: ^22.13.1
+        version: 22.20.5
+      tsdown:
+        specifier: ^0.23.0
+        version: 0.23.0(oxc-resolver@11.24.2)(tsx@4.23.15)(typescript@5.9.3)
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
