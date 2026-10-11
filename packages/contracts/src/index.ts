@@ -24,3 +24,6 @@ export * from "./ipc/index.js";
 // Hybrid Retrieval & Vector Store Contracts
 export * from "./retrieval/index.js";
 
+// Health Probes & Doctor Contracts
+export * from "./health/index.js";
+
