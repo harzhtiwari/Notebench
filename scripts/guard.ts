@@ -66,6 +66,7 @@ const allowedDotFolders = new Set([
   ".notebook",
   ".tmp",
   ".scratch",
+  ".claude",
 ]);
 const rootEntries = readdirSync(ROOT, { withFileTypes: true });
 for (const entry of rootEntries) {
