@@ -15,7 +15,8 @@ _model_instance: Optional[TextEmbedding] = None
 
 def _resolve_cache_dir() -> str:
     os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
-    os.environ["HF_HUB_OFFLINE"] = "1"
+    if os.environ.get("NOTEBENCH_OFFLINE") == "1":
+        os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     # Walk up from tools/doc-tools/src/doc_tools to repo root

@@ -65,19 +65,23 @@ export type JsonRpcErrorResponse = z.infer<typeof JsonRpcErrorResponseSchema>;
 /**
  * JSON-RPC 2.0 Success Response Frame Schema.
  */
-export const JsonRpcSuccessResponseSchema = z.object({
-  jsonrpc: z.literal("2.0"),
-  id: z.union([z.string(), z.number()]),
-  result: z.unknown(),
-});
+export const JsonRpcSuccessResponseSchema = z
+  .object({
+    jsonrpc: z.literal("2.0"),
+    id: z.union([z.string(), z.number()]),
+    result: z.unknown(),
+  })
+  .refine((val) => "result" in val, {
+    message: "JSON-RPC success response must have 'result' property",
+  });
 export type JsonRpcSuccessResponse = z.infer<typeof JsonRpcSuccessResponseSchema>;
 
 /**
  * JSON-RPC 2.0 Response Frame Union (Success or Error).
  */
 export const JsonRpcResponseSchema = z.union([
-  JsonRpcSuccessResponseSchema,
   JsonRpcErrorResponseSchema,
+  JsonRpcSuccessResponseSchema,
 ]);
 export type JsonRpcResponse = z.infer<typeof JsonRpcResponseSchema>;
 

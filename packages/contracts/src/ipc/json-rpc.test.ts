@@ -119,4 +119,28 @@ describe("JSON-RPC 2.0 Contracts & Doc-Worker IPC Schemas", () => {
       },
     });
   });
+
+  it("ensures error responses are parsed as error and not misparsed as success", () => {
+    const errorPayload = {
+      jsonrpc: "2.0",
+      id: 1,
+      error: {
+        code: -32603,
+        message: "Worker error",
+      },
+    };
+
+    const parsed = JsonRpcResponseSchema.safeParse(errorPayload);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect("error" in parsed.data).toBe(true);
+      expect("result" in parsed.data).toBe(false);
+    }
+
+    const missingResult = {
+      jsonrpc: "2.0",
+      id: 1,
+    };
+    expect(JsonRpcSuccessResponseSchema.safeParse(missingResult).success).toBe(false);
+  });
 });
