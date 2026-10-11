@@ -4,22 +4,42 @@ import fastifyStatic from "@fastify/static";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { createLogger, type Logger } from "@notebook/logger";
-import type { NotebookErrorCode, DocWorkerProbe } from "@notebook/contracts";
+import type { NotebookErrorCode, DocWorkerProbe, NotebookRepositoryPort } from "@notebook/contracts";
+import {
+  createSqliteDatabase,
+  SqliteNotebookRepository,
+  initializeSqliteSchema,
+  type SqliteDatabaseInstance,
+} from "@notebook/infra-db";
+import { NotebookService } from "@notebook/domain-notebooks";
+import { notebooksRoutes } from "./routes/notebooks.js";
 
 export interface BuildServerOptions extends FastifyServerOptions {
   staticDir?: string | undefined;
   customLogger?: Logger | undefined;
   docWorkerPool?: DocWorkerProbe | undefined;
+  db?: SqliteDatabaseInstance | undefined;
+  notebookRepo?: NotebookRepositoryPort | undefined;
+  notebookService?: NotebookService | undefined;
+  defaultUserId?: string | undefined;
 }
-
-
 
 /**
  * Builds and configures the Notebench Fastify composition root.
  */
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
-  const { staticDir, customLogger, docWorkerPool, ...fastifyOptions } = options;
+  const {
+    staticDir,
+    customLogger,
+    docWorkerPool,
+    db,
+    notebookRepo: customRepo,
+    notebookService: customService,
+    defaultUserId: customUserId,
+    ...fastifyOptions
+  } = options;
 
+  const defaultUserId = customUserId ?? "11111111-1111-4111-8111-111111111111";
   const appLogger = customLogger ?? createLogger({ name: "server", level: "info" });
 
   const app = fastify({
@@ -72,6 +92,29 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     };
   });
 
+  // Notebooks Domain & Routes
+  let notebookRepo = customRepo;
+  let notebookService = customService;
+
+  if (!notebookService && !notebookRepo) {
+    const dbInstance = db ?? createSqliteDatabase();
+    initializeSqliteSchema(dbInstance.sqlite);
+    const now = new Date().toISOString();
+    dbInstance.sqlite.exec(`
+      INSERT OR IGNORE INTO users (id, email, display_name, role, created_at, updated_at)
+      VALUES ('${defaultUserId}', 'owner@notebench.local', 'Owner', 'owner', '${now}', '${now}');
+    `);
+    notebookRepo = new SqliteNotebookRepository(dbInstance.db, dbInstance.sqlite);
+    notebookService = new NotebookService(notebookRepo);
+  } else if (!notebookService && notebookRepo) {
+    notebookService = new NotebookService(notebookRepo);
+  }
+
+  await app.register(notebooksRoutes, {
+    notebookService,
+    notebookRepo,
+    defaultUserId,
+  });
 
   // Static SPA assets & HTML5 history fallback
   const resolvedStaticDir = staticDir ?? resolve(process.cwd(), "apps/web/out");
