@@ -98,3 +98,9 @@ export class DuplicateSourceError extends NotebookError {
   readonly code = "DUPLICATE_SOURCE" as const;
   readonly statusCode = 409 as const;
 }
+
+export class SetupAlreadyCompletedError extends NotebookError {
+  readonly code = "SETUP_ALREADY_COMPLETED" as const;
+  readonly statusCode = 409 as const;
+}
+

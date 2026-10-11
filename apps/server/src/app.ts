@@ -5,11 +5,21 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { createLogger, type Logger } from "@notebook/logger";
 import type { NotebookErrorCode, DocWorkerProbe } from "@notebook/contracts";
+import { OwnerSetupService, Argon2PasscodeHasher } from "@notebook/domain-account";
+import {
+  createSqliteDatabase,
+  SqliteAccountRepository,
+  type SqliteDatabaseInstance,
+} from "@notebook/infra-db";
+import { setupRoutes } from "./routes/setup.js";
 
 export interface BuildServerOptions extends FastifyServerOptions {
   staticDir?: string | undefined;
   customLogger?: Logger | undefined;
   docWorkerPool?: DocWorkerProbe | undefined;
+  ownerSetupService?: OwnerSetupService | undefined;
+  dbPath?: string | undefined;
+  sqliteInstance?: SqliteDatabaseInstance | undefined;
 }
 
 
@@ -74,6 +84,20 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     };
   });
 
+  // Owner setup and application access state routes
+  let setupService = options.ownerSetupService;
+  if (!setupService) {
+    const sqliteInstance = options.sqliteInstance ?? createSqliteDatabase({
+      dbPath: options.dbPath,
+    });
+    const repo = new SqliteAccountRepository(sqliteInstance.db, sqliteInstance.sqlite);
+    const hasher = new Argon2PasscodeHasher();
+    setupService = new OwnerSetupService({ repository: repo, hasher });
+  }
+
+  await app.register(setupRoutes, {
+    ownerSetupService: setupService,
+  });
   // Static SPA assets & HTML5 history fallback
   const resolvedStaticDir = staticDir ?? resolve(process.cwd(), "apps/web/out");
   const hasStaticDir = existsSync(resolvedStaticDir);

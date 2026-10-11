@@ -11,5 +11,6 @@ export {
   PayloadTooLargeError,
   InvalidContentTypeError,
   DuplicateSourceError,
+  SetupAlreadyCompletedError,
   type SerializedNotebookError,
 } from "./notebook-error.js";
