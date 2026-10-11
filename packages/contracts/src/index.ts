@@ -4,10 +4,8 @@ export * from "./errors/index.js";
 // Realtime Streaming & SSE Unions
 export * from "./streaming/sse.js";
 
-// Abstract Syntax Trees (ASTs)
-export * from "./ast/deck.js";
-export * from "./ast/document.js";
-export * from "./ast/audio-script.js";
+// Abstract Syntax Trees (ASTs) & Invariance
+export * from "./ast/index.js";
 
 // Core Domain Entities
 export * from "./entities/index.js";
@@ -23,4 +21,3 @@ export * from "./ipc/index.js";
 
 // Hybrid Retrieval & Vector Store Contracts
 export * from "./retrieval/index.js";
-
