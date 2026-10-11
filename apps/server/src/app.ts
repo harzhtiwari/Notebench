@@ -4,14 +4,18 @@ import fastifyStatic from "@fastify/static";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { createLogger, type Logger } from "@notebook/logger";
-import type { NotebookErrorCode, DocWorkerProbe } from "@notebook/contracts";
+import type { NotebookErrorCode, DocWorkerProbe, NotebookRepositoryPort } from "@notebook/contracts";
 import { OwnerSetupService, Argon2PasscodeHasher } from "@notebook/domain-account";
+import { NotebookService } from "@notebook/domain-notebooks";
 import {
   createSqliteDatabase,
   SqliteAccountRepository,
+  SqliteNotebookRepository,
+  initializeSqliteSchema,
   type SqliteDatabaseInstance,
 } from "@notebook/infra-db";
 import { setupRoutes } from "./routes/setup.js";
+import { notebooksRoutes } from "./routes/notebooks.js";
 
 export interface BuildServerOptions extends FastifyServerOptions {
   staticDir?: string | undefined;
@@ -19,17 +23,32 @@ export interface BuildServerOptions extends FastifyServerOptions {
   docWorkerPool?: DocWorkerProbe | undefined;
   ownerSetupService?: OwnerSetupService | undefined;
   dbPath?: string | undefined;
+  /** Alias for sqliteInstance, accepted for test ergonomics */
+  db?: SqliteDatabaseInstance | undefined;
   sqliteInstance?: SqliteDatabaseInstance | undefined;
+  notebookRepo?: NotebookRepositoryPort | undefined;
+  notebookService?: NotebookService | undefined;
+  defaultUserId?: string | undefined;
 }
-
-
 
 /**
  * Builds and configures the Notebench Fastify composition root.
  */
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
-  const { staticDir, customLogger, docWorkerPool, ...fastifyOptions } = options;
+  const {
+    staticDir,
+    customLogger,
+    docWorkerPool,
+    notebookRepo: customNotebookRepo,
+    notebookService: customNotebookService,
+    defaultUserId: customUserId,
+    ...fastifyOptions
+  } = options;
 
+  // Support `db` as an ergonomic alias for `sqliteInstance` (used in tests)
+  const resolvedSqliteInstance = options.sqliteInstance ?? options.db;
+
+  const defaultUserId = customUserId ?? "11111111-1111-4111-8111-111111111111";
   const appLogger = customLogger ?? createLogger({ name: "server", level: "info" });
 
   const app = fastify({
@@ -84,10 +103,10 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     };
   });
 
-  // Owner setup and application access state routes
+  // Owner setup and application access state routes (Ticket 01)
   let setupService = options.ownerSetupService;
   if (!setupService) {
-    const sqliteInstance = options.sqliteInstance ?? createSqliteDatabase({
+    const sqliteInstance = resolvedSqliteInstance ?? createSqliteDatabase({
       dbPath: options.dbPath,
     });
     const repo = new SqliteAccountRepository(sqliteInstance.db, sqliteInstance.sqlite);
@@ -98,6 +117,31 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await app.register(setupRoutes, {
     ownerSetupService: setupService,
   });
+
+  // Notebooks domain routes (Ticket 05)
+  let notebookRepo = customNotebookRepo;
+  let notebookService = customNotebookService;
+
+  if (!notebookService && !notebookRepo) {
+    const dbInstance = resolvedSqliteInstance ?? createSqliteDatabase({ dbPath: options.dbPath });
+    initializeSqliteSchema(dbInstance.sqlite);
+    const now = new Date().toISOString();
+    dbInstance.sqlite.exec(`
+      INSERT OR IGNORE INTO users (id, email, display_name, role, created_at, updated_at)
+      VALUES ('${defaultUserId}', 'owner@notebench.local', 'Owner', 'owner', '${now}', '${now}');
+    `);
+    notebookRepo = new SqliteNotebookRepository(dbInstance.db, dbInstance.sqlite);
+    notebookService = new NotebookService(notebookRepo);
+  } else if (!notebookService && notebookRepo) {
+    notebookService = new NotebookService(notebookRepo);
+  }
+
+  await app.register(notebooksRoutes, {
+    notebookService,
+    notebookRepo,
+    defaultUserId,
+  });
+
   // Static SPA assets & HTML5 history fallback
   const resolvedStaticDir = staticDir ?? resolve(process.cwd(), "apps/web/out");
   const hasStaticDir = existsSync(resolvedStaticDir);

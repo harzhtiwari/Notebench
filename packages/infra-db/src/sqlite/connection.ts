@@ -59,7 +59,12 @@ export interface SqliteDatabaseInstance {
 export function createSqliteDatabase(
   config: SqliteDatabaseConfig = {}
 ): SqliteDatabaseInstance {
-  const dbPath = config.dbPath ? resolve(config.dbPath) : DEFAULT_SQLITE_DB_PATH;
+  const dbPath =
+    config.dbPath === ":memory:"
+      ? ":memory:"
+      : config.dbPath
+        ? resolve(config.dbPath)
+        : DEFAULT_SQLITE_DB_PATH;
 
   let sqlite: Database.Database;
 

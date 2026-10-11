@@ -11,6 +11,9 @@ import {
   UserSchema,
   SessionSchema,
   DeletionJobSchema,
+  NotebookSummarySchema,
+  DuplicateNotebookInputSchema,
+  DashboardMetricsSchema,
 } from "./index.js";
 
 describe("Core Entity Schemas (@notebook/contracts)", () => {
@@ -51,6 +54,84 @@ describe("Core Entity Schemas (@notebook/contracts)", () => {
           updatedAt: now,
         })
       ).toThrow();
+    });
+  });
+
+  describe("NotebookSummarySchema", () => {
+    it("parses valid notebook summary with aggregates", () => {
+      const summary = {
+        id: notebookId,
+        userId,
+        title: "Deep Learning Research",
+        trashedAt: null,
+        createdAt: now,
+        updatedAt: now,
+        sourcesCount: 3,
+        artifactsCount: 2,
+        storageBytes: 1048576,
+        sourceFileNames: ["paper.pdf", "notes.md", "data.csv"],
+      };
+
+      const parsed = NotebookSummarySchema.parse(summary);
+      expect(parsed.sourcesCount).toBe(3);
+      expect(parsed.artifactsCount).toBe(2);
+      expect(parsed.storageBytes).toBe(1048576);
+      expect(parsed.sourceFileNames).toEqual(["paper.pdf", "notes.md", "data.csv"]);
+    });
+
+    it("applies defaults for counts and filenames", () => {
+      const summary = {
+        id: notebookId,
+        userId,
+        title: "Simple Notebook",
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const parsed = NotebookSummarySchema.parse(summary);
+      expect(parsed.sourcesCount).toBe(0);
+      expect(parsed.artifactsCount).toBe(0);
+      expect(parsed.storageBytes).toBe(0);
+      expect(parsed.sourceFileNames).toEqual([]);
+    });
+  });
+
+  describe("DuplicateNotebookInputSchema", () => {
+    it("applies canonical defaults for duplicate scope", () => {
+      const parsed = DuplicateNotebookInputSchema.parse({});
+      expect(parsed.duplicateSources).toBe(true);
+      expect(parsed.duplicateArtifacts).toBe(true);
+      expect(parsed.includeChatHistory).toBe(false);
+      expect(parsed.title).toBeUndefined();
+    });
+
+    it("parses custom duplicate title and flags", () => {
+      const parsed = DuplicateNotebookInputSchema.parse({
+        title: "Forked Notebook",
+        duplicateSources: true,
+        duplicateArtifacts: false,
+        includeChatHistory: false,
+      });
+      expect(parsed.title).toBe("Forked Notebook");
+      expect(parsed.duplicateArtifacts).toBe(false);
+    });
+  });
+
+  describe("DashboardMetricsSchema", () => {
+    it("parses valid dashboard metrics and enforces 5.0 GB safe cap default", () => {
+      const metrics = {
+        storageUsedBytes: 42800000,
+        notebookCount: 3,
+        sourceCount: 12,
+        artifactCount: 8,
+      };
+
+      const parsed = DashboardMetricsSchema.parse(metrics);
+      expect(parsed.storageUsedBytes).toBe(42800000);
+      expect(parsed.storageSafeCapBytes).toBe(5 * 1024 * 1024 * 1024);
+      expect(parsed.notebookCount).toBe(3);
+      expect(parsed.sourceCount).toBe(12);
+      expect(parsed.artifactCount).toBe(8);
     });
   });
 
