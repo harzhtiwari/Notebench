@@ -158,3 +158,23 @@ export const memoryRules = pgTable("memory_rules", {
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 });
+
+/**
+ * PostgreSQL Provider keys encrypted credentials storage table.
+ * All records strictly require user_id.
+ */
+export const providerKeys = pgTable("provider_keys", {
+  id: uuid("id").primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  keyId: text("key_id").notNull(),
+  ciphertext: text("ciphertext").notNull(),
+  iv: text("iv").notNull(),
+  tag: text("tag").notNull(),
+  schemaVersion: integer("schema_version").notNull().default(1),
+  maskedKey: text("masked_key").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});

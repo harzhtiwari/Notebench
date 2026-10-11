@@ -14,6 +14,7 @@ describe("Database Schemas & user_id Invariant", () => {
     expect(USER_OWNED_TABLE_NAMES).toContain("sessions");
     expect(USER_OWNED_TABLE_NAMES).toContain("deletionJobs");
     expect(USER_OWNED_TABLE_NAMES).toContain("memoryRules");
+    expect(USER_OWNED_TABLE_NAMES).toContain("providerKeys");
   });
 
   describe("SQLite Schema", () => {
@@ -26,6 +27,7 @@ describe("Database Schemas & user_id Invariant", () => {
       expect(sqliteSchema.sessions).toBeDefined();
       expect(sqliteSchema.deletionJobs).toBeDefined();
       expect(sqliteSchema.memoryRules).toBeDefined();
+      expect(sqliteSchema.providerKeys).toBeDefined();
     });
 
     it("enforces required (NOT NULL) userId on all user-owned SQLite tables", () => {
@@ -48,6 +50,7 @@ describe("Database Schemas & user_id Invariant", () => {
       expect(pgSchema.sessions).toBeDefined();
       expect(pgSchema.deletionJobs).toBeDefined();
       expect(pgSchema.memoryRules).toBeDefined();
+      expect(pgSchema.providerKeys).toBeDefined();
     });
 
     it("enforces required (NOT NULL) userId on all user-owned PostgreSQL tables", () => {
