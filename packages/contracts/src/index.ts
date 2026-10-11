@@ -24,3 +24,6 @@ export * from "./ipc/index.js";
 // Hybrid Retrieval & Vector Store Contracts
 export * from "./retrieval/index.js";
 
+// Account & Auth Ports & DTOs
+export * from "./account/index.js";
+

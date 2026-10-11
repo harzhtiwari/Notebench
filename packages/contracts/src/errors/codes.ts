@@ -11,6 +11,7 @@ export const NotebookErrorCodeSchema = z.enum([
   "PAYLOAD_TOO_LARGE",
   "INVALID_CONTENT_TYPE",
   "DUPLICATE_SOURCE",
+  "SETUP_ALREADY_COMPLETED",
 ]);
 
 export type NotebookErrorCode = z.infer<typeof NotebookErrorCodeSchema>;
