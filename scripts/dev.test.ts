@@ -12,6 +12,7 @@ import {
   cleanDevRunState,
   killProcessTree,
   stripAnsi,
+  setupServiceLog,
   startDev,
 } from "./dev.js";
 
@@ -37,15 +38,16 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
     });
 
     it("skips occupied ports and picks the next available open port", async () => {
+      const basePort = await findAvailablePort(18000, "127.0.0.1");
       const busyServer = net.createServer();
       await new Promise<void>((resolve, reject) => {
         busyServer.once("error", reject);
-        busyServer.listen(3000, "127.0.0.1", () => resolve());
+        busyServer.listen(basePort, "127.0.0.1", () => resolve());
       });
 
       try {
-        const port = await findAvailablePort(3000, "127.0.0.1");
-        expect(port).toBeGreaterThan(3000);
+        const port = await findAvailablePort(basePort, "127.0.0.1");
+        expect(port).toBeGreaterThan(basePort);
       } finally {
         await new Promise<void>((resolve) => busyServer.close(() => resolve()));
       }
@@ -88,6 +90,9 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
         join(TEST_DIR, ".notebook", "vault"),
         join(TEST_DIR, ".tmp", "cache"),
         join(TEST_DIR, ".tmp", "logs"),
+        join(TEST_DIR, ".tmp", "logs", "dev"),
+        join(TEST_DIR, ".tmp", "logs", "server"),
+        join(TEST_DIR, ".tmp", "logs", "web"),
         join(TEST_DIR, ".tmp", "reports"),
         join(TEST_DIR, ".tmp", "scratch"),
         join(TEST_DIR, ".tmp", "ports"),
@@ -170,6 +175,26 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
     });
   });
 
+  describe("setupServiceLog Helper", () => {
+    it("initializes latest.log and rotates previous runs to previous.log", () => {
+      const logsDir = join(TEST_DIR, ".tmp", "logs");
+      const logFile = setupServiceLog(logsDir, "test-svc");
+
+      expect(logFile).toBe(join(logsDir, "test-svc", "latest.log"));
+      expect(existsSync(logFile)).toBe(true);
+
+      // Write mock content
+      writeFileSync(logFile, "session 1 logs\n", "utf-8");
+
+      // Setup again to simulate next dev start
+      const nextLogFile = setupServiceLog(logsDir, "test-svc");
+      expect(nextLogFile).toBe(logFile);
+      expect(existsSync(join(logsDir, "test-svc", "previous.log"))).toBe(true);
+      expect(readFileSync(join(logsDir, "test-svc", "previous.log"), "utf-8")).toBe("session 1 logs\n");
+      expect(readFileSync(logFile, "utf-8")).toBe("");
+    });
+  });
+
   describe("startDev Orchestrator Lifecycle", () => {
     class MockProcess extends EventEmitter {
       public readonly pid: number;
@@ -188,7 +213,7 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
       }
     }
 
-    it("spawns server and web processes and writes runtime state and logs", async () => {
+    it("spawns server and web processes and writes runtime state and isolated service logs", async () => {
       const spawned: Array<{ cmd: string; args: string[]; env: NodeJS.ProcessEnv | undefined }> = [];
       const processes: MockProcess[] = [];
 
@@ -219,24 +244,38 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
       expect(existsSync(join(pidsDir, "server.pid"))).toBe(true);
       expect(existsSync(join(TEST_DIR, ".tmp", "run"))).toBe(false);
 
-      // Verify .tmp/logs/dev.log was created and contains orchestrator initialization
+      // Verify isolated service log files were created
       const logsDir = join(TEST_DIR, ".tmp", "logs");
-      expect(existsSync(join(logsDir, "dev.log"))).toBe(true);
-      const logContent = readFileSync(join(logsDir, "dev.log"), "utf-8");
-      expect(logContent).toContain("[dev]");
-      expect(logContent).toContain("Initializing Notebench Development Orchestrator");
+      const devLogPath = join(logsDir, "dev", "latest.log");
+      const serverLogPath = join(logsDir, "server", "latest.log");
+      const webLogPath = join(logsDir, "web", "latest.log");
+
+      expect(existsSync(devLogPath)).toBe(true);
+      expect(existsSync(serverLogPath)).toBe(true);
+      expect(existsSync(webLogPath)).toBe(true);
+
+      const devLogContent = readFileSync(devLogPath, "utf-8");
+      expect(devLogContent).toContain("[dev]");
+      expect(devLogContent).toContain("Initializing Notebench Development Orchestrator");
+      expect(devLogContent).not.toContain("\x1b");
 
       // Test process output teeing through stdout events with ANSI escape codes
       processes[0]?.stdout.emit("data", Buffer.from("\x1b[32mServer listening on 3001\x1b[0m\n"));
       processes[1]?.stdout.emit("data", Buffer.from("\x1b[1m\x1b[32mReady in 2s\x1b[39m\x1b[22m\n"));
 
-      const updatedLog = readFileSync(join(logsDir, "dev.log"), "utf-8");
-      expect(updatedLog).toContain("[server]");
-      expect(updatedLog).toContain("Server listening on 3001");
-      expect(updatedLog).toContain("[web]");
-      expect(updatedLog).toContain("Ready in 2s");
-      // dev.log must be completely free of raw ANSI control codes
-      expect(updatedLog).not.toContain("\x1b");
+      // server/latest.log contains clean server output without [server] tag or ANSI codes
+      const serverLogContent = readFileSync(serverLogPath, "utf-8");
+      expect(serverLogContent).toContain("Server listening on 3001");
+      expect(serverLogContent).not.toContain("[server]");
+      expect(serverLogContent).not.toContain("Ready in 2s");
+      expect(serverLogContent).not.toContain("\x1b");
+
+      // web/latest.log contains clean web output without [web] tag or ANSI codes
+      const webLogContent = readFileSync(webLogPath, "utf-8");
+      expect(webLogContent).toContain("Ready in 2s");
+      expect(webLogContent).not.toContain("[web]");
+      expect(webLogContent).not.toContain("Server listening on 3001");
+      expect(webLogContent).not.toContain("\x1b");
 
       // Shutdown cleans up files
       result.shutdown();
@@ -272,10 +311,11 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
       expect(existsSync(join(portsDir, "server.port"))).toBe(false);
     });
 
-    it("rotates dev.log to dev.prev.log when a previous session log exists", async () => {
+    it("rotates service latest.log to previous.log when a previous session log exists", async () => {
       const logsDir = join(TEST_DIR, ".tmp", "logs");
-      mkdirSync(logsDir, { recursive: true });
-      writeFileSync(join(logsDir, "dev.log"), "prior run log content\n", "utf-8");
+      const devDir = join(logsDir, "dev");
+      mkdirSync(devDir, { recursive: true });
+      writeFileSync(join(devDir, "latest.log"), "prior run log content\n", "utf-8");
 
       const mockSpawn = (() => {
         const proc = new MockProcess(30000);
@@ -287,9 +327,9 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
         spawnFn: mockSpawn,
       });
 
-      expect(existsSync(join(logsDir, "dev.prev.log"))).toBe(true);
-      expect(readFileSync(join(logsDir, "dev.prev.log"), "utf-8")).toBe("prior run log content\n");
-      expect(existsSync(join(logsDir, "dev.log"))).toBe(true);
+      expect(existsSync(join(devDir, "previous.log"))).toBe(true);
+      expect(readFileSync(join(devDir, "previous.log"), "utf-8")).toBe("prior run log content\n");
+      expect(existsSync(join(devDir, "latest.log"))).toBe(true);
 
       result.shutdown();
     });

@@ -6,12 +6,6 @@ import {
   type BoundingBox,
 } from "./streaming/sse.js";
 import {
-  type DeckASTSchema,
-  type DeckAST,
-  type SlideBlock,
-  type SlideBlockPatch,
-} from "./ast/deck.js";
-import {
   NotebookError,
   InvarianceViolationError,
   type NotebookErrorCode,
@@ -63,21 +57,6 @@ describe("Type-Level Regression Suite: @notebook/contracts", () => {
       expectTypeOf(event.pageNumber).toEqualTypeOf<number>();
       expectTypeOf(event.boundingBox).toEqualTypeOf<BoundingBox>();
     }
-  });
-
-  it("enforces Slide Deck AST block immutability and discriminators", () => {
-    expectTypeOf<z.infer<typeof DeckASTSchema>>().toEqualTypeOf<DeckAST>();
-
-    const block = {} as SlideBlock;
-    if (block.type === "stat_metric") {
-      expectTypeOf(block.value).toEqualTypeOf<string>();
-      expectTypeOf(block.label).toEqualTypeOf<string>();
-      expectTypeOf(block.trend).toEqualTypeOf<"up" | "down" | "neutral" | undefined>();
-    }
-
-    const patch = {} as SlideBlockPatch;
-    expectTypeOf(patch.siblingHashes).toEqualTypeOf<Record<string, string>>();
-    expectTypeOf(patch.expectedPreHash).toBeString();
   });
 
   it("verifies NotebookError inheritance and code exhaustiveness", () => {

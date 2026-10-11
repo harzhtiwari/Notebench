@@ -1,4 +1,15 @@
-/* tokens.css (self-contained, no external imports) */
+/* tokens.css (self-contained, no external imports)
+ *
+ * Single source of design values. Every visual and layout value the UI uses
+ * lives here as a --nb-* custom property. Change a value here, not in components.
+ *
+ * Provisional: font families and the palette are not final. They are kept at
+ * DESIGN_SYSTEM.md values until the user decides otherwise.
+ *
+ * CSS cannot read custom properties inside media queries. Breakpoints are
+ * declared here for documentation and must be mirrored in the TypeScript
+ * constants module (see --nb-bp-* below).
+ */
 :root {
   color-scheme: light;
 
@@ -29,25 +40,81 @@
   --nb-danger: #8E1B30;
   --nb-danger-wash: #F4D9DD;
 
+  /* notebook spines (user-chosen bookcloth, 6px stripe only) */
+  --nb-spine-prussian: #1F4E79;
+  --nb-spine-pine: #1E6B55;
+  --nb-spine-madder: #A63A3A;
+  --nb-spine-ochre: #B5832A;
+  --nb-spine-plum: #6B3A6B;
+  --nb-spine-graphite: #4A5058;
+  --nb-spine-teal: #1E7A7A;
+  --nb-spine-indigo: #3B3F8F;
+
+  /* charts (never pink) */
+  --nb-chart-1: #2F5D8C;
+  --nb-chart-2: #D19A2A;
+  --nb-chart-3: #7A4A86;
+  --nb-chart-4: #2E8B72;
+  --nb-chart-5: #B5473F;
+  --nb-chart-6: #5E6670;
+
   /* overlays */
   --nb-scrim: rgba(20, 33, 61, 0.48);
   --nb-select: rgba(20, 33, 61, 0.18);
   --nb-hatch: rgba(20, 33, 61, 0.09);
 
-  /* radius by role */
+  /* radius by role. Panels and tiles take --nb-r-panel (0 by default). */
   --nb-r-mark: 3px;
   --nb-r-control: 6px;
   --nb-r-tab: 10px;
   --nb-r-sheet: 12px;
+  --nb-r-panel: 0px;
 
   /* elevation */
   --nb-shadow-1: 0 1px 0 rgba(20, 33, 61, 0.10), 0 8px 20px -10px rgba(20, 33, 61, 0.32);
   --nb-shadow-2: 0 1px 0 rgba(20, 33, 61, 0.12), 0 24px 48px -16px rgba(20, 33, 61, 0.40);
 
-  /* typography */
+  /* font families (provisional) */
   --nb-font-ui: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", sans-serif;
   --nb-font-read: "Literata", "Iowan Old Style", Georgia, serif;
   --nb-font-code: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Consolas, monospace;
+
+  /* type scale: size / line-height / weight per style (DESIGN_SYSTEM.md 3.2) */
+  --nb-text-ui-xs-size: 12px;   --nb-text-ui-xs-lh: 16px;   --nb-text-ui-xs-wt: 500;
+  --nb-text-ui-sm-size: 13px;   --nb-text-ui-sm-lh: 18px;   --nb-text-ui-sm-wt: 400;
+  --nb-text-ui-md-size: 14px;   --nb-text-ui-md-lh: 20px;   --nb-text-ui-md-wt: 400;
+  --nb-text-ui-lg-size: 16px;   --nb-text-ui-lg-lh: 24px;   --nb-text-ui-lg-wt: 500;
+  --nb-text-page-title-size: 28px;   --nb-text-page-title-lh: 34px;   --nb-text-page-title-wt: 700;
+  --nb-text-read-md-size: 17px;      --nb-text-read-md-lh: 28px;      --nb-text-read-md-wt: 400;
+  --nb-text-read-lg-size: 19px;      --nb-text-read-lg-lh: 30px;      --nb-text-read-lg-wt: 400;
+  --nb-text-title-notebook-size: 23px; --nb-text-title-notebook-lh: 28px; --nb-text-title-notebook-wt: 600;
+  --nb-text-title-doc-size: 34px;    --nb-text-title-doc-lh: 40px;    --nb-text-title-doc-wt: 600;
+
+  /* layout widths (px). Panel widths are resizable; the value is the default. */
+  --nb-w-sources: 280px;        /* default */
+  --nb-w-sources-min: 220px;
+  --nb-w-sources-max: 420px;
+  --nb-w-studio: 280px;         /* default */
+  --nb-w-studio-min: 220px;
+  --nb-w-studio-max: 420px;
+  --nb-w-inspector: 280px;      /* default; resizable (Q9). Min/max not in DESIGN_SYSTEM.md yet. */
+  --nb-w-inspector-min: 240px;  /* provisional */
+  --nb-w-inspector-max: 440px;  /* provisional */
+  --nb-w-rail: 48px;            /* collapsed Sources / Studio rail */
+  --nb-w-settings-nav: 256px;
+  --nb-w-settings-content: 640px;
+  --nb-w-wb-stage: 980px;       /* workbench editor stage, max */
+  --nb-outer-margin: 14px;
+
+  /* heights and touch targets (px) */
+  --nb-h-wb-header: 54px;
+  --nb-h-control: 32px;         /* default buttons */
+  --nb-h-control-dialog: 36px;  /* buttons in dialogs, inputs */
+  --nb-h-touch: 44px;           /* touch targets on small screens */
+
+  /* breakpoints (px). Mirror in the TS constants module; CSS cannot read these in @media. */
+  --nb-bp-studio-drawer: 1100px; /* below: Studio becomes a drawer */
+  --nb-bp-mobile: 768px;         /* below: bottom nav (Sources / Chat / Studio). Was 720px. */
 
   /* animation */
   --nb-dur-fast: 120ms;
@@ -86,6 +153,14 @@
   --nb-warn-wash: #3A2E0E;
   --nb-danger: #F0877A;
   --nb-danger-wash: #3F1A20;
+
+  /* charts */
+  --nb-chart-1: #6FA3D8;
+  --nb-chart-2: #E3B857;
+  --nb-chart-3: #B98BC6;
+  --nb-chart-4: #5FC4A2;
+  --nb-chart-5: #E07E74;
+  --nb-chart-6: #A3ABB6;
 
   /* overlays */
   --nb-scrim: rgba(4, 8, 16, 0.64);

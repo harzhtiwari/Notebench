@@ -68,7 +68,7 @@ describe("Domain Account: Settings Service (@notebook/domain-account)", () => {
       expect(resolved["preferences.theme"]).toBe("dark");
       expect(resolved["account.name"]).toBe("Custom User");
       // Other defaults remain intact
-      expect(resolved["models.chatModel"]).toBe("gpt-4o");
+      expect(resolved["models.chatModel"]).toBe("");
     });
   });
 

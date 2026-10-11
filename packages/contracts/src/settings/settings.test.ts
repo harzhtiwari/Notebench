@@ -138,10 +138,8 @@ describe("Declarative Settings Registry Contract (@notebook/contracts)", () => {
       expect(ids.has("account.multiUser")).toBe(true);
 
       // Models
-      expect(ids.has("models.openaiKey")).toBe(true);
-      expect(ids.has("models.anthropicKey")).toBe(true);
-      expect(ids.has("models.googleKey")).toBe(true);
-      expect(ids.has("models.ollamaUrl")).toBe(true);
+      expect(ids.has("models.baseUrl")).toBe(true);
+      expect(ids.has("models.apiKey")).toBe(true);
       expect(ids.has("models.chatModel")).toBe(true);
       expect(ids.has("models.embeddingModel")).toBe(true);
       expect(ids.has("models.perTask")).toBe(true);

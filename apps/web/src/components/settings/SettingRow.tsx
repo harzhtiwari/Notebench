@@ -20,21 +20,6 @@ const CUSTOM_SETTING_RENDERERS: Record<string, React.ReactNode> = {
       GPC & DNT Active
     </span>
   ),
-  "health.doctorReport": (
-    <span className="text-zinc-300 font-mono text-[11px]">
-      Daemon status: Normal (v0.1.0, WAL)
-    </span>
-  ),
-  "storage.usageBreakdown": (
-    <span className="text-zinc-300 font-mono text-[11px]">
-      DB: 4.2 MB | Vectors: 1.8 MB
-    </span>
-  ),
-  "memory.viewLearned": (
-    <span className="text-zinc-400 italic text-[11px]">
-      No learned briefing facts
-    </span>
-  ),
 };
 
 export const SettingRow: React.FC<SettingRowProps> = ({
@@ -93,20 +78,22 @@ export const SettingRow: React.FC<SettingRowProps> = ({
         )}
 
         {setting.control === "input" && (
-          <input
-            id={setting.id}
-            data-testid={`control-${setting.id}`}
-            type={setting.inputType ?? "text"}
-            value={String(value ?? setting.defaultValue ?? "")}
-            disabled={isDisabled}
-            aria-disabled={isDisabled}
-            aria-describedby={descId}
-            placeholder={setting.placeholder}
-            onChange={(e) => {
-              if (!isDisabled) onChange(e.target.value);
-            }}
-            className="w-full md:w-64 px-2.5 py-1 text-xs bg-zinc-900 border border-zinc-700 rounded text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed"
-          />
+          <div className="w-full md:w-64 space-y-1">
+            <input
+              id={setting.id}
+              data-testid={`control-${setting.id}`}
+              type={setting.inputType ?? "text"}
+              value={String(value ?? setting.defaultValue ?? "")}
+              disabled={isDisabled}
+              aria-disabled={isDisabled}
+              aria-describedby={descId}
+              placeholder={setting.placeholder}
+              onChange={(e) => {
+                if (!isDisabled) onChange(e.target.value);
+              }}
+              className="w-full px-2.5 py-1 text-xs bg-zinc-900 border border-zinc-700 rounded text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed"
+            />
+          </div>
         )}
 
         {setting.control === "select" && (

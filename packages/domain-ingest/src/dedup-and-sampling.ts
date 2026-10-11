@@ -1,6 +1,4 @@
-import { createHash } from "node:crypto";
-import { blake3 } from "@noble/hashes/blake3";
-import { blake3 as blake3Wasm } from "hash-wasm";
+import { blake3 } from "hash-wasm";
 import type { Source } from "@notebook/contracts";
 
 /**
@@ -94,30 +92,14 @@ export class SourceNormalizer {
 }
 
 /**
- * Dual-engine deduplication service.
- * Computes deterministic 64-character BLAKE3 hex hashes with SHA-256 fallback.
+ * Deduplication service.
+ * Computes deterministic 64-character lowercase BLAKE3 hex hashes via hash-wasm.
+ * No fallback: a hashing failure surfaces to the caller.
  */
 export class DeduplicationService {
-  public computeHash(input: string | Buffer): string {
+  public async computeHash(input: string | Buffer): Promise<string> {
     const data = typeof input === "string" ? Buffer.from(normalizeForHashing(input), "utf-8") : input;
-
-    try {
-      const hashBytes = blake3(data);
-      return Buffer.from(hashBytes).toString("hex").toLowerCase();
-    } catch {
-      // Fallback to native SHA-256
-      return createHash("sha256").update(data).digest("hex").toLowerCase();
-    }
-  }
-
-  public async computeHashAsync(input: string | Buffer): Promise<string> {
-    const data = typeof input === "string" ? Buffer.from(normalizeForHashing(input), "utf-8") : input;
-
-    try {
-      return await blake3Wasm(data);
-    } catch {
-      return createHash("sha256").update(data).digest("hex").toLowerCase();
-    }
+    return blake3(data, 256);
   }
 }
 

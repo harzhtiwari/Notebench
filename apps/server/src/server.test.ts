@@ -171,4 +171,5 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
       expect(body.error.code).toBe("NOT_FOUND");
     });
   });
+
 });

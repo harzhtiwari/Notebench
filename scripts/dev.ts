@@ -135,6 +135,9 @@ export function ensureStorageLayout(root: string): void {
   const ephemeralDirs = [
     join(root, ".tmp", "cache"),
     join(root, ".tmp", "logs"),
+    join(root, ".tmp", "logs", "dev"),
+    join(root, ".tmp", "logs", "server"),
+    join(root, ".tmp", "logs", "web"),
     join(root, ".tmp", "reports"),
     join(root, ".tmp", "scratch"),
     join(root, ".tmp", "ports"),
@@ -235,21 +238,48 @@ export function killProcessTree(proc: ChildProcess | { pid?: number | undefined;
 
 
 /**
- * Strips ANSI escape sequences (colors, font weights, cursor resets) so written log files are clean plain text.
+ * Strips ANSI escape sequences (colors, font weights, cursor resets, ECMA-48 codes)
+ * so terminal output and written log files are clean plain text.
  */
 export function stripAnsi(text: string): string {
   // eslint-disable-next-line no-control-regex
-  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]|\x1b\([a-zA-Z]/g, "");
+  return text.replace(/\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\([a-zA-Z])/g, "");
 }
 
 /**
- * Attaches a line-buffered tee reader that prefixes each line with a colored process tag
- * and writes simultaneously to the terminal output stream and the active dev.log file stream (clean plain text).
+ * Prepares a service log folder by rotating any existing latest.log to previous.log
+ * and initializing an empty latest.log.
+ */
+export function setupServiceLog(logsDir: string, serviceName: string): string {
+  const serviceDir = join(logsDir, serviceName);
+  mkdirSync(serviceDir, { recursive: true });
+  const latestFile = join(serviceDir, "latest.log");
+  const previousFile = join(serviceDir, "previous.log");
+
+  if (existsSync(latestFile)) {
+    try {
+      if (existsSync(previousFile)) {
+        rmSync(previousFile, { force: true });
+      }
+      renameSync(latestFile, previousFile);
+    } catch {
+      // Best-effort rotation fallback
+    }
+  }
+
+  writeFileSync(latestFile, "", "utf-8");
+  return latestFile;
+}
+
+/**
+ * Attaches a line-buffered stream reader that:
+ * 1. Sanitizes ANSI codes so output is clean plain text.
+ * 2. Writes raw clean lines directly to the dedicated service log file (un-prefixed).
+ * 3. Writes prefixed lines ([tag] message) to the terminal output stream (without ANSI colors).
  */
 export function attachPrefixedTee(
   stream: NodeJS.ReadableStream | null | undefined,
   tag: string,
-  colorCode: string,
   targetOut: NodeJS.WriteStream,
   logFn: (line: string) => void
 ): void {
@@ -261,18 +291,16 @@ export function attachPrefixedTee(
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
     for (const line of lines) {
-      const coloredLine = `${colorCode}[${tag}]\x1b[0m ${line}\n`;
-      const cleanLine = `[${tag}] ${stripAnsi(line)}\n`;
-      targetOut.write(coloredLine);
-      logFn(cleanLine);
+      const cleanLine = stripAnsi(line);
+      targetOut.write(`[${tag}] ${cleanLine}\n`);
+      logFn(`${cleanLine}\n`);
     }
   });
   stream.on("end", () => {
     if (buffer.length > 0) {
-      const coloredLine = `${colorCode}[${tag}]\x1b[0m ${buffer}\n`;
-      const cleanLine = `[${tag}] ${stripAnsi(buffer)}\n`;
-      targetOut.write(coloredLine);
-      logFn(cleanLine);
+      const cleanLine = stripAnsi(buffer);
+      targetOut.write(`[${tag}] ${cleanLine}\n`);
+      logFn(`${cleanLine}\n`);
       buffer = "";
     }
   });
@@ -293,49 +321,53 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
   writeDevRunState(root, { webPort, serverPort });
 
   const logsDir = join(root, ".tmp", "logs");
-  mkdirSync(logsDir, { recursive: true });
-  const logFile = join(logsDir, "dev.log");
-  const prevLogFile = join(logsDir, "dev.prev.log");
+  const devLogFile = setupServiceLog(logsDir, "dev");
+  const serverLogFile = setupServiceLog(logsDir, "server");
+  const webLogFile = setupServiceLog(logsDir, "web");
 
-  if (existsSync(logFile)) {
+  const appendToDevLog = (line: string) => {
     try {
-      if (existsSync(prevLogFile)) {
-        rmSync(prevLogFile, { force: true });
-      }
-      renameSync(logFile, prevLogFile);
+      appendFileSync(devLogFile, stripAnsi(line), "utf-8");
     } catch {
-      // Ignore rotation errors and fallback to truncate/overwrite
+      // Best-effort disk write
     }
-  }
+  };
 
-  // Ensure fresh dev.log file exists
-  writeFileSync(logFile, "", "utf-8");
-
-  const appendToLog = (line: string) => {
+  const appendToServerLog = (line: string) => {
     try {
-      appendFileSync(logFile, stripAnsi(line), "utf-8");
+      appendFileSync(serverLogFile, stripAnsi(line), "utf-8");
+    } catch {
+      // Best-effort disk write
+    }
+  };
+
+  const appendToWebLog = (line: string) => {
+    try {
+      appendFileSync(webLogFile, stripAnsi(line), "utf-8");
     } catch {
       // Best-effort disk write
     }
   };
 
   const logDev = (message: string) => {
-    const line = `\x1b[36m[dev]\x1b[0m ${message}\n`;
+    const cleanMsg = stripAnsi(message);
+    const line = `[dev] ${cleanMsg}\n`;
     process.stdout.write(line);
-    appendToLog(`[dev] ${message}\n`);
+    appendToDevLog(line);
   };
 
   const logDevErr = (message: string) => {
-    const line = `\x1b[31m[dev]\x1b[0m ${message}\n`;
+    const cleanMsg = stripAnsi(message);
+    const line = `[dev] ${cleanMsg}\n`;
     process.stderr.write(line);
-    appendToLog(`[dev] ${message}\n`);
+    appendToDevLog(line);
   };
 
-  logDev(`🚀 Initializing Notebench Development Orchestrator`);
+  logDev(`Initializing Notebench Development Orchestrator`);
   logDev(`   - Fastify Daemon: http://127.0.0.1:${serverPort}`);
   logDev(`   - Next.js Web UI: http://127.0.0.1:${webPort}`);
   logDev(`   - Port mappings recorded in .tmp/ports/ and PIDs in .tmp/pids/`);
-  logDev(`   - Terminal session log streamed to .tmp/logs/dev.log`);
+  logDev(`   - Service logs streamed to .tmp/logs/{dev,server,web}/latest.log`);
 
   const pnpmCmd = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
   const spawnProcess = options.spawnFn ?? spawn;
@@ -348,7 +380,7 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
     detached: process.platform !== "win32",
     env: {
       ...process.env,
-      FORCE_COLOR: "1",
+      NO_COLOR: "1",
       HOST: "127.0.0.1",
       PORT: String(serverPort),
     },
@@ -361,7 +393,7 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
     detached: process.platform !== "win32",
     env: {
       ...process.env,
-      FORCE_COLOR: "1",
+      NO_COLOR: "1",
       HOST: "127.0.0.1",
       PORT: String(webPort),
       NEXT_PUBLIC_SERVER_PORT: String(serverPort),
@@ -369,10 +401,10 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
     },
   });
 
-  attachPrefixedTee(serverProcess.stdout, "server", "\x1b[34m", process.stdout, appendToLog);
-  attachPrefixedTee(serverProcess.stderr, "server", "\x1b[31m", process.stderr, appendToLog);
-  attachPrefixedTee(webProcess.stdout, "web", "\x1b[35m", process.stdout, appendToLog);
-  attachPrefixedTee(webProcess.stderr, "web", "\x1b[31m", process.stderr, appendToLog);
+  attachPrefixedTee(serverProcess.stdout, "server", process.stdout, appendToServerLog);
+  attachPrefixedTee(serverProcess.stderr, "server", process.stderr, appendToServerLog);
+  attachPrefixedTee(webProcess.stdout, "web", process.stdout, appendToWebLog);
+  attachPrefixedTee(webProcess.stderr, "web", process.stderr, appendToWebLog);
 
   writeDevRunState(root, {
     webPort,
@@ -385,7 +417,7 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
     if (isShuttingDown) return;
     isShuttingDown = true;
 
-    logDev("🛑 Gracefully shutting down development servers...");
+    logDev("Gracefully shutting down development servers...");
     killProcessTree(serverProcess);
     killProcessTree(webProcess);
     cleanDevRunState(root);

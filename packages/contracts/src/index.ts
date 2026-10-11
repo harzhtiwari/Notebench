@@ -5,9 +5,7 @@ export * from "./errors/index.js";
 export * from "./streaming/sse.js";
 
 // Abstract Syntax Trees (ASTs)
-export * from "./ast/deck.js";
 export * from "./ast/document.js";
-export * from "./ast/audio-script.js";
 
 // Core Domain Entities
 export * from "./entities/index.js";

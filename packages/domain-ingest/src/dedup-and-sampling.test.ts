@@ -10,67 +10,62 @@ import {
 
 describe("Deduplication & Stratified Sampling (Seam 4 - RED phase)", () => {
   describe("DeduplicationService", () => {
-    it("computes canonical 64-character hex hash", () => {
+    it("computes canonical 64-character hex hash", async () => {
       const service = new DeduplicationService();
-      const hash = service.computeHash("Notebench Research Environment");
+      const hash = await service.computeHash("Notebench Research Environment");
 
       expect(hash).toMatch(/^[0-9a-f]{64}$/);
     });
 
-    it("normalizes CRLF to LF so line-ending variations yield identical hash", () => {
+    it("normalizes CRLF to LF so line-ending variations yield identical hash", async () => {
       const service = new DeduplicationService();
-      const hashLf = service.computeHash("Line 1\nLine 2\nLine 3");
-      const hashCrlf = service.computeHash("Line 1\r\nLine 2\r\nLine 3");
+      const hashLf = await service.computeHash("Line 1\nLine 2\nLine 3");
+      const hashCrlf = await service.computeHash("Line 1\r\nLine 2\r\nLine 3");
 
       expect(hashLf).toBe(hashCrlf);
     });
 
-    it("normalizes Unicode to NFC so canonical decompositions match", () => {
+    it("normalizes Unicode to NFC so canonical decompositions match", async () => {
       const service = new DeduplicationService();
       // "é" in precomposed NFC vs decomposed NFD ("e" + combining acute accent)
       const nfc = "Caf\u00E9";
       const nfd = "Cafe\u0301";
 
-      const hashNfc = service.computeHash(nfc);
-      const hashNfd = service.computeHash(nfd);
+      const hashNfc = await service.computeHash(nfc);
+      const hashNfd = await service.computeHash(nfd);
 
       expect(hashNfc).toBe(hashNfd);
     });
 
-    it("returns different hashes for different content", () => {
+    it("returns different hashes for different content", async () => {
       const service = new DeduplicationService();
-      const h1 = service.computeHash("Document Alpha");
-      const h2 = service.computeHash("Document Beta");
+      const h1 = await service.computeHash("Document Alpha");
+      const h2 = await service.computeHash("Document Beta");
 
       expect(h1).not.toBe(h2);
     });
 
-    it("computes binary hash directly on Buffer without UTF-8 corruption", () => {
+    it("computes binary hash directly on Buffer without UTF-8 corruption", async () => {
       const service = new DeduplicationService();
       // Binary sequence that would be corrupted by naive .toString("utf-8")
       const binaryData = Buffer.from([0xff, 0xfe, 0x80, 0x90, 0xc0, 0xaf]);
-      const hash1 = service.computeHash(binaryData);
-      const hash2 = service.computeHash(binaryData);
+      const hash1 = await service.computeHash(binaryData);
+      const hash2 = await service.computeHash(binaryData);
 
       expect(hash1).toBe(hash2);
       expect(hash1).toMatch(/^[0-9a-f]{64}$/);
     });
 
-    it("unifies normalizeForHashing with SourceNormalizer.normalizeText", () => {
+    it("unifies normalizeForHashing with SourceNormalizer.normalizeText", async () => {
       const text = "   Section Title   \r\nLine with trailing space    \r\n\n\n";
       const service = new DeduplicationService();
-      const h1 = service.computeHash(text);
+      const h1 = await service.computeHash(text);
       const normalized = SourceNormalizer.normalizeText(text).canonicalContent;
-      const h2 = service.computeHash(normalized);
+      const h2 = await service.computeHash(normalized);
 
       expect(h1).toBe(h2);
     });
 
-    it("computes async hash with hash-wasm blake3 stream support", async () => {
-      const service = new DeduplicationService();
-      const hash = await service.computeHashAsync("Streamable Content");
-      expect(hash).toMatch(/^[0-9a-f]{64}$/);
-    });
 
     it("checks notebook-scoped duplicates via SourceDeduplicationService", async () => {
       const existingSource: Source = {

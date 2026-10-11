@@ -27,9 +27,11 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     ...fastifyOptions,
   });
 
-  // Enable CORS for API requests
+  // CORS: localhost origins only (dev web server on a dynamic port). Credentials are
+  // required so the HttpOnly session cookie reaches the API cross-origin in dev.
+  // Production serves the SPA same-origin from this daemon, so no wider access is needed.
   await app.register(cors, {
-    origin: true,
+    origin: /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
     credentials: true,
   });
 
@@ -71,7 +73,6 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       ...(docWorkerStatus !== undefined ? { docWorker: docWorkerStatus } : {}),
     };
   });
-
 
   // Static SPA assets & HTML5 history fallback
   const resolvedStaticDir = staticDir ?? resolve(process.cwd(), "apps/web/out");

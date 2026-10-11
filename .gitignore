@@ -61,3 +61,6 @@ pnpm-debug.log*
 *.swp
 *.swo
 *~
+
+# Claude Code local permission grants
+.claude/settings.local.json
