@@ -150,3 +150,23 @@ export const memoryRules = sqliteTable("memory_rules", {
   isActive: integer("is_active").notNull().default(1),
   createdAt: text("created_at").notNull(),
 });
+
+/**
+ * Provider keys encrypted credentials storage table.
+ * All records strictly require user_id.
+ */
+export const providerKeys = sqliteTable("provider_keys", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  keyId: text("key_id").notNull(),
+  ciphertext: text("ciphertext").notNull(),
+  iv: text("iv").notNull(),
+  tag: text("tag").notNull(),
+  schemaVersion: integer("schema_version").notNull().default(1),
+  maskedKey: text("masked_key").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
