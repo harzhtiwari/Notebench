@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Button, Input, Well, WellTitle, WellDescription } from "@notebook/ui";
+import { apiUrl } from "../../lib/api";
 
 export default function SetupPage() {
   const [displayName, setDisplayName] = useState("");
@@ -16,7 +17,7 @@ export default function SetupPage() {
   useEffect(() => {
     async function checkExistingSetup() {
       try {
-        const res = await fetch("/api/app-state");
+        const res = await fetch(apiUrl("/api/app-state"));
         if (res.ok) {
           const data = (await res.json()) as { setupComplete: boolean };
           if (data.setupComplete) {
@@ -48,7 +49,7 @@ export default function SetupPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/setup", {
+      const res = await fetch(apiUrl("/api/setup"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

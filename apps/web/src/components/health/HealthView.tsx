@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import type { HealthProbeResult, DoctorReport } from "@notebook/contracts";
 import { HEALTH_PROBE_DESCRIPTORS } from "@notebook/contracts";
+import { apiUrl } from "../../lib/api";
 
 interface HealthViewProps {
   probes?: HealthProbeResult[] | undefined;
@@ -93,7 +94,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
     setIsLoading(true);
     try {
       if (typeof window === "undefined") return;
-      const res = await fetch("/api/doctor").catch(() => null);
+      const res = await fetch(apiUrl("/api/doctor")).catch(() => null);
       if (res && res.ok) {
         const report = (await res.json().catch(() => null)) as DoctorReport | null;
         if (report && Array.isArray(report.probes)) {

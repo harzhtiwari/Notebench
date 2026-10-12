@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useState, useEffect, useCallback } from "react";
 import type { NotebookSummary, DashboardMetrics, SettingsPageId } from "@notebook/contracts";
+import { apiUrl } from "../../lib/api";
 import { DashboardView } from "./DashboardView";
 import { SettingsDialog } from "../settings";
 
@@ -17,8 +18,8 @@ export function DashboardContainer() {
   const loadData = useCallback(async () => {
     try {
       const [notebooksRes, metricsRes] = await Promise.all([
-        fetch("/api/notebooks"),
-        fetch("/api/notebooks/metrics"),
+        fetch(apiUrl("/api/notebooks")),
+        fetch(apiUrl("/api/notebooks/metrics")),
       ]);
 
       if (notebooksRes.ok) {
@@ -48,7 +49,7 @@ export function DashboardContainer() {
 
   const handleCreateNotebook = async () => {
     try {
-      const res = await fetch("/api/notebooks", {
+      const res = await fetch(apiUrl("/api/notebooks"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Untitled Notebook" }),
@@ -73,7 +74,7 @@ export function DashboardContainer() {
 
   const handleRenameNotebook = async (id: string, newTitle: string) => {
     try {
-      const res = await fetch(`/api/notebooks/${id}`, {
+      const res = await fetch(apiUrl(`/api/notebooks/${id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: newTitle }),
@@ -93,7 +94,7 @@ export function DashboardContainer() {
 
   const handleDuplicateNotebook = async (id: string) => {
     try {
-      const res = await fetch(`/api/notebooks/${id}/duplicate`, {
+      const res = await fetch(apiUrl(`/api/notebooks/${id}/duplicate`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -109,7 +110,7 @@ export function DashboardContainer() {
 
   const handleDeleteNotebook = async (id: string) => {
     try {
-      const res = await fetch(`/api/notebooks/${id}`, {
+      const res = await fetch(apiUrl(`/api/notebooks/${id}`), {
         method: "DELETE",
       });
 

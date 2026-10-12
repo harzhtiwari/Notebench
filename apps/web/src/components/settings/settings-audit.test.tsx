@@ -20,6 +20,13 @@ describe("Acceptance Criteria C2: Settings Compliance Audit Test Suite", () => {
   beforeEach(() => {
     window.localStorage.clear();
     document.documentElement.classList.remove("dark");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ probes: [], timestamp: new Date().toISOString() }),
+      })
+    );
   });
 
   // =========================================================================
