@@ -1,0 +1,31 @@
+{
+  "name": "@notebook/domain-artifacts",
+  "version": "0.1.0",
+  "description": "Artifact AST living media, version DAG, and sibling invariance domain service",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@notebook/contracts": "workspace:*",
+    "canonicalize": "^5.1.0"
+  },
+  "devDependencies": {
+    "@notebook/tsconfig": "workspace:*",
+    "@types/node": "^22.13.1",
+    "tsdown": "^0.23.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

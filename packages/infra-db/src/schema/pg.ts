@@ -6,6 +6,7 @@ import {
   integer,
   boolean,
   timestamp,
+  foreignKey,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -85,23 +86,32 @@ export const artifacts = pgTable("artifacts", {
  * PostgreSQL Artifact versions append-only history DAG table.
  * All records strictly require user_id.
  */
-export const artifactVersions = pgTable("artifact_versions", {
-  id: uuid("id").primaryKey(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  artifactId: uuid("artifact_id")
-    .notNull()
-    .references(() => artifacts.id, { onDelete: "cascade" }),
-  number: integer("number").notNull(),
-  createdBy: varchar("created_by", { length: 50 }).notNull(),
-  model: varchar("model", { length: 100 }),
-  instruction: text("instruction"),
-  parentVersionId: uuid("parent_version_id"),
-  content: text("content").notNull(),
-  contentDigest: varchar("content_digest", { length: 64 }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-});
+export const artifactVersions = pgTable(
+  "artifact_versions",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    artifactId: uuid("artifact_id")
+      .notNull()
+      .references(() => artifacts.id, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    createdBy: varchar("created_by", { length: 50 }).notNull(),
+    model: varchar("model", { length: 100 }),
+    instruction: text("instruction"),
+    parentVersionId: uuid("parent_version_id"),
+    content: text("content").notNull(),
+    contentDigest: varchar("content_digest", { length: 64 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    parentVersionFk: foreignKey({
+      columns: [table.parentVersionId],
+      foreignColumns: [table.id],
+    }),
+  })
+);
 
 /**
  * PostgreSQL Sessions dual-token authentication table.

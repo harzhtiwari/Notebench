@@ -26,3 +26,27 @@ export const CreateVersionInputSchema = z.object({
   content: z.unknown(),
 });
 export type CreateVersionInput = z.infer<typeof CreateVersionInputSchema>;
+
+export interface CreateArtifactVersionParams {
+  id?: string | undefined;
+  artifactId: string;
+  userId: string;
+  number?: number | undefined;
+  createdBy: "ai" | "user";
+  model?: string | undefined;
+  instruction?: string | undefined;
+  parentVersionId?: string | undefined;
+  content: unknown;
+  contentDigest?: string | undefined;
+  createdAt?: string | undefined;
+}
+
+/**
+ * Storage / Repository Port for append-only Artifact Version DAG (ADR 0004, Decision 4.3).
+ */
+export interface ArtifactVersionRepositoryPort {
+  createVersion(params: CreateArtifactVersionParams): Promise<ArtifactVersion>;
+  getVersionById(versionId: string): Promise<ArtifactVersion | null>;
+  listVersions(artifactId: string): Promise<ArtifactVersion[]>;
+  getLatestVersion(artifactId: string): Promise<ArtifactVersion | null>;
+}

@@ -18,7 +18,7 @@ export const CitationRefSchema = z.object({
 export type CitationRef = z.infer<typeof CitationRefSchema>;
 
 export const CitationSchema = z.object({
-  id: z.string().uuid().or(z.string().min(1)),
+  id: z.string().uuid(),
   sourceId: z.string().uuid(),
   chunkId: z.string().uuid().optional(),
   snippet: z.string().optional(),

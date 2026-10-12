@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, foreignKey } from "drizzle-orm/sqlite-core";
 
 /**
  * Users account entity table.
@@ -77,23 +77,32 @@ export const artifacts = sqliteTable("artifacts", {
  * Artifact versions append-only history DAG table.
  * All records strictly require user_id.
  */
-export const artifactVersions = sqliteTable("artifact_versions", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  artifactId: text("artifact_id")
-    .notNull()
-    .references(() => artifacts.id, { onDelete: "cascade" }),
-  number: integer("number").notNull(),
-  createdBy: text("created_by").notNull(),
-  model: text("model"),
-  instruction: text("instruction"),
-  parentVersionId: text("parent_version_id"),
-  content: text("content").notNull(),
-  contentDigest: text("content_digest"),
-  createdAt: text("created_at").notNull(),
-});
+export const artifactVersions = sqliteTable(
+  "artifact_versions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    artifactId: text("artifact_id")
+      .notNull()
+      .references(() => artifacts.id, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    createdBy: text("created_by").notNull(),
+    model: text("model"),
+    instruction: text("instruction"),
+    parentVersionId: text("parent_version_id"),
+    content: text("content").notNull(),
+    contentDigest: text("content_digest"),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => ({
+    parentVersionFk: foreignKey({
+      columns: [table.parentVersionId],
+      foreignColumns: [table.id],
+    }),
+  })
+);
 
 /**
  * Sessions dual-token authentication table.
