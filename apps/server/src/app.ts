@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { createLogger, type Logger } from "@notebook/logger";
 import type { NotebookErrorCode, DocWorkerProbe, NotebookRepositoryPort } from "@notebook/contracts";
+import type { SqliteHealthProbeTarget } from "@notebook/domain-ops";
 import { OwnerSetupService, Argon2PasscodeHasher } from "@notebook/domain-account";
 import { NotebookService } from "@notebook/domain-notebooks";
 import {
@@ -16,11 +17,15 @@ import {
 } from "@notebook/infra-db";
 import { setupRoutes } from "./routes/setup.js";
 import { notebooksRoutes } from "./routes/notebooks.js";
+import { registerDoctorRoutes } from "./routes/doctor.js";
 
 export interface BuildServerOptions extends FastifyServerOptions {
   staticDir?: string | undefined;
   customLogger?: Logger | undefined;
   docWorkerPool?: DocWorkerProbe | undefined;
+  sqliteDb?: SqliteHealthProbeTarget | undefined;
+  serverHost?: string | undefined;
+  hasOwnerPasscode?: boolean | undefined;
   ownerSetupService?: OwnerSetupService | undefined;
   dbPath?: string | undefined;
   /** Alias for sqliteInstance, accepted for test ergonomics */
@@ -39,6 +44,9 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     staticDir,
     customLogger,
     docWorkerPool,
+    sqliteDb,
+    serverHost,
+    hasOwnerPasscode,
     notebookRepo: customNotebookRepo,
     notebookService: customNotebookService,
     defaultUserId: customUserId,
@@ -73,34 +81,13 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     return { status: "ok" };
   });
 
-  // System diagnostic endpoint
-  app.get("/api/doctor", async () => {
-    appLogger.debug("Doctor diagnostics probe requested");
-
-    let docWorkerStatus: unknown = undefined;
-    if (docWorkerPool) {
-      try {
-        const pingResult = await docWorkerPool.ping();
-        docWorkerStatus = {
-          status: "ok",
-          ...pingResult,
-        };
-      } catch (err: unknown) {
-        docWorkerStatus = {
-          status: "error",
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    }
-
-    return {
-      status: "ok",
-      version: "0.1.0",
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-      ...(docWorkerStatus !== undefined ? { docWorker: docWorkerStatus } : {}),
-    };
+  // System diagnostic endpoint (NOTEBENCH Decision 8.8)
+  registerDoctorRoutes(app, {
+    docWorkerPool,
+    sqliteDb,
+    serverHost,
+    hasOwnerPasscode,
+    appLogger,
   });
 
   // Owner setup and application access state routes (Ticket 01)

@@ -25,3 +25,6 @@ export * from "./retrieval/index.js";
 // Account & Auth Ports & DTOs
 export * from "./account/index.js";
 
+// Health Probes & Doctor Contracts
+export * from "./health/index.js";
+

@@ -17,6 +17,7 @@
     "@notebook/contracts": "workspace:*",
     "@notebook/domain-account": "workspace:*",
     "@notebook/domain-notebooks": "workspace:*",
+    "@notebook/domain-ops": "workspace:*",
     "@notebook/infra-db": "workspace:*",
     "@notebook/infra-doc-worker": "workspace:*",
     "@notebook/logger": "workspace:*",

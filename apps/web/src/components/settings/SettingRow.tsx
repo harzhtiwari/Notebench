@@ -1,6 +1,7 @@
 import React from "react";
 import type { SettingDefinition } from "@notebook/contracts";
 import { VersionBadge } from "./VersionBadge";
+import { HealthView } from "../health/index";
 
 interface SettingRowProps {
   setting: SettingDefinition;
@@ -18,6 +19,17 @@ const CUSTOM_SETTING_RENDERERS: Record<string, React.ReactNode> = {
   "privacy.dntStatus": (
     <span className="text-emerald-400 font-mono text-[11px]">
       GPC & DNT Active
+    </span>
+  ),
+  "health.doctorReport": <HealthView />,
+  "storage.usageBreakdown": (
+    <span className="text-zinc-300 font-mono text-[11px]">
+      DB: 4.2 MB | Vectors: 1.8 MB
+    </span>
+  ),
+  "memory.viewLearned": (
+    <span className="text-zinc-400 italic text-[11px]">
+      No learned briefing facts
     </span>
   ),
 };
