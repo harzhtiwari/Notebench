@@ -18,15 +18,15 @@
   },
   "dependencies": {
     "@notebook/contracts": "workspace:*",
-    "better-sqlite3": "12.11.1",
+    "better-sqlite3": "13.0.3",
     "sqlite-vec": "^0.1.9"
   },
   "devDependencies": {
     "@notebook/tsconfig": "workspace:*",
-    "@types/better-sqlite3": "^7.6.12",
-    "@types/node": "^22.13.1",
-    "tsdown": "^0.23.0",
-    "typescript": "^5.7.3",
-    "vitest": "^3.0.5"
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.5",
+    "tsdown": "^0.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
   }
 }

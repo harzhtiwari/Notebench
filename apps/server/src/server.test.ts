@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { resolve, join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { buildServer } from "./app.js";
+import { buildServer, resolveWebOutDir } from "./app.js";
 
 describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
   let app: FastifyInstance;
@@ -169,6 +170,23 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
       const body = JSON.parse(response.body);
       expect(body.error).toBeDefined();
       expect(body.error.code).toBe("NOT_FOUND");
+    });
+  });
+
+  describe("Web export directory resolution (prebuilt pack without next dev)", () => {
+    it("resolves apps/web/out from the workspace root", () => {
+      const resolved = resolveWebOutDir(resolve(process.cwd()));
+      expect(resolved).toBe(resolve(process.cwd(), "apps/web/out"));
+    });
+
+    it("resolves apps/web/out when starting from the server package dir", () => {
+      const resolved = resolveWebOutDir(resolve(process.cwd(), "apps/server"));
+      expect(resolved).toBe(resolve(process.cwd(), "apps/web/out"));
+    });
+
+    it("returns undefined outside any workspace", () => {
+      const outside = join(tmpdir(), "nb-no-workspace-probe");
+      expect(resolveWebOutDir(outside)).toBeUndefined();
     });
   });
 

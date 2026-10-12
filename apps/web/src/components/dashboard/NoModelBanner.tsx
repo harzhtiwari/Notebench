@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Button } from "@notebook/ui";
+import { Button, Warning } from "@notebook/ui";
 
 export interface NoModelBannerProps {
   onOpenSettings?: ((page?: string) => void) | undefined;
@@ -13,7 +13,8 @@ export function NoModelBanner({ onOpenSettings }: NoModelBannerProps) {
       className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-[var(--nb-r-control)] border border-[var(--nb-warn)]/30 bg-[var(--nb-warn-wash)]/60 px-4 py-3 text-sm text-[var(--nb-ink)]"
     >
       <div className="flex items-center gap-2.5">
-        <span className="font-semibold text-[var(--nb-warn)]">⚠ Attention:</span>
+        <Warning size={16} weight="fill" className="text-[var(--nb-warn)] shrink-0" />
+        <span className="font-semibold text-[var(--nb-warn)]">Attention:</span>
         <span>
           No model configured. Add an API key in{" "}
           <strong className="font-medium">Settings → Models & Keys</strong> to chat with

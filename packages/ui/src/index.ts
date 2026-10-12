@@ -1,3 +1,4 @@
+"use client";
 export * from "./lib/utils.js";
 export * from "./components/button.js";
 export * from "./components/input.js";
@@ -10,3 +11,5 @@ export * from "./components/tabs.js";
 export * from "./components/scroll-area.js";
 export * from "./components/accordion.js";
 export * from "./components/resizable.js";
+export * from "./components/icons.js";
+

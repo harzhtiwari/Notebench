@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Well, Input } from "@notebook/ui";
+import { Well, Input, Plus } from "@notebook/ui";
 import type { NotebookSummary } from "@notebook/contracts";
 import { formatBytes, formatRelativeTime } from "./formatters";
 import { NotebookActionsMenu } from "./NotebookActionsMenu";
@@ -40,8 +40,8 @@ export function NotebookGrid({
         onClick={onCreateNotebook}
         className="group flex min-h-[170px] cursor-pointer flex-col items-center justify-center rounded-[var(--nb-r-sheet)] border-2 border-dashed border-[var(--nb-edge)] bg-[var(--nb-ground)]/50 p-6 text-center transition-colors hover:border-[var(--nb-ink-2)] hover:bg-[var(--nb-well)]/40"
       >
-        <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--nb-sheet)] text-lg font-bold text-[var(--nb-ink)] shadow-xs group-hover:scale-105 transition-transform">
-          +
+        <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--nb-sheet)] text-[var(--nb-ink)] shadow-xs group-hover:scale-105 transition-transform">
+          <Plus size={20} weight="bold" />
         </div>
         <span className="text-sm font-semibold text-[var(--nb-ink)]">
           Create New Notebook

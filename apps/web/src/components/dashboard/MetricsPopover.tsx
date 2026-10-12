@@ -1,9 +1,12 @@
+"use client";
+
 import * as React from "react";
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
   Button,
+  ChartBar,
 } from "@notebook/ui";
 import {
   type DashboardMetrics,
@@ -31,9 +34,9 @@ export function MetricsPopover({ metrics, onManageStorage }: MetricsPopoverProps
           size="sm"
           data-testid="metrics-popover-trigger"
           aria-label="Instance Metrics"
-          className="h-8 w-8 p-0 text-sm font-bold text-[var(--nb-ink-2)]"
+          className="h-8 w-8 p-0 text-[var(--nb-ink-2)]"
         >
-          •••
+          <ChartBar size={16} />
         </Button>
       </PopoverTrigger>
       <PopoverContent

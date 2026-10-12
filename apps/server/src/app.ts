@@ -2,7 +2,7 @@ import fastify, { type FastifyInstance, type FastifyServerOptions } from "fastif
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createLogger, type Logger } from "@notebook/logger";
 import type { NotebookErrorCode, DocWorkerProbe, NotebookRepositoryPort } from "@notebook/contracts";
 import type { SqliteHealthProbeTarget } from "@notebook/domain-ops";
@@ -34,6 +34,26 @@ export interface BuildServerOptions extends FastifyServerOptions {
   notebookRepo?: NotebookRepositoryPort | undefined;
   notebookService?: NotebookService | undefined;
   defaultUserId?: string | undefined;
+}
+
+/**
+ * Locates the prebuilt web export (`apps/web/out`) from the workspace root,
+ * regardless of which package directory the server starts in (repo root in
+ * Docker, `apps/server` under `pnpm --filter`). Returns undefined outside a
+ * workspace or when the export has not been built yet, so callers keep the
+ * previous fallback behavior instead of serving a wrong directory.
+ */
+export function resolveWebOutDir(startDir: string = process.cwd()): string | undefined {
+  let dir = resolve(startDir);
+  while (true) {
+    if (existsSync(join(dir, "pnpm-workspace.yaml"))) {
+      const candidate = join(dir, "apps", "web", "out");
+      return existsSync(candidate) ? candidate : undefined;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return undefined;
+    dir = parent;
+  }
 }
 
 /**
@@ -130,7 +150,10 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   });
 
   // Static SPA assets & HTML5 history fallback
-  const resolvedStaticDir = staticDir ?? resolve(process.cwd(), "apps/web/out");
+  // Prefer the workspace-root export (works from any package cwd); keep the
+  // legacy cwd-relative path as a last resort for non-workspace layouts.
+  const resolvedStaticDir =
+    staticDir ?? resolveWebOutDir() ?? resolve(process.cwd(), "apps/web/out");
   const hasStaticDir = existsSync(resolvedStaticDir);
 
   if (hasStaticDir) {

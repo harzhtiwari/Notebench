@@ -62,5 +62,10 @@ pnpm-debug.log*
 *.swo
 *~
 
-# Claude Code local permission grants
-.claude/settings.local.json
+# Claude Code local files (skills, hooks, permission grants — reinstall via `graphify install --project --strict --platform claude`)
+.claude/
+# Gemini CLI local files (skills, hooks — reinstall via `graphify install --project --platform gemini`)
+.gemini/
+
+# Graphify knowledge graph (local, regenerable via `graphify extract . --code-only`)
+graphify-out/

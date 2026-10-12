@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Sheet, SheetHeader, SheetTitle, SheetDescription, SheetContent, Button } from "@notebook/ui";
+import { Sheet, SheetHeader, SheetTitle, SheetDescription, SheetContent, Button, Notebook, Plus } from "@notebook/ui";
 
 export interface FirstRunBlankStateProps {
   onCreateNotebook?: (() => void) | undefined;
@@ -10,8 +10,8 @@ export function FirstRunBlankState({ onCreateNotebook }: FirstRunBlankStateProps
     <div className="flex min-h-[50vh] items-center justify-center p-4">
       <Sheet className="max-w-md w-full border-[var(--nb-edge)] bg-[var(--nb-sheet)] text-center p-6 shadow-sm">
         <SheetHeader className="items-center p-0 mb-4">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--nb-well)] text-xl font-bold text-[var(--nb-ink)]">
-            📓
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--nb-well)] text-[var(--nb-ink)]">
+            <Notebook size={26} weight="duotone" />
           </div>
           <SheetTitle className="text-xl font-semibold text-[var(--nb-ink)]">
             Welcome to Notebench
@@ -25,8 +25,9 @@ export function FirstRunBlankState({ onCreateNotebook }: FirstRunBlankStateProps
           <Button
             size="lg"
             onClick={onCreateNotebook}
-            className="h-10 px-6 font-medium shadow-xs"
+            className="h-10 px-6 font-medium shadow-xs flex items-center gap-2"
           >
+            <Plus size={16} weight="bold" />
             + Create Notebook
           </Button>
         </SheetContent>

@@ -367,4 +367,64 @@ describe("DashboardView Component (Ticket 05)", () => {
       expect(screen.queryByTestId("no-model-banner")).toBeNull();
     });
   });
+
+  describe("Theme Selector & Settings Integration", () => {
+    it("renders theme selector trigger and allows selecting light, dark, and system modes", async () => {
+      render(
+        <DashboardView
+          notebooks={sampleNotebooks}
+          metrics={sampleMetrics}
+          hasConfiguredModel={true}
+        />
+      );
+
+      const themeTrigger = screen.getByTestId("theme-selector-trigger");
+      expect(themeTrigger).toBeDefined();
+
+      // Open theme dropdown
+      fireEvent.click(themeTrigger);
+
+      // Select dark theme
+      const darkOption = await screen.findByTestId("theme-option-dark");
+      expect(darkOption).toBeDefined();
+      fireEvent.click(darkOption);
+
+      expect(localStorage.getItem("notebench_theme")).toBe("dark");
+      expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+
+      // Select light theme
+      fireEvent.click(themeTrigger);
+      const lightOption = screen.getByTestId("theme-option-light");
+      fireEvent.click(lightOption);
+
+      expect(localStorage.getItem("notebench_theme")).toBe("light");
+      expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+
+      // Select system default theme
+      fireEvent.click(themeTrigger);
+      const systemOption = screen.getByTestId("theme-option-system");
+      fireEvent.click(systemOption);
+
+      expect(localStorage.getItem("notebench_theme")).toBe("system");
+    });
+
+    it("triggers onOpenSettings when settings button is clicked", () => {
+      const onOpenSettings = vi.fn();
+      render(
+        <DashboardView
+          notebooks={sampleNotebooks}
+          metrics={sampleMetrics}
+          hasConfiguredModel={true}
+          onOpenSettings={onOpenSettings}
+        />
+      );
+
+      const settingsBtn = screen.getByTestId("open-settings-btn");
+      expect(settingsBtn).toBeDefined();
+
+      fireEvent.click(settingsBtn);
+      expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    });
+  });
 });
+

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import type { HealthProbeResult, DoctorReport } from "@notebook/contracts";
 import { HEALTH_PROBE_DESCRIPTORS } from "@notebook/contracts";
+import { Warning } from "@notebook/ui";
 import { apiUrl } from "../../lib/api";
 
 interface HealthViewProps {
@@ -10,14 +11,14 @@ interface HealthViewProps {
   onRefresh?: (() => void) | undefined;
 }
 
-export const ExposureBanner: React.FC<{ message: string }> = ({ message }) => {
+const ExposureBanner: React.FC<{ message: string }> = ({ message }) => {
   return (
     <div
       data-testid="exposure-alert-banner"
       role="alert"
       className="p-4 rounded-lg bg-amber-950/40 border border-amber-600/50 text-amber-200 text-xs flex items-start gap-3 shadow-lg mb-6"
     >
-      <span className="text-base select-none">⚠️</span>
+      <Warning size={18} weight="fill" className="text-amber-400 shrink-0 mt-0.5 select-none" />
       <div className="flex-1">
         <div className="font-semibold text-amber-100 mb-0.5 tracking-tight">
           Public Network Exposure Alert
@@ -28,7 +29,7 @@ export const ExposureBanner: React.FC<{ message: string }> = ({ message }) => {
   );
 };
 
-export const HealthCard: React.FC<{
+const HealthCard: React.FC<{
   probe: HealthProbeResult;
   thresholdLabel?: string | undefined;
 }> = ({ probe, thresholdLabel }) => {

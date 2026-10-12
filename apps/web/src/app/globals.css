@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 @import "@notebook/ui/tokens.css";
 
 *, *::before, *::after {

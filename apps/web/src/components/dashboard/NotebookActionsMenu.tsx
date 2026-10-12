@@ -6,6 +6,10 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   Button,
+  DotsThreeVertical,
+  PencilSimple,
+  Copy,
+  Trash,
 } from "@notebook/ui";
 
 export interface NotebookActionsMenuProps {
@@ -34,7 +38,7 @@ export function NotebookActionsMenu({
           onClick={(e) => e.stopPropagation()}
           className="h-7 w-7 p-0 text-xs text-[var(--nb-ink-2)]"
         >
-          ⋮
+          <DotsThreeVertical size={16} weight="bold" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -48,8 +52,9 @@ export function NotebookActionsMenu({
             e.stopPropagation();
             onRename?.();
           }}
-          className="text-xs cursor-pointer"
+          className="text-xs cursor-pointer flex items-center gap-2"
         >
+          <PencilSimple size={14} />
           Rename
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -58,8 +63,9 @@ export function NotebookActionsMenu({
             e.stopPropagation();
             onDuplicate?.();
           }}
-          className="text-xs cursor-pointer"
+          className="text-xs cursor-pointer flex items-center gap-2"
         >
+          <Copy size={14} />
           Duplicate
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -79,8 +85,9 @@ export function NotebookActionsMenu({
             e.stopPropagation();
             onDelete?.();
           }}
-          className="text-xs text-[var(--nb-danger)] focus:text-[var(--nb-danger)] cursor-pointer"
+          className="text-xs text-[var(--nb-danger)] focus:text-[var(--nb-danger)] cursor-pointer flex items-center gap-2"
         >
+          <Trash size={14} />
           Delete
         </DropdownMenuItem>
       </DropdownMenuContent>

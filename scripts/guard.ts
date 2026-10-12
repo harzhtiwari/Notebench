@@ -1,6 +1,13 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import ts from "typescript";
+
+// Zero-dependency source scanner. This guard intentionally does NOT use the
+// TypeScript compiler API (which became a native-only binary without a stable
+// JS API in TS 7), so future compiler majors cannot break these checks.
+//
+// Known limitation vs a full AST: raw JSX text nodes are not string literals,
+// so a literal word `any` or `!` inside JSX text would be flagged. Grep audits
+// show zero such occurrences in-tree; any future trip fails loudly for triage.
 
 interface Violation {
   checkId: number;
@@ -42,7 +49,61 @@ function getAllFiles(dir: string, extension: string[] = [".ts", ".tsx"]): string
   return files;
 }
 
-console.log("🔍 Running Notebench Architectural Guardrails (32 AST Boundary Checks)...");
+console.log("🔍 Running Notebench Architectural Guardrails (33 AST Boundary Checks)...");
+
+// ============================================================================
+// SOURCE SCANNER HELPERS (comment/string-aware, line-precise, no compiler API)
+// ============================================================================
+
+/** Strip line/block comments while preserving line breaks (keeps line numbers stable). */
+function stripComments(content: string): string {
+  const noBlock = content.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ""));
+  return noBlock.replace(/\/\/[^\n]*/g, "");
+}
+
+/** Replace string/template literal bodies with empty placeholders (keeps positions stable). */
+function stripStrings(content: string): string {
+  return content
+    .replace(/'(?:\\.|[^'\\\n])*'/g, "''")
+    .replace(/"(?:\\.|[^"\\\n])*"/g, '""')
+    .replace(/`(?:\\.|[^`\\])*`/g, "``");
+}
+
+/** 1-based line number for a match index. */
+function lineOf(content: string, index: number): number {
+  let line = 1;
+  for (let i = 0; i < index; i++) {
+    if (content.charCodeAt(i) === 10) line++;
+  }
+  return line;
+}
+
+interface Specifier {
+  specifier: string;
+  line: number;
+}
+
+/**
+ * Extract static import/export specifiers plus dynamic import() targets from
+ * comment-stripped source. Covers `import … from`, side-effect imports,
+ * `import type`, `export … from`, and `import("…")`.
+ */
+function extractSpecifiers(codeNoComments: string): Specifier[] {
+  const out: Specifier[] = [];
+  const staticRe =
+    /(?<![\w"'`$])(?:\bimport\s+(?:type\s+)?(?:[^"'`;]*?\bfrom\s+)?|\bexport\s+(?:[^"'`;]*?\bfrom\s+))(["'])([^"'\n]+)\1/g;
+  let m: RegExpExecArray | null;
+  while ((m = staticRe.exec(codeNoComments)) !== null) {
+    const spec = m[2] ?? "";
+    if (spec) out.push({ specifier: spec, line: lineOf(codeNoComments, m.index) });
+  }
+  const dynamicRe = /(?<![\w"'`$])\bimport\s*\(\s*(["'])([^"'\n]+)\1/g;
+  while ((m = dynamicRe.exec(codeNoComments)) !== null) {
+    const spec = m[2] ?? "";
+    if (spec) out.push({ specifier: spec, line: lineOf(codeNoComments, m.index) });
+  }
+  return out;
+}
 
 // ============================================================================
 // GROUP 1: REPOSITORY ROOT & TAXONOMY (Checks 1-3)
@@ -67,6 +128,7 @@ const allowedDotFolders = new Set([
   ".tmp",
   ".scratch",
   ".claude",
+  ".gemini",
 ]);
 const rootEntries = readdirSync(ROOT, { withFileTypes: true });
 for (const entry of rootEntries) {
@@ -97,55 +159,44 @@ const allowedWebPackages = new Set([
 
 for (const file of webFiles) {
   const content = readFileSync(file, "utf-8");
-  const sourceFile = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true);
-
-  function checkWebImports(node: ts.Node) {
-    if (ts.isImportDeclaration(node)) {
-      const moduleSpecifier = node.moduleSpecifier;
-      if (ts.isStringLiteral(moduleSpecifier)) {
-        const importPath = moduleSpecifier.text;
-
-        // Check 4: Allowed Web Packages
-        if (importPath.startsWith("@notebook/")) {
-          const rootPkg = importPath.split("/").slice(0, 2).join("/");
-          if (!allowedWebPackages.has(rootPkg)) {
-            addViolation(
-              4,
-              "Web Import Boundary",
-              file,
-              `apps/web is not allowed to import from '${importPath}'. Allowed: contracts, api-client, hooks, ui, editor.`
-            );
-          }
-        }
-
-        // Check 5: Web cannot import from apps/server
-        if (importPath.includes("apps/server") || importPath.includes("@notebook/server")) {
-          addViolation(5, "Web Import Boundary", file, "apps/web cannot import from apps/server.");
-        }
-
-        // Check 6: Web cannot import from infra-*
-        if (importPath.includes("@notebook/infra-")) {
-          addViolation(6, "Web Import Boundary", file, "apps/web cannot import infrastructure packages.");
-        }
-
-        // Check 7: Web cannot import domain-* directly
-        if (importPath.includes("@notebook/domain-")) {
-          addViolation(7, "Web Import Boundary", file, "apps/web cannot import domain packages directly.");
-        }
-
-        // Check 8: Web cannot import Node built-ins
-        if (
-          importPath.startsWith("node:fs") ||
-          importPath.startsWith("node:child_process") ||
-          importPath.startsWith("node:net")
-        ) {
-          addViolation(8, "Web Node Isolation", file, `apps/web cannot import Node I/O module '${importPath}'.`);
-        }
+  for (const { specifier: importPath } of extractSpecifiers(stripComments(content))) {
+    // Check 4: Allowed Web Packages
+    if (importPath.startsWith("@notebook/")) {
+      const rootPkg = importPath.split("/").slice(0, 2).join("/");
+      if (!allowedWebPackages.has(rootPkg)) {
+        addViolation(
+          4,
+          "Web Import Boundary",
+          file,
+          `apps/web is not allowed to import from '${importPath}'. Allowed: contracts, api-client, hooks, ui, editor.`
+        );
       }
     }
-    ts.forEachChild(node, checkWebImports);
+
+    // Check 5: Web cannot import from apps/server
+    if (importPath.includes("apps/server") || importPath.includes("@notebook/server")) {
+      addViolation(5, "Web Import Boundary", file, "apps/web cannot import from apps/server.");
+    }
+
+    // Check 6: Web cannot import from infra-*
+    if (importPath.includes("@notebook/infra-")) {
+      addViolation(6, "Web Import Boundary", file, "apps/web cannot import infrastructure packages.");
+    }
+
+    // Check 7: Web cannot import domain-* directly
+    if (importPath.includes("@notebook/domain-")) {
+      addViolation(7, "Web Import Boundary", file, "apps/web cannot import domain packages directly.");
+    }
+
+    // Check 8: Web cannot import Node built-ins
+    if (
+      importPath.startsWith("node:fs") ||
+      importPath.startsWith("node:child_process") ||
+      importPath.startsWith("node:net")
+    ) {
+      addViolation(8, "Web Node Isolation", file, `apps/web cannot import Node I/O module '${importPath}'.`);
+    }
   }
-  checkWebImports(sourceFile);
 }
 
 // ============================================================================
@@ -160,33 +211,22 @@ if (existsSync(packagesDir)) {
       const infraFiles = getAllFiles(join(packagesDir, pkg.name, "src"));
       for (const file of infraFiles) {
         const content = readFileSync(file, "utf-8");
-        const sourceFile = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true);
-
-        function checkInfraImports(node: ts.Node) {
-          if (ts.isImportDeclaration(node)) {
-            const spec = node.moduleSpecifier;
-            if (ts.isStringLiteral(spec)) {
-              const imp = spec.text;
-
-              // Check 9: Infra cannot import domain-*
-              if (imp.includes("@notebook/domain-")) {
-                addViolation(9, "Infra-Domain Boundary", file, `Infra package '${pkg.name}' cannot import domain packages.`);
-              }
-
-              // Check 10: Infra cannot import apps/*
-              if (imp.includes("apps/web") || imp.includes("apps/server")) {
-                addViolation(10, "Infra-App Boundary", file, `Infra package '${pkg.name}' cannot import apps.`);
-              }
-
-              // Check 11: Infra cannot import peer infra-* packages
-              if (imp.startsWith("@notebook/infra-") && !imp.startsWith(`@notebook/${pkg.name}`)) {
-                addViolation(11, "Infra Seam Independence", file, `Infra package '${pkg.name}' cannot import peer infra package '${imp}'.`);
-              }
-            }
+        for (const { specifier: imp } of extractSpecifiers(stripComments(content))) {
+          // Check 9: Infra cannot import domain-*
+          if (imp.includes("@notebook/domain-")) {
+            addViolation(9, "Infra-Domain Boundary", file, `Infra package '${pkg.name}' cannot import domain packages.`);
           }
-          ts.forEachChild(node, checkInfraImports);
+
+          // Check 10: Infra cannot import apps/*
+          if (imp.includes("apps/web") || imp.includes("apps/server")) {
+            addViolation(10, "Infra-App Boundary", file, `Infra package '${pkg.name}' cannot import apps.`);
+          }
+
+          // Check 11: Infra cannot import peer infra-* packages
+          if (imp.startsWith("@notebook/infra-") && !imp.startsWith(`@notebook/${pkg.name}`)) {
+            addViolation(11, "Infra Seam Independence", file, `Infra package '${pkg.name}' cannot import peer infra package '${imp}'.`);
+          }
         }
-        checkInfraImports(sourceFile);
       }
     }
   }
@@ -203,58 +243,47 @@ if (existsSync(packagesDir)) {
       const domainFiles = getAllFiles(join(packagesDir, pkg.name, "src"));
       for (const file of domainFiles) {
         const content = readFileSync(file, "utf-8");
-        const sourceFile = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true);
-
-        function checkDomainImports(node: ts.Node) {
-          if (ts.isImportDeclaration(node)) {
-            const spec = node.moduleSpecifier;
-            if (ts.isStringLiteral(spec)) {
-              const imp = spec.text;
-
-              // Check 15 & 16: Domain deep imports banned (must only import through root index)
-              if (imp.startsWith("@notebook/domain-")) {
-                const parts = imp.split("/");
-                if (parts.length > 2) {
-                  addViolation(
-                    16,
-                    "Domain Deep Import",
-                    file,
-                    `Deep import '${imp}' is forbidden. Import only through root package index.`
-                  );
-                }
-              }
-
-              // Check 17: Domain cannot import apps/*
-              if (imp.includes("apps/web") || imp.includes("apps/server")) {
-                addViolation(17, "Domain-App Boundary", file, "Domain packages cannot import apps.");
-              }
-
-              // Check 18: Domains cannot import raw Drizzle table definitions
-              if (imp.includes("drizzle-orm/sqlite-core") || imp.includes("drizzle-orm/pg-core")) {
-                addViolation(18, "Database Isolation", file, "Domains cannot import raw Drizzle table definitions.");
-              }
-
-              // Check 19: Domains cannot import raw database drivers
-              if (imp === "better-sqlite3" || imp === "pg") {
-                addViolation(19, "Database Driver Isolation", file, `Domains cannot import database driver '${imp}' directly.`);
-              }
-
-              // Check 20: Domains cannot import infra packages directly
-              if (imp.startsWith("@notebook/infra-")) {
-                addViolation(20, "Domain-Infra Inversion", file, `Domain cannot import '${imp}' directly. Use port/contract interfaces.`);
-              }
+        for (const { specifier: imp } of extractSpecifiers(stripComments(content))) {
+          // Check 15 & 16: Domain deep imports banned (must only import through root index)
+          if (imp.startsWith("@notebook/domain-")) {
+            const parts = imp.split("/");
+            if (parts.length > 2) {
+              addViolation(
+                16,
+                "Domain Deep Import",
+                file,
+                `Deep import '${imp}' is forbidden. Import only through root package index.`
+              );
             }
           }
-          ts.forEachChild(node, checkDomainImports);
+
+          // Check 17: Domain cannot import apps/*
+          if (imp.includes("apps/web") || imp.includes("apps/server")) {
+            addViolation(17, "Domain-App Boundary", file, "Domain packages cannot import apps.");
+          }
+
+          // Check 18: Domains cannot import raw Drizzle table definitions
+          if (imp.includes("drizzle-orm/sqlite-core") || imp.includes("drizzle-orm/pg-core")) {
+            addViolation(18, "Database Isolation", file, "Domains cannot import raw Drizzle table definitions.");
+          }
+
+          // Check 19: Domains cannot import raw database drivers
+          if (imp === "better-sqlite3" || imp === "pg") {
+            addViolation(19, "Database Driver Isolation", file, `Domains cannot import database driver '${imp}' directly.`);
+          }
+
+          // Check 20: Domains cannot import infra packages directly
+          if (imp.startsWith("@notebook/infra-")) {
+            addViolation(20, "Domain-Infra Inversion", file, `Domain cannot import '${imp}' directly. Use port/contract interfaces.`);
+          }
         }
-        checkDomainImports(sourceFile);
       }
     }
   }
 }
 
 // ============================================================================
-// GROUP 5: STATIC TYPE PURITY & AST ANALYSIS (Checks 21-23)
+// GROUP 5: STATIC TYPE PURITY & TEXT-SCANNER ANALYSIS (Checks 21-23)
 // ============================================================================
 
 const allProductionTsFiles = getAllFiles(join(ROOT, "packages"))
@@ -263,48 +292,54 @@ const allProductionTsFiles = getAllFiles(join(ROOT, "packages"))
 
 for (const file of allProductionTsFiles) {
   const content = readFileSync(file, "utf-8");
-  const sourceFile = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true);
+  const code = stripStrings(stripComments(content));
 
-  function checkTypePurity(node: ts.Node) {
-    // Check 21: AST check banning explicit 'any'
-    if (node.kind === ts.SyntaxKind.AnyKeyword) {
-      const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-      addViolation(
-        21,
-        "Strict Type Purity",
-        file,
-        `Explicit 'any' banned at line ${line + 1}. Use 'unknown' and narrow.`
-      );
-    }
+  // Check 21: ban explicit 'any' (standalone token, not a property access or declaration)
+  const anyRe = /\bany\b/g;
+  let anyMatch: RegExpExecArray | null;
+  while ((anyMatch = anyRe.exec(code)) !== null) {
+    const prev = anyMatch.index > 0 ? code[anyMatch.index - 1] : "";
+    if (prev === ".") continue;
+    const lineText = code.slice(code.lastIndexOf("\n", anyMatch.index - 1) + 1, anyMatch.index);
+    if (/(?:^|[\s{;,])(?:export\s+)?(?:const|let|var|function|class|interface|type|enum)\s+$/.test(lineText)) continue;
+    addViolation(
+      21,
+      "Strict Type Purity",
+      file,
+      `Explicit 'any' banned at line ${lineOf(code, anyMatch.index)}. Use 'unknown' and narrow.`
+    );
+  }
 
-    // Check 22: AST check banning 'as unknown as T'
-    if (ts.isAsExpression(node) && ts.isAsExpression(node.expression)) {
-      const innerAs = node.expression;
-      if (innerAs.type.kind === ts.SyntaxKind.UnknownKeyword) {
-        const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-        addViolation(
-          22,
-          "Strict Type Purity",
-          file,
-          `'as unknown as T' escape hatch banned at line ${line + 1}.`
-        );
-      }
-    }
+  // Check 22: ban 'as unknown as T' escape hatch
+  const doubleAssertRe = /\bas\s+unknown\s+as\b/g;
+  let assertMatch: RegExpExecArray | null;
+  while ((assertMatch = doubleAssertRe.exec(code)) !== null) {
+    addViolation(
+      22,
+      "Strict Type Purity",
+      file,
+      `'as unknown as T' escape hatch banned at line ${lineOf(code, assertMatch.index)}.`
+    );
+  }
 
-    // Check 23: AST check banning non-null assertions (!) in domain logic
-    if (ts.isNonNullExpression(node) && file.includes("domain-")) {
-      const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+  // Check 23: ban non-null assertions (!) in domain logic (excluding !=, !==, and !: definite assignment)
+  if (file.includes("domain-")) {
+    const bangRe = /!(?!=)/g;
+    let bangMatch: RegExpExecArray | null;
+    while ((bangMatch = bangRe.exec(code)) !== null) {
+      const prev = bangMatch.index > 0 ? code[bangMatch.index - 1] : "";
+      if (prev === "" || /[\s({[,;:?=!&|+\-*/%<>~^]/.test(prev)) continue;
+      let next = bangMatch.index + 1;
+      while (next < code.length && (code[next] === " " || code[next] === "\t")) next++;
+      if (code[next] === ":") continue;
       addViolation(
         23,
         "Strict Type Purity",
         file,
-        `Non-null assertion '!' banned at line ${line + 1} in domain packages. Handle nullability explicitly.`
+        `Non-null assertion '!' banned at line ${lineOf(code, bangMatch.index)} in domain packages. Handle nullability explicitly.`
       );
     }
-
-    ts.forEachChild(node, checkTypePurity);
   }
-  checkTypePurity(sourceFile);
 }
 
 // ============================================================================
@@ -313,52 +348,43 @@ for (const file of allProductionTsFiles) {
 
 for (const file of allProductionTsFiles) {
   const content = readFileSync(file, "utf-8");
-  const sourceFile = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true);
+  const codeNoComments = stripComments(content);
+  const code = stripStrings(codeNoComments);
 
-  function checkEsmStandards(node: ts.Node) {
-    // Check 24: CommonJS require() ban via AST
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === "require" &&
-      !file.endsWith(".cjs")
-    ) {
-      const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-      addViolation(24, "Pure ESM Standard", file, `CommonJS require() banned at line ${line + 1}.`);
+  // Check 24: CommonJS require() ban
+  if (!file.endsWith(".cjs")) {
+    const requireRe = /(?<![\w$.])require\s*\(/g;
+    let requireMatch: RegExpExecArray | null;
+    while ((requireMatch = requireRe.exec(code)) !== null) {
+      addViolation(24, "Pure ESM Standard", file, `CommonJS require() banned at line ${lineOf(code, requireMatch.index)}.`);
     }
+  }
 
-    // Check 25: CommonJS module.exports ban via AST
-    if (
-      ts.isPropertyAccessExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === "module" &&
-      node.name.text === "exports" &&
-      !file.endsWith(".cjs")
-    ) {
-      const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-      addViolation(25, "Pure ESM Standard", file, `module.exports banned at line ${line + 1}.`);
+  // Check 25: CommonJS module.exports ban
+  if (!file.endsWith(".cjs")) {
+    const exportsRe = /(?<![\w$.])module\.exports\b/g;
+    let exportsMatch: RegExpExecArray | null;
+    while ((exportsMatch = exportsRe.exec(code)) !== null) {
+      addViolation(25, "Pure ESM Standard", file, `module.exports banned at line ${lineOf(code, exportsMatch.index)}.`);
     }
+  }
 
-    // Check 26: Relative imports must specify .js extension (NodeNext packages, excluding Next.js bundler)
-    const isNextApp = file.includes("apps/web") || file.includes("apps\\web");
-    if (!isNextApp && ts.isImportDeclaration(node)) {
-      const spec = node.moduleSpecifier;
-      if (ts.isStringLiteral(spec) && spec.text.startsWith(".")) {
-        if (!spec.text.endsWith(".js") && !spec.text.endsWith(".json")) {
-          const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+  // Check 26: Relative imports must specify .js extension (NodeNext packages, excluding Next.js bundler)
+  const isNextApp = file.includes("apps/web") || file.includes("apps\\web");
+  if (!isNextApp) {
+    for (const { specifier, line } of extractSpecifiers(codeNoComments)) {
+      if (specifier.startsWith(".")) {
+        if (!specifier.endsWith(".js") && !specifier.endsWith(".json")) {
           addViolation(
             26,
             "NodeNext ESM Extension",
             file,
-            `Relative import '${spec.text}' at line ${line + 1} must end with '.js' extension for NodeNext compatibility.`
+            `Relative import '${specifier}' at line ${line} must end with '.js' extension for NodeNext compatibility.`
           );
         }
       }
     }
-
-    ts.forEachChild(node, checkEsmStandards);
   }
-  checkEsmStandards(sourceFile);
 }
 
 // ============================================================================
@@ -408,6 +434,22 @@ for (const bannedRoot of ["logs", ".logs", "uploads", "artifacts", "state", "por
   }
 }
 
+// Check 33: Workspace package exports must point at compiled dist, never src/*.ts
+for (const pkgDir of [join(ROOT, "packages", "ui")]) {
+  const pkgJsonPath = join(pkgDir, "package.json");
+  if (existsSync(pkgJsonPath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf-8")) as { exports?: unknown; main?: unknown };
+      const serialized = JSON.stringify(pkg.exports ?? {}) + String(pkg.main ?? "");
+      if (serialized.includes("src/") && (serialized.includes(".ts") || serialized.includes(".tsx"))) {
+        addViolation(33, "Compiled Output Invariant", pkgJsonPath, "@notebook/ui exports/main must point at compiled dist, never src/*.ts (would force transpilePackages).");
+      }
+    } catch {
+      // ignore JSON parse errors — typecheck covers malformed package.json
+    }
+  }
+}
+
 // ============================================================================
 // REPORTING SUMMARY
 // ============================================================================
@@ -419,5 +461,5 @@ if (violations.length > 0) {
   }
   process.exit(1);
 } else {
-  console.log("✅ All 32 architectural boundary checks passed successfully!");
+  console.log("✅ All 33 architectural boundary checks passed successfully!");
 }

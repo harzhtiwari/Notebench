@@ -29,14 +29,23 @@ export interface StartDevOptions {
   preferredWebPort?: number | undefined;
   preferredServerPort?: number | undefined;
   spawnFn?: typeof spawn | undefined;
+  /** When false, skip the Next.js web compiler entirely (serve the prebuilt pack from the daemon). Default true. */
+  web?: boolean | undefined;
 }
 
 export interface StartDevResult {
-  webPort: number;
+  webPort?: number | undefined;
   serverPort: number;
   serverProcess: ChildProcess;
-  webProcess: ChildProcess;
+  webProcess?: ChildProcess | undefined;
   shutdown: (code?: number) => void;
+}
+
+/**
+ * Parses `pnpm dev` CLI flags. Only known flag today is `--no-web`.
+ */
+export function parseDevArgs(argv: string[]): { web: boolean } {
+  return { web: !argv.includes("--no-web") };
 }
 
 /**
@@ -313,17 +322,23 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
   const root = resolve(options.root ?? process.cwd());
   ensureStorageLayout(root);
 
+  // `--no-web`: skip the Next.js compiler; the daemon serves the prebuilt pack.
+  const withWeb = options.web ?? true;
+
   const { webPort, serverPort } = await allocateDevPorts({
     preferredWebPort: options.preferredWebPort,
     preferredServerPort: options.preferredServerPort,
   });
 
-  writeDevRunState(root, { webPort, serverPort });
+  writeDevRunState(root, {
+    webPort: withWeb ? webPort : undefined,
+    serverPort,
+  });
 
   const logsDir = join(root, ".tmp", "logs");
   const devLogFile = setupServiceLog(logsDir, "dev");
   const serverLogFile = setupServiceLog(logsDir, "server");
-  const webLogFile = setupServiceLog(logsDir, "web");
+  const webLogFile = withWeb ? setupServiceLog(logsDir, "web") : undefined;
 
   const appendToDevLog = (line: string) => {
     try {
@@ -342,6 +357,7 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
   };
 
   const appendToWebLog = (line: string) => {
+    if (!webLogFile) return;
     try {
       appendFileSync(webLogFile, stripAnsi(line), "utf-8");
     } catch {
@@ -365,7 +381,11 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
 
   logDev(`Initializing Notebench Development Orchestrator`);
   logDev(`   - Fastify Daemon: http://127.0.0.1:${serverPort}`);
-  logDev(`   - Next.js Web UI: http://127.0.0.1:${webPort}`);
+  if (withWeb) {
+    logDev(`   - Next.js Web UI: http://127.0.0.1:${webPort}`);
+  } else {
+    logDev(`   - Next.js Web UI: skipped (--no-web; daemon serves the prebuilt pack)`);
+  }
   logDev(`   - Port mappings recorded in .tmp/ports/ and PIDs in .tmp/pids/`);
   logDev(`   - Service logs streamed to .tmp/logs/{dev,server,web}/latest.log`);
 
@@ -386,30 +406,34 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
     },
   });
 
-  const webProcess = spawnProcess(pnpmCmd, ["--filter", "web", "dev"], {
-    cwd: root,
-    stdio: ["inherit", "pipe", "pipe"],
-    shell: process.platform === "win32",
-    detached: process.platform !== "win32",
-    env: {
-      ...process.env,
-      NO_COLOR: "1",
-      HOST: "127.0.0.1",
-      PORT: String(webPort),
-      NEXT_PUBLIC_SERVER_PORT: String(serverPort),
-      NEXT_PUBLIC_API_URL: `http://127.0.0.1:${serverPort}`,
-    },
-  });
+  const webProcess = withWeb
+    ? spawnProcess(pnpmCmd, ["--filter", "web", "dev"], {
+        cwd: root,
+        stdio: ["inherit", "pipe", "pipe"],
+        shell: process.platform === "win32",
+        detached: process.platform !== "win32",
+        env: {
+          ...process.env,
+          NO_COLOR: "1",
+          HOST: "127.0.0.1",
+          PORT: String(webPort),
+          NEXT_PUBLIC_SERVER_PORT: String(serverPort),
+          NEXT_PUBLIC_API_URL: `http://127.0.0.1:${serverPort}`,
+        },
+      })
+    : undefined;
 
   attachPrefixedTee(serverProcess.stdout, "server", process.stdout, appendToServerLog);
   attachPrefixedTee(serverProcess.stderr, "server", process.stderr, appendToServerLog);
-  attachPrefixedTee(webProcess.stdout, "web", process.stdout, appendToWebLog);
-  attachPrefixedTee(webProcess.stderr, "web", process.stderr, appendToWebLog);
+  if (webProcess) {
+    attachPrefixedTee(webProcess.stdout, "web", process.stdout, appendToWebLog);
+    attachPrefixedTee(webProcess.stderr, "web", process.stderr, appendToWebLog);
+  }
 
   writeDevRunState(root, {
-    webPort,
+    webPort: withWeb ? webPort : undefined,
     serverPort,
-    webPid: webProcess.pid,
+    webPid: webProcess?.pid,
     serverPid: serverProcess.pid,
   });
 
@@ -434,7 +458,7 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
     }
   });
 
-  webProcess.on("exit", (code) => {
+  webProcess?.on("exit", (code) => {
     if (!isShuttingDown) {
       logDevErr(`Next.js Web UI exited prematurely with code ${code}`);
       shutdown(code ?? 1);
@@ -446,7 +470,7 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
     shutdown(1);
   });
 
-  webProcess.on("error", (err) => {
+  webProcess?.on("error", (err) => {
     logDevErr(`Next.js process spawn error: ${String(err)}`);
     shutdown(1);
   });
@@ -457,7 +481,7 @@ export async function startDev(options: StartDevOptions = {}): Promise<StartDevR
   }
 
   return {
-    webPort,
+    webPort: withWeb ? webPort : undefined,
     serverPort,
     serverProcess,
     webProcess,
@@ -482,7 +506,14 @@ const isDirectExecution = (): boolean => {
 };
 
 if (isDirectExecution()) {
-  startDev().catch((err) => {
+  const argv = process.argv.slice(2);
+  if (argv.includes("--help") || argv.includes("-h")) {
+    console.log("Usage: pnpm dev [--no-web]");
+    console.log("  --no-web   Skip the Next.js compiler; the daemon serves the prebuilt apps/web/out pack.");
+    process.exit(0);
+  }
+  const { web } = parseDevArgs(argv);
+  startDev({ web }).catch((err) => {
     console.error("Failed to start development orchestrator:", err);
     process.exit(1);
   });

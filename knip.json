@@ -1,5 +1,5 @@
 {
-  "$schema": "https://unpkg.com/knip@5/overview/schema.json",
+  "$schema": "https://unpkg.com/knip@6/overview/schema.json",
   "workspaces": {
     ".": {
       "entry": ["scripts/*.ts"]
@@ -20,5 +20,6 @@
     "pino-pretty",
     "pino-roll",
     "next"
-  ]
+  ],
+  "ignoreBinaries": ["uv", "sqlite3"]
 }

@@ -8,7 +8,25 @@ import {
   type DashboardSortKey,
   DASHBOARD_SORT_KEYS_CONFIG,
 } from "@notebook/contracts";
-import { Button, Input } from "@notebook/ui";
+import {
+  Button,
+  Input,
+  Notebook,
+  MagnifyingGlass,
+  GridFour,
+  List,
+  Plus,
+  Gear,
+  Sun,
+  Moon,
+  Desktop,
+  Check,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@notebook/ui";
+import { applyTheme, getStoredTheme, type ThemeMode } from "../settings";
 import { NoModelBanner } from "./NoModelBanner";
 import { FirstRunBlankState } from "./FirstRunBlankState";
 import { MetricsPopover } from "./MetricsPopover";
@@ -52,6 +70,19 @@ export function DashboardView({
   const [viewMode, setViewMode] = useState<"grid" | "list">(defaultView);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState<DashboardSortKey>("updated");
+  const [currentTheme, setCurrentTheme] = useState<ThemeMode>(() => {
+    if (typeof window !== "undefined") {
+      return getStoredTheme();
+    }
+    return "system";
+  });
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+
+  const handleThemeChange = (mode: ThemeMode) => {
+    setCurrentTheme(mode);
+    applyTheme(mode);
+    setThemeMenuOpen(false);
+  };
 
   // Inline rename state (Decision 1.18)
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -174,8 +205,8 @@ export function DashboardView({
       {/* 2. Top Header Toolbar */}
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-[var(--nb-edge)]/40 pb-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[var(--nb-r-control)] bg-[var(--nb-sheet)] text-base font-bold shadow-xs">
-            ▲
+          <div className="flex h-8 w-8 items-center justify-center rounded-[var(--nb-r-control)] bg-[var(--nb-sheet)] text-[var(--nb-ink)] shadow-xs">
+            <Notebook size={18} weight="bold" />
           </div>
           <h1 className="text-lg font-semibold tracking-tight text-[var(--nb-ink)]">
             Notebench
@@ -186,13 +217,17 @@ export function DashboardView({
         {/* Search, Filter, Sort & View Controls */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Real-time search input */}
-          <div className="w-64">
+          <div className="relative w-64">
             <Input
               type="search"
               placeholder="Search notebooks or source files..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 text-xs bg-[var(--nb-sheet)] border-[var(--nb-edge)]"
+              className="h-8 pl-8 text-xs bg-[var(--nb-sheet)] border-[var(--nb-edge)]"
+            />
+            <MagnifyingGlass
+              size={14}
+              className="absolute left-2.5 top-2.5 text-[var(--nb-ink-3)] pointer-events-none"
             />
           </div>
 
@@ -221,12 +256,13 @@ export function DashboardView({
               data-testid="view-toggle-grid"
               aria-label="Grid View"
               onClick={() => handleSetViewMode("grid")}
-              className={`h-7 px-2.5 text-xs font-medium border-0 ${
+              className={`h-7 px-2.5 text-xs font-medium border-0 flex items-center gap-1.5 ${
                 viewMode === "grid"
                   ? "bg-[var(--nb-well)] text-[var(--nb-ink)]"
                   : "bg-transparent text-[var(--nb-ink-2)]"
               }`}
             >
+              <GridFour size={14} />
               Grid
             </Button>
             <Button
@@ -235,12 +271,13 @@ export function DashboardView({
               data-testid="view-toggle-list"
               aria-label="List View"
               onClick={() => handleSetViewMode("list")}
-              className={`h-7 px-2.5 text-xs font-medium border-0 ${
+              className={`h-7 px-2.5 text-xs font-medium border-0 flex items-center gap-1.5 ${
                 viewMode === "list"
                   ? "bg-[var(--nb-well)] text-[var(--nb-ink)]"
                   : "bg-transparent text-[var(--nb-ink-2)]"
               }`}
             >
+              <List size={14} />
               List
             </Button>
           </div>
@@ -251,12 +288,87 @@ export function DashboardView({
             onManageStorage={() => onOpenSettings?.("storage")}
           />
 
+          {/* Theme Selector Dropdown */}
+          <DropdownMenu open={themeMenuOpen} onOpenChange={setThemeMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="theme-selector-trigger"
+                aria-label={`Current theme: ${currentTheme}`}
+                onClick={() => setThemeMenuOpen((prev) => !prev)}
+                className="h-8 w-8 p-0 text-[var(--nb-ink-2)] border-[var(--nb-edge)] bg-[var(--nb-sheet)]"
+              >
+                {currentTheme === "dark" ? (
+                  <Moon size={16} />
+                ) : currentTheme === "light" ? (
+                  <Sun size={16} />
+                ) : (
+                  <Desktop size={16} />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-40 border-[var(--nb-edge)] bg-[var(--nb-sheet)] text-[var(--nb-ink)] shadow-md"
+            >
+              <DropdownMenuItem
+                data-testid="theme-option-light"
+                onClick={() => handleThemeChange("light")}
+                className="text-xs cursor-pointer flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  <Sun size={14} />
+                  Light
+                </span>
+                {currentTheme === "light" && <Check size={14} />}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="theme-option-dark"
+                onClick={() => handleThemeChange("dark")}
+                className="text-xs cursor-pointer flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  <Moon size={14} />
+                  Dark
+                </span>
+                {currentTheme === "dark" && <Check size={14} />}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="theme-option-system"
+                onClick={() => handleThemeChange("system")}
+                className="text-xs cursor-pointer flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  <Desktop size={14} />
+                  System default
+                </span>
+                {currentTheme === "system" && <Check size={14} />}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Settings Button */}
+          {onOpenSettings && (
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="open-settings-btn"
+              aria-label="Settings"
+              onClick={() => onOpenSettings()}
+              className="h-8 w-8 p-0 text-[var(--nb-ink-2)] border-[var(--nb-edge)] bg-[var(--nb-sheet)]"
+            >
+              <Gear size={16} />
+            </Button>
+          )}
+
           {/* Primary Create Button */}
           <Button
             size="sm"
             onClick={onCreateNotebook}
-            className="h-8 px-3 text-xs font-semibold"
+            className="h-8 px-3 text-xs font-semibold flex items-center gap-1.5"
           >
+            <Plus size={14} weight="bold" />
             + New Notebook
           </Button>
         </div>

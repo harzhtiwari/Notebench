@@ -94,7 +94,7 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
         return reply.status(400).send({
           error: {
             code: "VALIDATION_ERROR",
-            message: bodyResult.error.errors[0]?.message ?? "Invalid notebook input",
+            message: bodyResult.error.issues[0]?.message ?? "Invalid notebook input",
           },
         });
       }
@@ -155,7 +155,7 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
         return reply.status(400).send({
           error: {
             code: "VALIDATION_ERROR",
-            message: bodyResult.error.errors[0]?.message ?? "Invalid update input",
+            message: bodyResult.error.issues[0]?.message ?? "Invalid update input",
           },
         });
       }
@@ -203,7 +203,7 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
         return reply.status(400).send({
           error: {
             code: "VALIDATION_ERROR",
-            message: bodyResult.error.errors[0]?.message ?? "Invalid duplicate input",
+            message: bodyResult.error.issues[0]?.message ?? "Invalid duplicate input",
           },
         });
       }

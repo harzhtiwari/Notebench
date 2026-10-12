@@ -33,15 +33,19 @@ export function applyTheme(theme: ThemeMode): void {
 
   if (theme === "dark") {
     root.classList.add("dark");
+    root.setAttribute("data-theme", "dark");
   } else if (theme === "light") {
     root.classList.remove("dark");
+    root.setAttribute("data-theme", "light");
   } else {
     // Follow system preference
     const isDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ?? false;
     if (isDark) {
       root.classList.add("dark");
+      root.setAttribute("data-theme", "dark");
     } else {
       root.classList.remove("dark");
+      root.setAttribute("data-theme", "light");
     }
   }
 }

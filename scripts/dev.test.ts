@@ -13,6 +13,7 @@ import {
   killProcessTree,
   stripAnsi,
   setupServiceLog,
+  parseDevArgs,
   startDev,
 } from "./dev.js";
 
@@ -332,6 +333,52 @@ describe("scripts/dev.ts Dynamic Port & Dev Orchestration Runner", () => {
       expect(existsSync(join(devDir, "latest.log"))).toBe(true);
 
       result.shutdown();
+    });
+
+    it("spawns only the server when web is disabled (--no-web)", async () => {
+      const spawned: Array<{ cmd: string; args: string[] }> = [];
+      const processes: MockProcess[] = [];
+
+      const mockSpawn = ((cmd: string, args: readonly string[]) => {
+        const proc = new MockProcess(40000 + processes.length);
+        spawned.push({ cmd, args: [...args] });
+        processes.push(proc);
+        return proc as unknown as ChildProcess;
+      }) as unknown as typeof import("node:child_process").spawn;
+
+      const result = await startDev({
+        root: TEST_DIR,
+        preferredServerPort: 3001,
+        web: false,
+        spawnFn: mockSpawn,
+      });
+
+      expect(spawned.length).toBe(1);
+      expect(spawned[0]?.args).toContain("server");
+      expect(spawned.some((s) => s.args.includes("web"))).toBe(false);
+      expect(result.webPort).toBeUndefined();
+      expect(result.webProcess).toBeUndefined();
+      expect(result.serverPort).toBeGreaterThanOrEqual(3001);
+
+      const portsDir = join(TEST_DIR, ".tmp", "ports");
+      const pidsDir = join(TEST_DIR, ".tmp", "pids");
+      expect(existsSync(join(portsDir, "server.port"))).toBe(true);
+      expect(existsSync(join(portsDir, "web.port"))).toBe(false);
+      expect(existsSync(join(pidsDir, "server.pid"))).toBe(true);
+      expect(existsSync(join(pidsDir, "web.pid"))).toBe(false);
+
+      result.shutdown();
+      expect(existsSync(join(portsDir, "server.port"))).toBe(false);
+    });
+  });
+
+  describe("parseDevArgs CLI flags", () => {
+    it("enables web by default", () => {
+      expect(parseDevArgs([])).toEqual({ web: true });
+    });
+
+    it("disables web with --no-web", () => {
+      expect(parseDevArgs(["--no-web"])).toEqual({ web: false });
     });
   });
 });

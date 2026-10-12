@@ -18,8 +18,8 @@ export const HealthProbeResultSchema = z.object({
   name: z.string(),
   status: HealthProbeStatusSchema,
   message: z.string(),
-  details: z.record(z.unknown()).optional(),
-  thresholds: z.record(z.unknown()).optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
+  thresholds: z.record(z.string(), z.unknown()).optional(),
   durationMs: z.number().optional(),
 });
 export type HealthProbeResult = z.infer<typeof HealthProbeResultSchema>;
