@@ -4,6 +4,7 @@ import { resolve, join } from "node:path";
 import {
   createSqliteDatabase,
   DEFAULT_SQLITE_DB_PATH,
+  findMonorepoRoot,
 } from "./connection.js";
 
 const TEST_DIR = resolve(".tmp/test-db-connection");
@@ -23,7 +24,19 @@ describe("SQLite Database Connection", () => {
   });
 
   it("exposes default db path matching ADR 0004 (.notebook/db/app.sqlite)", () => {
-    expect(DEFAULT_SQLITE_DB_PATH).toBe(resolve(".notebook/db/app.sqlite"));
+    const root = findMonorepoRoot();
+    expect(DEFAULT_SQLITE_DB_PATH).toBe(join(root, ".notebook", "db", "app.sqlite"));
+  });
+
+  it("resolves the monorepo root correctly even from a nested subpackage directory", () => {
+    const root = findMonorepoRoot();
+    expect(existsSync(join(root, "pnpm-workspace.yaml"))).toBe(true);
+
+    const nestedPath = join(root, "apps", "server");
+    expect(findMonorepoRoot(nestedPath)).toBe(root);
+
+    const deepNestedPath = join(root, "packages", "infra-db", "src", "sqlite");
+    expect(findMonorepoRoot(deepNestedPath)).toBe(root);
   });
 
   it("opens database in WAL mode with busy_timeout=5000 and synchronous=NORMAL", () => {
