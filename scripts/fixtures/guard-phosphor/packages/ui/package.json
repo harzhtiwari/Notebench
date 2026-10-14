@@ -1,0 +1,5 @@
+{
+  "name": "fixture-ui",
+  "main": "./dist/index.js",
+  "exports": { ".": { "import": "./dist/index.js" } }
+}

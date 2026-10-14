@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 
 // Zero-dependency source scanner. This guard intentionally does NOT use the
 // TypeScript compiler API (which became a native-only binary without a stable
@@ -49,7 +49,7 @@ function getAllFiles(dir: string, extension: string[] = [".ts", ".tsx"]): string
   return files;
 }
 
-console.log("🔍 Running Notebench Architectural Guardrails (33 AST Boundary Checks)...");
+console.log("🔍 Running Notebench Architectural Guardrails (35 AST Boundary Checks)...");
 
 // ============================================================================
 // SOURCE SCANNER HELPERS (comment/string-aware, line-precise, no compiler API)
@@ -434,6 +434,24 @@ for (const bannedRoot of ["logs", ".logs", "uploads", "artifacts", "state", "por
   }
 }
 
+// Check 35: Disposable root allows only the spec layout plus tool caches —
+// ticket-scoped siblings (e.g. t04-*) must never appear. Test staging goes
+// under .tmp/build/<namespace>/ (spec 5.5), never beside it.
+const allowedTmpTopLevel = new Set(["ports", "pids", "logs", "build", "run", "cache"]);
+const tmpRoot = join(ROOT, ".tmp");
+if (existsSync(tmpRoot)) {
+  for (const entry of readdirSync(tmpRoot, { withFileTypes: true })) {
+    if (entry.isDirectory() && !allowedTmpTopLevel.has(entry.name)) {
+      addViolation(
+        35,
+        "Disposable Root Layout",
+        join(".tmp", entry.name),
+        `Top-level '.tmp/${entry.name}' is not part of the disposable layout (ports, pids, logs, build, run, cache). Stage test state under .tmp/build/<namespace>/ instead.`
+      );
+    }
+  }
+}
+
 // Check 33: Workspace package exports must point at compiled dist, never src/*.ts
 for (const pkgDir of [join(ROOT, "packages", "ui")]) {
   const pkgJsonPath = join(pkgDir, "package.json");
@@ -451,6 +469,157 @@ for (const pkgDir of [join(ROOT, "packages", "ui")]) {
 }
 
 // ============================================================================
+// GROUP 9: UPSTREAM ENV ISOLATION (Check 34)
+// ============================================================================
+
+// Check 34: Upstream env names must not appear in new source. The scan runs
+// over comment-stripped code with word boundaries, so the ticket-01 comment
+// naming the upstream family and words like METHOD_NOT_FOUND never match;
+// only real OD_/OPEN_DESIGN_/OPENDESIGN_ references fail. scripts/guard.ts
+// itself is exempt: implementing this check necessarily names the prefixes.
+const upstreamFiles = getAllFiles(join(ROOT, "scripts"), [".ts", ".tsx"])
+  .concat(allProductionTsFiles)
+  .filter(
+    (f) =>
+      !f.endsWith(".test.ts") &&
+      !f.endsWith(".spec.ts") &&
+      !f.endsWith(".test-d.ts") &&
+      !f.endsWith(".d.ts") &&
+      !f.endsWith(join("scripts", "guard.ts"))
+  );
+const upstreamRe = /\b(OD_|OPEN_DESIGN_|OPENDESIGN_)[A-Z0-9_]*/g;
+for (const file of upstreamFiles) {
+  const content = readFileSync(file, "utf-8");
+  const codeNoComments = stripComments(content);
+  upstreamRe.lastIndex = 0;
+  let upstreamMatch: RegExpExecArray | null;
+  while ((upstreamMatch = upstreamRe.exec(codeNoComments)) !== null) {
+    addViolation(
+      34,
+      "Upstream Env Isolation",
+      file,
+      `Upstream env reference '${upstreamMatch[0]}' banned at line ${lineOf(codeNoComments, upstreamMatch.index)}. Use NOTEBENCH_*/NB_* names.`
+    );
+  }
+}
+
+// ============================================================================
+// GROUP 10: UI DISCIPLINE (Checks 12-13, 28)
+// ============================================================================
+
+// Check 12: apps/web must never import the icon library directly — every
+// icon resolves through the packages/ui catalog (ticket ui-01).
+for (const file of webFiles) {
+  const content = readFileSync(file, "utf-8");
+  for (const { specifier, line } of extractSpecifiers(stripComments(content))) {
+    if (specifier === "@phosphor-icons/react" || specifier.startsWith("@phosphor-icons/react/")) {
+      addViolation(
+        12,
+        "UI Icon Discipline",
+        file,
+        `Direct icon-library import '${specifier}' at line ${line} is banned in apps/web. Import icons through '@notebook/ui'.`
+      );
+    }
+  }
+}
+
+// Check 13: a web-owned component file used from more than one route must
+// exist in the ui index — anything reused across routes lives in
+// packages/ui (spec §5). Route = first path segment under apps/web/src/app/.
+const webSrcDir = join(ROOT, "apps", "web", "src");
+const uiIndexPath = join(ROOT, "packages", "ui", "src", "index.ts");
+const uiIndexBases = new Set<string>();
+if (existsSync(uiIndexPath)) {
+  for (const { specifier } of extractSpecifiers(stripComments(readFileSync(uiIndexPath, "utf-8")))) {
+    const last = specifier.split("/").pop() ?? "";
+    uiIndexBases.add(last.replace(/\.(js|ts|tsx)$/, "").toLowerCase());
+  }
+}
+
+function resolveWebTarget(fromFile: string, spec: string): string | null {
+  if (!spec.startsWith(".")) return null;
+  const base = resolve(dirname(fromFile), spec);
+  const candidates = [base, `${base}.tsx`, `${base}.ts`, join(base, "index.tsx"), join(base, "index.ts")];
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+  }
+  return null;
+}
+
+function routeKeyFor(importer: string): string {
+  const rel = relative(webSrcDir, importer).split(sep);
+  if (rel[0] === "app" && rel.length > 2) return `route:${rel[1]}`;
+  return `file:${relative(ROOT, importer)}`;
+}
+
+const webComponentFiles = webFiles.filter((f) => f.split(sep).includes("components"));
+for (const componentFile of webComponentFiles) {
+  const routes = new Set<string>();
+  for (const importer of webFiles) {
+    if (importer === componentFile) continue;
+    const content = readFileSync(importer, "utf-8");
+    for (const { specifier } of extractSpecifiers(stripComments(content))) {
+      if (resolveWebTarget(importer, specifier) === componentFile) {
+        routes.add(routeKeyFor(importer));
+      }
+    }
+  }
+  if (routes.size > 1) {
+    const base = basename(componentFile).replace(/\.(tsx|ts)$/, "").toLowerCase();
+    if (!uiIndexBases.has(base)) {
+      addViolation(
+        13,
+        "UI Reusability Discipline",
+        componentFile,
+        `Web component used from ${routes.size} routes (${[...routes].sort().join(", ")}) is not re-exported from '@notebook/ui'. Move it to packages/ui.`
+      );
+    }
+  }
+}
+
+// Check 28: generated token outputs must be byte-identical to their docs/ui
+// sources — never hand-edit outputs; edits go to tokens.json +
+// build_tokens.py, then re-copy. Skipped when docs/ui is absent.
+const tokenPairs: Array<[string, string]> = [
+  ["docs/ui/tokens.css", "packages/ui/tokens.css"],
+  ["docs/ui/tokens.media.css", "packages/ui/tokens.media.css"],
+  ["docs/ui/tokens.ts", "packages/ui/src/tokens.ts"],
+  ["docs/ui/tailwind.preset.cjs", "packages/ui/tailwind.preset.cjs"],
+];
+let docsUiSeen = false;
+for (const [srcRel, dstRel] of tokenPairs) {
+  const src = join(ROOT, srcRel);
+  const dst = join(ROOT, dstRel);
+  if (!existsSync(src)) continue;
+  docsUiSeen = true;
+  if (!existsSync(dst)) {
+    addViolation(28, "Generated Token Identity", dst, `Generated file '${dstRel}' is missing its docs/ui source copy.`);
+    continue;
+  }
+  if (!readFileSync(src).equals(readFileSync(dst))) {
+    addViolation(
+      28,
+      "Generated Token Identity",
+      dst,
+      `Generated file '${dstRel}' differs from '${srcRel}'. Edit docs/ui/tokens.json + build_tokens.py and re-copy; never hand-edit outputs.`
+    );
+  }
+}
+if (docsUiSeen) {
+  for (const tool of ["tokens.json", "build_tokens.py"]) {
+    const toolPath = join(ROOT, "docs", "ui", tool);
+    if (!existsSync(toolPath)) {
+      addViolation(
+        28,
+        "Token Toolchain",
+        toolPath,
+        `Token toolchain file 'docs/ui/${tool}' is missing. Token edits must go through ${tool}.`
+      );
+    }
+  }
+}
+
+// ============================================================================
 // REPORTING SUMMARY
 // ============================================================================
 
@@ -461,5 +630,5 @@ if (violations.length > 0) {
   }
   process.exit(1);
 } else {
-  console.log("✅ All 33 architectural boundary checks passed successfully!");
+  console.log("✅ All 35 architectural boundary checks passed successfully!");
 }
