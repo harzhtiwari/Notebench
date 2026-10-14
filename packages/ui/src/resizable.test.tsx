@@ -5,7 +5,7 @@ import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
-} from "./resizable.js";
+} from "./components/resizable.js";
 
 describe("Resizable Primitives (@notebook/ui)", () => {
   it("renders panel group with horizontal layout and panels", () => {

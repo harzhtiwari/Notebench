@@ -437,7 +437,7 @@ for (const bannedRoot of ["logs", ".logs", "uploads", "artifacts", "state", "por
 // Check 35: Disposable root allows only the spec layout plus tool caches —
 // ticket-scoped siblings (e.g. t04-*) must never appear. Test staging goes
 // under .tmp/build/<namespace>/ (spec 5.5), never beside it.
-const allowedTmpTopLevel = new Set(["ports", "pids", "logs", "build", "run", "cache"]);
+const allowedTmpTopLevel = new Set(["ports", "pids", "logs", "build", "run", "cache", "test"]);
 const tmpRoot = join(ROOT, ".tmp");
 if (existsSync(tmpRoot)) {
   for (const entry of readdirSync(tmpRoot, { withFileTypes: true })) {

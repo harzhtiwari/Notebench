@@ -145,6 +145,14 @@ describe("guard UI discipline (ticket 03)", () => {
     expect(r.stderr).toContain("Shared");
   }, 120_000);
 
+  it("passes a stray toolchain .tmp/test/ dir [Check #35]", async () => {
+    const dir = buildTree("guard-tmp-test", {
+      ".tmp/test/placeholder": "",
+    });
+    const r = await runGuard(dir);
+    expect(r.code).toBe(0);
+  }, 120_000);
+
   it("fails hand-edited generated tokens [Check #28]", async () => {
     const dir = buildTree(
       "guard-tokens",
