@@ -8,7 +8,9 @@ import {
   ShieldCheck,
   Info,
   CaretRight,
+  CaretDown,
   Circle,
+  X,
 } from "./index.js";
 
 describe("icon catalog (ticket 01)", () => {
@@ -18,7 +20,9 @@ describe("icon catalog (ticket 01)", () => {
     ["ShieldCheck", ShieldCheck],
     ["Info", Info],
     ["CaretRight", CaretRight],
+    ["CaretDown", CaretDown],
     ["Circle", Circle],
+    ["X", X],
   ] as const)("exports %s as a renderable SVG icon", (_name, Icon) => {
     const { container } = render(<Icon />);
     expect(container.querySelector("svg")).not.toBeNull();

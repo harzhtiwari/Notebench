@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { X } from "@phosphor-icons/react/X";
+import { X } from "./icons.js";
 import { cn } from "../lib/utils.js";
 
 const Dialog = DialogPrimitive.Root;
