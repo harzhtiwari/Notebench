@@ -11,7 +11,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-9 items-center justify-center rounded-[var(--nb-r-control)] bg-[var(--nb-well)] p-1 text-[var(--nb-ink-2)]",
+      "inline-flex h-9 items-center justify-center rounded-[var(--nb-radius-control)] bg-[var(--nb-well)] p-1 text-[var(--nb-ink-2)]",
       className
     )}
     {...props}
@@ -26,7 +26,7 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-[calc(var(--nb-r-control)-2px)] px-3 py-1 text-xs font-medium text-[var(--nb-ink-2)] transition-all focus-visible:outline-[2px] focus-visible:outline-[var(--nb-ink)] disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-[var(--nb-sheet)] data-[state=active]:text-[var(--nb-ink)] data-[state=active]:shadow-xs",
+      "inline-flex items-center justify-center whitespace-nowrap rounded-[calc(var(--nb-radius-control)-2px)] px-3 py-1 text-xs font-medium text-[var(--nb-ink-2)] transition-all focus-visible:outline-[2px] focus-visible:outline-[var(--nb-ink)] disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-[var(--nb-sheet)] data-[state=active]:text-[var(--nb-ink)] data-[state=active]:shadow-xs",
       className
     )}
     {...props}

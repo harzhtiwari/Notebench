@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import "./globals.css";
-import { ThemeWatcher } from "../components/settings";
+import { ThemeWatcher } from "@notebook/ui";
 
 export const metadata = {
   title: "Notebench",

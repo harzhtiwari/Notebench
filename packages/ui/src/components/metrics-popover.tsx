@@ -1,18 +1,17 @@
 "use client";
 
-import * as React from "react";
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
-  Button,
-  ChartBar,
-} from "@notebook/ui";
+} from "./popover.js";
+import { Button } from "./button.js";
+import { ChartBar } from "./icons.js";
 import {
   type DashboardMetrics,
   DASHBOARD_METRICS_CONFIG,
 } from "@notebook/contracts";
-import { formatBytes } from "./formatters";
+import { formatBytes } from "../lib/formatters.js";
 
 export interface MetricsPopoverProps {
   metrics: DashboardMetrics;
@@ -41,7 +40,7 @@ export function MetricsPopover({ metrics, onManageStorage }: MetricsPopoverProps
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-80 border-[var(--nb-edge)] bg-[var(--nb-sheet)] p-4 text-[var(--nb-ink)] shadow-md"
+        className="w-80 border-[var(--nb-edge)] bg-[var(--nb-sheet)] p-4 text-[var(--nb-ink)] shadow-[var(--nb-shadow-float)]"
       >
         <div className="mb-3 flex items-center justify-between border-b border-[var(--nb-edge)]/40 pb-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-[var(--nb-ink-3)]">

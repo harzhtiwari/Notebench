@@ -8,7 +8,7 @@ const Sheet = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-[var(--nb-r-sheet)] border border-[var(--nb-edge)] bg-[var(--nb-sheet)] text-[var(--nb-ink)] shadow-xs",
+      "rounded-[var(--nb-radius-panel)] border border-[var(--nb-edge)] bg-[var(--nb-sheet)] text-[var(--nb-ink)] shadow-xs",
       className
     )}
     {...props}
@@ -82,7 +82,7 @@ const Well = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-[var(--nb-r-sheet)] border border-[var(--nb-edge)] bg-[var(--nb-well)] text-[var(--nb-ink)]",
+      "rounded-[var(--nb-radius-well)] border border-[var(--nb-edge)] bg-[var(--nb-well)] text-[var(--nb-ink)]",
       className
     )}
     {...props}

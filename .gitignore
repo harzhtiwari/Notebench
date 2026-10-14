@@ -17,6 +17,7 @@
 docs/Project/
 docs/research/
 docs/adr/
+docs/ui/
 
 # Operating System files
 .DS_Store

@@ -1,5 +1,6 @@
-import * as React from "react";
-import { Sheet, SheetHeader, SheetTitle, SheetDescription, SheetContent, Button, Notebook, Plus } from "@notebook/ui";
+import { Sheet, SheetHeader, SheetTitle, SheetDescription, SheetContent } from "./surface.js";
+import { Button } from "./button.js";
+import { Notebook, Plus } from "./icons.js";
 
 export interface FirstRunBlankStateProps {
   onCreateNotebook?: (() => void) | undefined;

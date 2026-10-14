@@ -1,5 +1,5 @@
-import * as React from "react";
-import { Button, Warning } from "@notebook/ui";
+import { Button } from "./button.js";
+import { Warning } from "./icons.js";
 
 export interface NoModelBannerProps {
   onOpenSettings?: ((page?: string) => void) | undefined;
@@ -10,7 +10,7 @@ export function NoModelBanner({ onOpenSettings }: NoModelBannerProps) {
     <div
       data-testid="no-model-banner"
       role="alert"
-      className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-[var(--nb-r-control)] border border-[var(--nb-warn)]/30 bg-[var(--nb-warn-wash)]/60 px-4 py-3 text-sm text-[var(--nb-ink)]"
+      className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-[var(--nb-radius-card)] border border-[var(--nb-warn)]/30 bg-[var(--nb-warn-wash)]/60 px-4 py-3 text-sm text-[var(--nb-ink)]"
     >
       <div className="flex items-center gap-2.5">
         <Warning size={16} weight="fill" className="text-[var(--nb-warn)] shrink-0" />

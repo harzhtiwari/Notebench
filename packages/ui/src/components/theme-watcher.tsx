@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { getStoredTheme, applyTheme } from "./theme";
+import { getStoredTheme, applyTheme } from "../lib/theme.js";
 
 export function ThemeWatcher() {
   useEffect(() => {
