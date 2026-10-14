@@ -1,0 +1,177 @@
+import net from "node:net";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import getPort from "get-port";
+import { OrchestratorError } from "./types.js";
+import type { ServiceName } from "./types.js";
+
+export { OrchestratorError } from "./types.js";
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * Parse a user-facing port value. Accepts integers 1-65535 only.
+ * `0` is rejected: automatic allocation is requested by omitting the
+ * flag/env var (internally `undefined`), never by passing 0.
+ */
+export function parsePortInput(value: unknown, label: string): number {
+  if (typeof value === "number") {
+    if (Number.isInteger(value) && value >= 1 && value <= 65535) return value;
+  } else if (typeof value === "string") {
+    if (/^\d+$/.test(value)) {
+      const parsed = Number(value);
+      if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535) return parsed;
+    }
+  }
+  const shown = typeof value === "string" ? value : JSON.stringify(value) ?? String(value);
+  throw new OrchestratorError(
+    `Invalid ${label} "${shown}": expected an integer port 1-65535 ` +
+      `(omit the flag for automatic allocation).`,
+    1
+  );
+}
+
+/** True when nothing is listening on port/host right now. */
+export function isPortAvailable(port: number, host: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", () => {
+      resolve(false);
+    });
+    server.listen(port, host, () => {
+      server.close(() => {
+        resolve(true);
+      });
+    });
+  });
+}
+
+/**
+ * Best-effort occupant description for a taken port (e.g. `pid 1234
+ * (node.exe)`). Returns `"unknown"` when the OS lookup is unavailable or
+ * inconclusive. Never throws.
+ */
+export async function describePortOccupant(port: number, host: string): Promise<string> {
+  try {
+    if (process.platform === "win32") {
+      return await describeOccupantWindows(port, host);
+    }
+    return await describeOccupantPosix(port, host);
+  } catch {
+    return "unknown";
+  }
+}
+
+async function describeOccupantWindows(port: number, host: string): Promise<string> {
+  const { stdout } = await execFileAsync("netstat", ["-ano", "-p", "TCP"], { timeout: 2000 });
+  const pid = parseNetstatPid(stdout, port, host);
+  if (pid === undefined) return "unknown";
+  try {
+    const { stdout: task } = await execFileAsync(
+      "tasklist",
+      ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"],
+      { timeout: 2000 }
+    );
+    const image = task.split(",")[0]?.replaceAll('"', "").trim();
+    return image !== undefined && image !== "" ? `pid ${pid} (${image})` : `pid ${pid}`;
+  } catch {
+    return `pid ${pid}`;
+  }
+}
+
+function parseNetstatPid(output: string, port: number, host: string): string | undefined {
+  let fallback: string | undefined;
+  for (const line of output.split("\n")) {
+    const parts = line.trim().split(/\s+/);
+    // `TCP    127.0.0.1:3123    0.0.0.0:0    LISTENING    1234`
+    if (parts.length >= 4 && parts[0]?.toUpperCase() === "TCP" && parts[3]?.toUpperCase() === "LISTENING") {
+      const local = parts[1] ?? "";
+      if (!local.endsWith(`:${port}`)) continue;
+      const pid = parts[parts.length - 1];
+      if (pid === undefined || !/^\d+$/.test(pid)) continue;
+      if (local === `${host}:${port}`) return pid;
+      fallback ??= pid;
+    }
+  }
+  return fallback;
+}
+
+async function describeOccupantPosix(port: number, host: string): Promise<string> {
+  const { stdout } = await execFileAsync(
+    "lsof",
+    [`-iTCP:${port}`, "-sTCP:LISTEN", "-P", "-n"],
+    { timeout: 2000 }
+  );
+  let fallback: string | undefined;
+  for (const line of stdout.split("\n").slice(1)) {
+    const parts = line.trim().split(/\s+/);
+    // `COMMAND   PID   USER ... NAME`
+    if (parts.length < 2 || parts[0] === undefined || parts[1] === undefined || !/^\d+$/.test(parts[1])) {
+      continue;
+    }
+    const candidate = `pid ${parts[1]} (${parts[0]})`;
+    const name = parts[parts.length - 1] ?? "";
+    if (name.includes(`${host}:${port}`)) return candidate;
+    fallback ??= candidate;
+  }
+  return fallback ?? "unknown";
+}
+
+/** Build the fail-fast conflict error for a forced port that is taken. */
+export function formatPortConflictError(
+  service: ServiceName | "server" | "web",
+  port: number,
+  occupant: string
+): OrchestratorError {
+  return new OrchestratorError(
+    `Port ${port} for ${service} is already in use (${occupant}). ` +
+      `Use a different --${service}-port or stop the occupant.`,
+    2
+  );
+}
+
+export interface AllocateRequests {
+  serverPort?: number | undefined;
+  webPort?: number | undefined;
+  host?: string | undefined;
+}
+
+export interface AllocatedPorts {
+  serverPort: number;
+  webPort: number;
+}
+
+/**
+ * Allocate one run's ports. Forced ports are honored exactly and fail fast
+ * (exit 2) on conflict; automatic ports come from get-port with a shared
+ * reserved set so the two services can never share a port in one run.
+ */
+export async function allocateRunPorts(requests: AllocateRequests = {}): Promise<AllocatedPorts> {
+  const host = requests.host ?? "127.0.0.1";
+  const reserved = new Set<number>();
+  const serverPort = await takePort("server", requests.serverPort, reserved, host);
+  const webPort = await takePort("web", requests.webPort, reserved, host);
+  return { serverPort, webPort };
+}
+
+async function takePort(
+  service: "server" | "web",
+  forced: number | undefined,
+  reserved: Set<number>,
+  host: string
+): Promise<number> {
+  if (forced !== undefined) {
+    const port = parsePortInput(forced, `${service} port`);
+    if (reserved.has(port)) {
+      throw formatPortConflictError(service, port, "reserved by this run");
+    }
+    if (!(await isPortAvailable(port, host))) {
+      throw formatPortConflictError(service, port, await describePortOccupant(port, host));
+    }
+    reserved.add(port);
+    return port;
+  }
+  const port = await getPort({ exclude: [...reserved], host });
+  reserved.add(port);
+  return port;
+}

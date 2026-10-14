@@ -1,25 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { resolveE2EBaseUrl } from "./tools/dev/src/e2e-ports.js";
 
 function resolveBaseUrl(): string {
-  if (process.env["PLAYWRIGHT_TEST_BASE_URL"]) return process.env["PLAYWRIGHT_TEST_BASE_URL"];
-  if (process.env["PLAYWRIGHT_BASE_URL"]) return process.env["PLAYWRIGHT_BASE_URL"];
-
-  const e2ePortFile = join(process.cwd(), ".tmp", "ports", "e2e-web.port");
-  if (existsSync(e2ePortFile)) {
-    const port = readFileSync(e2ePortFile, "utf-8").trim();
-    if (port) return `http://127.0.0.1:${port}`;
-  }
-
-  const webPortFile = join(process.cwd(), ".tmp", "ports", "web.port");
-  if (existsSync(webPortFile)) {
-    const port = readFileSync(webPortFile, "utf-8").trim();
-    if (port) return `http://127.0.0.1:${port}`;
-  }
-
-  const port = process.env["PORT"] || "3100";
-  return `http://127.0.0.1:${port}`;
+  return resolveE2EBaseUrl(process.cwd(), process.env);
 }
 
 export default defineConfig({

@@ -1,7 +1,25 @@
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { buildServer } from "./app.js";
 import { DocWorkerPool } from "@notebook/infra-doc-worker";
+
+/**
+ * Port-file contract for the dev orchestrator .
+ *
+ * Standalone runs keep today's behavior: a CWD-relative flat
+ * `.tmp/ports/server.port` written after listen and removed on close. When
+ * the orchestrator provides an absolute path via `NOTEBENCH_SERVER_PORT_FILE`
+ * (alias `NB_SERVER_PORT_FILE`), the server writes and cleans that file
+ * instead, so namespaced records stay under the disposable root.
+ */
+function resolvePortFilePath(): string {
+  const override =
+    process.env["NOTEBENCH_SERVER_PORT_FILE"] ?? process.env["NB_SERVER_PORT_FILE"];
+  if (override !== undefined && override !== "" && isAbsolute(override)) {
+    return override;
+  }
+  return resolve(process.cwd(), ".tmp/ports", "server.port");
+}
 
 const host = process.env["HOST"] ?? "127.0.0.1";
 // Dynamic port resolution: honor explicit PORT env if present, otherwise 0 for dynamic allocation
@@ -22,8 +40,7 @@ async function start() {
     serverHost: host,
   });
 
-  const portsDir = resolve(process.cwd(), ".tmp/ports");
-  const portFilePath = resolve(portsDir, "server.port");
+  const portFilePath = resolvePortFilePath();
 
   server.addHook("onClose", async () => {
     try {
@@ -42,7 +59,7 @@ async function start() {
     const boundPort =
       typeof address === "object" && address !== null ? address.port : requestedPort;
 
-    mkdirSync(portsDir, { recursive: true });
+    mkdirSync(dirname(portFilePath), { recursive: true });
     writeFileSync(portFilePath, String(boundPort), "utf-8");
 
     console.log(`[Fastify] Server listening on http://${host}:${boundPort}`);

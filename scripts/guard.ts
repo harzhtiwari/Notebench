@@ -478,6 +478,7 @@ for (const pkgDir of [join(ROOT, "packages", "ui")]) {
 // only real OD_/OPEN_DESIGN_/OPENDESIGN_ references fail. scripts/guard.ts
 // itself is exempt: implementing this check necessarily names the prefixes.
 const upstreamFiles = getAllFiles(join(ROOT, "scripts"), [".ts", ".tsx"])
+  .concat(getAllFiles(join(ROOT, "tools", "dev", "src"), [".ts", ".tsx"]))
   .concat(allProductionTsFiles)
   .filter(
     (f) =>

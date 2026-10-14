@@ -15,7 +15,7 @@
   "type": "module",
   "packageManager": "pnpm@12.11.2",
   "scripts": {
-    "dev": "tsx scripts/dev.ts",
+    "dev": "tsx tools/dev/src/dev.ts",
     "build": "turbo run build --cache-dir=.tmp/cache/turbo",
     "typecheck": "turbo run typecheck --cache-dir=.tmp/cache/turbo",
     "lint": "turbo run lint --cache-dir=.tmp/cache/turbo",

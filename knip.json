@@ -9,6 +9,9 @@
       "entry": ["src/app/**/page.tsx", "src/app/**/layout.tsx"]
     },
     "packages/*": {},
+    "tools/dev": {
+      "entry": ["src/index.ts", "src/sidecar/child.ts"]
+    },
     "examples/*": {}
   },
   "rules": {

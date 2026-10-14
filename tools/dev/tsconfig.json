@@ -1,0 +1,12 @@
+{
+  "extends": "@notebook/tsconfig/build.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    // Tests observe the web compiler config seam (`apps/web/next.config.ts`),
+    // which lives outside this package: root at the repo root so the whole
+    // program (src + tests + observed config) stays under rootDir.
+    // This config is typecheck-only (no build/emit script).
+    "rootDir": "../.."
+  },
+  "include": ["src/**/*", "tests/**/*"]
+}
