@@ -2,9 +2,13 @@
 
 import React, { useState, useEffect } from "react";
 import { Button, Input, Well, WellTitle, WellDescription } from "@notebook/ui";
-import { apiUrl } from "../../lib/api";
+import { apiUrl } from "../lib/api";
 
-export default function SetupPage() {
+// Merged from apps/web/src/app/setup/page.tsx (ticket 06): setup screen body
+// reused, not duplicated. The two full-document reloads (`window.location.href`)
+// are replaced by the owned router's `navigate` so screen switches never cause
+// a document request.
+export function SetupScreen({ navigate }: { navigate: (to: string) => void }) {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [passcode, setPasscode] = useState("");
@@ -78,7 +82,7 @@ export default function SetupPage() {
 
       setSuccess(true);
       setTimeout(() => {
-        window.location.href = "/";
+        navigate("/");
       }, 1200);
     } catch (err: unknown) {
       setErrorMessage(
@@ -100,7 +104,7 @@ export default function SetupPage() {
   if (alreadyCompleted) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[var(--nb-surface)] p-6 text-[var(--nb-ink)]">
-        <div className="w-full max-w-md rounded-xl border border-[var(--nb-line-1)] bg-[var(--nb-sheet)] p-6 shadow-sm">
+        <div className="w-full max-w-md rounded-xl border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-6 shadow-sm">
           <h1 className="text-lg font-bold text-[var(--nb-ink)]">Setup Already Completed</h1>
           <p className="mt-2 text-xs text-[var(--nb-ink-2)]">
             This Notebench instance is already initialized with an owner identity. The setup
@@ -110,7 +114,7 @@ export default function SetupPage() {
             <Button
               className="w-full text-xs"
               onClick={() => {
-                window.location.href = "/";
+                navigate("/");
               }}
             >
               Open Workspace
@@ -123,9 +127,9 @@ export default function SetupPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[var(--nb-surface)] p-6 text-[var(--nb-ink)]">
-      <div className="w-full max-w-lg rounded-xl border border-[var(--nb-line-1)] bg-[var(--nb-sheet)] p-8 shadow-md">
+      <div className="w-full max-w-lg rounded-xl border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-8 shadow-md">
         {/* Early Release Notice (PRD L9) */}
-        <Well className="mb-6 border-[var(--nb-line-1)] bg-[var(--nb-surface)] p-3">
+        <Well className="mb-6 border-[var(--nb-hairline)] bg-[var(--nb-surface)] p-3">
           <WellTitle className="text-xs font-semibold text-[var(--nb-ink)]">
             Early Release Notice
           </WellTitle>
@@ -144,13 +148,13 @@ export default function SetupPage() {
         </p>
 
         {errorMessage && (
-          <div className="mt-4 rounded-md border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+          <div className="mt-4 rounded-[var(--nb-radius-card)] border border-[var(--nb-danger)] bg-[var(--nb-danger-wash)] p-3 text-xs text-[var(--nb-danger)]">
             {errorMessage}
           </div>
         )}
 
         {success && (
-          <div className="mt-4 rounded-md border border-green-500/20 bg-green-500/10 p-3 text-xs text-green-600 dark:text-green-400">
+          <div className="mt-4 rounded-[var(--nb-radius-card)] border border-[var(--nb-ok)] bg-[var(--nb-ok-wash)] p-3 text-xs text-[var(--nb-ok)]">
             Setup completed successfully! Redirecting to workspace...
           </div>
         )}
