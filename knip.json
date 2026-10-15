@@ -10,7 +10,7 @@
     },
     "packages/*": {},
     "tools/dev": {
-      "entry": ["src/index.ts", "src/sidecar/child.ts"]
+      "entry": ["src/index.ts", "src/sidecar/child.ts", "src/benchmark.ts"]
     },
     "examples/*": {}
   },
