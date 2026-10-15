@@ -171,6 +171,89 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
       expect(body.error).toBeDefined();
       expect(body.error.code).toBe("NOT_FOUND");
     });
+
+    it("bare /api returns 404 JSON, NOT HTML fallback", async () => {
+      const response = await app.inject({
+        method: "GET",
+        url: "/api",
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(response.headers["content-type"]).toContain("application/json");
+      const body = JSON.parse(response.body);
+      expect(body.error.code).toBe("NOT_FOUND");
+    });
+
+    it("POST to a client route returns 404 JSON, NOT HTML fallback", async () => {
+      const response = await app.inject({
+        method: "POST",
+        url: "/notebook/nb-123",
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(response.headers["content-type"]).toContain("application/json");
+      const body = JSON.parse(response.body);
+      expect(body.error.code).toBe("NOT_FOUND");
+    });
+
+    it("JSON-Accept probe of a client route returns 404 JSON, NOT HTML fallback", async () => {
+      const response = await app.inject({
+        method: "GET",
+        url: "/notebook/nb-123",
+        headers: { accept: "application/json" },
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(response.headers["content-type"]).toContain("application/json");
+      const body = JSON.parse(response.body);
+      expect(body.error.code).toBe("NOT_FOUND");
+    });
+
+    it("missing /_next asset returns 404 JSON, NOT HTML fallback", async () => {
+      const response = await app.inject({
+        method: "GET",
+        url: "/_next/stale-chunk.js",
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(response.headers["content-type"]).toContain("application/json");
+      const body = JSON.parse(response.body);
+      expect(body.error.code).toBe("NOT_FOUND");
+    });
+
+    it("HEAD to a client route still serves the shell", async () => {
+      const response = await app.inject({
+        method: "HEAD",
+        url: "/notebook/nb-123",
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers["content-type"]).toContain("text/html");
+    });
+
+    it("bare /api with a query string returns 404 JSON, NOT HTML fallback", async () => {
+      const response = await app.inject({
+        method: "GET",
+        url: "/api?x=1",
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(response.headers["content-type"]).toContain("application/json");
+      const body = JSON.parse(response.body);
+      expect(body.error.code).toBe("NOT_FOUND");
+    });
+
+    it("missing /_next asset with a version query returns 404 JSON, NOT HTML fallback", async () => {
+      const response = await app.inject({
+        method: "GET",
+        url: "/_next/stale-chunk.js?v=2",
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(response.headers["content-type"]).toContain("application/json");
+      const body = JSON.parse(response.body);
+      expect(body.error.code).toBe("NOT_FOUND");
+    });
   });
 
   describe("Web export directory resolution (prebuilt pack without next dev)", () => {

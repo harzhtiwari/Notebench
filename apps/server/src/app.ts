@@ -200,13 +200,32 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   }
 
   // Not Found / Fallback handler
+  // SPA fallback policy (ticket 06): only browser navigations (GET/HEAD
+  // accepting HTML) fall back to the exported shell. API paths, stale asset
+  // requests, and non-HTML probes get a structured JSON 404 instead — an API
+  // path must never fall through to HTML.
   app.setNotFoundHandler(async (request, reply) => {
-    // API routes return structured JSON error
-    if (request.url.startsWith("/api/")) {
+    const url = request.url;
+    // request.url carries the query string: match policy on the pathname so
+    // `/api?x=1` cannot slip past the API exclusion into the HTML shell.
+    const queryIndex = url.indexOf("?");
+    const pathname = queryIndex === -1 ? url : url.slice(0, queryIndex);
+    const acceptHeader = request.headers.accept;
+    const accept = Array.isArray(acceptHeader) ? acceptHeader.join(",") : (acceptHeader ?? "");
+    const wantsHtml = accept === "" || accept.includes("text/html") || accept.includes("*/*");
+    const isNavigation = request.method === "GET" || request.method === "HEAD";
+    if (
+      pathname === "/api" ||
+      pathname.startsWith("/api/") ||
+      !isNavigation ||
+      pathname === "/_next" ||
+      pathname.startsWith("/_next/") ||
+      !wantsHtml
+    ) {
       return reply.status(404).send({
         error: {
           code: "NOT_FOUND" satisfies NotebookErrorCode,
-          message: `API endpoint not found: ${request.method} ${request.url}`,
+          message: `Resource not found: ${request.method} ${request.url}`,
         },
       });
     }

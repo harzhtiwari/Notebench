@@ -2,11 +2,12 @@ import { AppRoot } from "../../shell/app-root";
 
 /**
  * Single catch-all entry. The removed stub screens (`/`, `/dashboard`) are
- * not prerendered; only the functional setup screen is. Unknown paths fall
- * through to the not-found shell at runtime.
+ * not prerendered. The empty slug emits the root shell as `out/index.html`;
+ * the daemon fallback serves it for unknown non-API paths (deep links adopt
+ * the live URL on mount). `/setup` keeps its baked first paint.
  */
 export function generateStaticParams(): Array<{ slug: Array<string> }> {
-  return [{ slug: ["setup"] }];
+  return [{ slug: [] }, { slug: ["setup"] }];
 }
 
 export default async function CatchAllPage({
