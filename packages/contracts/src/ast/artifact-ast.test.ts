@@ -319,4 +319,67 @@ describe("Artifact AST Schemas & Invariants (Contracts Suite)", () => {
       ).toThrow();
     });
   });
+
+  describe("Requirement 4.1 (strict): item ids must be UUIDv4, not merely UUID-like", () => {
+    // Valid UUIDs that are NOT version 4: loose z.string().uuid() accepts them.
+    const UUID_V1 = "6ec0bd7f-11c0-11d1-a80c-00c04fd430c8";
+    const UUID_V7 = "0192a4e2-9d8b-7d5e-8f3a-123456789abc";
+    const UUID_NIL = "00000000-0000-0000-0000-000000000000";
+
+    it("rejects non-v4 UUIDs as flashcard item ids", () => {
+      for (const badId of [UUID_V1, UUID_V7, UUID_NIL]) {
+        expect(() =>
+          FlashcardItemSchema.parse({ id: badId, front: "Q", back: "A" })
+        ).toThrow();
+      }
+    });
+
+    it("rejects non-v4 UUIDs as quiz question, option, and correctOptionId ids", () => {
+      for (const badId of [UUID_V1, UUID_V7, UUID_NIL]) {
+        expect(() =>
+          QuizOptionSchema.parse({ id: badId, text: "Option" })
+        ).toThrow();
+        expect(() =>
+          QuizQuestionSchema.parse({
+            id: badId,
+            prompt: "P?",
+            options: [
+              { id: VALID_UUID_2, text: "1" },
+              { id: VALID_UUID_3, text: "2" },
+            ],
+            correctOptionId: VALID_UUID_2,
+            explanation: "E",
+          })
+        ).toThrow();
+      }
+      expect(() =>
+        QuizQuestionSchema.parse({
+          id: VALID_UUID_1,
+          prompt: "P?",
+          options: [
+            { id: VALID_UUID_2, text: "1" },
+            { id: VALID_UUID_3, text: "2" },
+          ],
+          correctOptionId: UUID_V1,
+          explanation: "E",
+        })
+      ).toThrow();
+    });
+
+    it("rejects non-v4 UUIDs as timeline event and deck slide ids", () => {
+      for (const badId of [UUID_V1, UUID_V7, UUID_NIL]) {
+        expect(() =>
+          TimelineEventSchema.parse({
+            id: badId,
+            date: "2026-01-01",
+            title: "T",
+            description: "D",
+          })
+        ).toThrow();
+        expect(() =>
+          DeckSlideSchema.parse({ id: badId, layout: "title", blocks: [] })
+        ).toThrow();
+      }
+    });
+  });
 });

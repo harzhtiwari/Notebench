@@ -168,7 +168,7 @@ export function SetupScreen({ navigate }: { navigate: (to: string) => void }) {
           </FormSuccess>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+        <form onSubmit={handleSubmit} data-testid="setup-form" className="mt-6 flex flex-col gap-4">
           <FormField label="Display Name">
             <Input
               id="displayName"

@@ -16,6 +16,7 @@
   "packageManager": "pnpm@12.11.2",
   "scripts": {
     "dev": "tsx tools/dev/src/dev.ts",
+    "bench": "tsx tools/dev/src/benchmark.ts",
     "build": "turbo run build --cache-dir=.tmp/cache/turbo",
     "typecheck": "turbo run typecheck --cache-dir=.tmp/cache/turbo",
     "lint": "turbo run lint --cache-dir=.tmp/cache/turbo",
@@ -28,8 +29,8 @@
     "doctor": "tsx scripts/doctor.ts",
     "check:env": "tsx scripts/doctor.ts",
     "knip": "knip",
-    "backup": "tsx scripts/backup.ts",
-    "restore": "tsx scripts/restore.ts",
+    "backup": "bash scripts/backup.sh",
+    "restore": "bash scripts/restore.sh",
     "clean": "turbo run clean",
     "postinstall": "node -e \"if (require('fs').existsSync('tools/doc-tools')) require('child_process').execSync('uv sync --project tools/doc-tools', {stdio: 'inherit'})\""
   },

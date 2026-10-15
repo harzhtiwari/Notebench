@@ -95,7 +95,7 @@ describe("Artifact Version DAG & Surgical Patch Service (Ticket 12 RED suite)", 
     }
   });
 
-  it("restores old version by creating a new row whose content equals the old version and parentVersionId points to restored version", async () => {
+  it("restores old version git-style: content equals the target, parent points at latest", async () => {
     const repo = new InMemoryArtifactVersionRepository();
     const service = new ArtifactVersionDagService(repo);
 
@@ -125,8 +125,9 @@ describe("Artifact Version DAG & Surgical Patch Service (Ticket 12 RED suite)", 
     });
 
     expect(v3.number).toBe(3);
-    // Requirement: "Restore creates a new row whose parentVersionId points at the version it restores from; the old row is unchanged."
-    expect(v3.parentVersionId).toBe(v1.id);
+    // Git-style restore (spec 4.3): new row content equals the target, but the
+    // parent stays on latest so history remains linear: V3 → V2 → V1.
+    expect(v3.parentVersionId).toBe(v2.id);
     expect(v3.content).toEqual(v1.content);
     expect(v3.contentDigest).toBe(v1.contentDigest);
 

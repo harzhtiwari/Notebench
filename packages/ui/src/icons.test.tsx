@@ -28,6 +28,8 @@ import {
   FileDoc,
   ArrowCounterClockwise,
   Heartbeat,
+  Database,
+  HardDrive,
 } from "./index.js";
 
 describe("icon catalog (ticket 01)", () => {
@@ -66,6 +68,8 @@ describe("icon catalog (Wave-A batch, tickets 10/11/13/14/15/18/19/20/23)", () =
       ["FileDoc", FileDoc],
       ["ArrowCounterClockwise", ArrowCounterClockwise],
       ["Heartbeat", Heartbeat],
+      ["Database", Database],
+      ["HardDrive", HardDrive],
     ] as const
   )("exports %s as a renderable SVG icon", (_name, Icon) => {
     const { container } = render(<Icon />);

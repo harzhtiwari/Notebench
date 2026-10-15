@@ -7,13 +7,14 @@ import {
   shouldInterceptNavigation,
 } from "./router";
 
-describe("owned history router (setup-only, stubs removed)", () => {
-  it("parses the setup and login screens plus unknown deep links", () => {
+describe("owned history router (dashboard + notebook routes)", () => {
+  it("parses the setup, login, dashboard, and notebook screens plus unknown deep links", () => {
     expect(parseRoute("/setup").screen).toBe("setup");
     expect(parseRoute("/login").screen).toBe("login");
+    expect(parseRoute("/dashboard").screen).toBe("dashboard");
+    expect(parseRoute("/notebooks/nb-123").screen).toBe("notebook");
+    expect(parseRoute("/trash").screen).toBe("trash");
     expect(parseRoute("/").screen).toBe("not-found");
-    expect(parseRoute("/dashboard").screen).toBe("not-found");
-    expect(parseRoute("/notebook/nb-123").screen).toBe("not-found");
   });
 
   it("preserves query and hash on programmatic navigation without reload", () => {

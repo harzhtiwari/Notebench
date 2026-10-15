@@ -18,8 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@notebook/contracts": "workspace:*",
-    "canonicalize": "^5.1.0"
+    "@notebook/contracts": "workspace:*"
   },
   "devDependencies": {
     "@notebook/tsconfig": "workspace:*",

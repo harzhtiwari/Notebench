@@ -27,8 +27,56 @@ function sidecarTsconfigPath(): string | undefined {
   return value;
 }
 
+/**
+ * CLI cutover: the sidecar runs the real `next dev` CLI, so the API split
+ * (previously the in-process proxy's PROXIED_PREFIXES) is expressed as
+ * rewrites to the run's live backend origin. Only in the sidecar branch;
+ * the production export branch stays rewrite-free.
+ */
+function sidecarServerOrigin(): string | undefined {
+  const value =
+    process.env["NOTEBENCH_SERVER_ORIGIN"] ?? process.env["NB_SERVER_ORIGIN"];
+  if (value === undefined || value === "") return undefined;
+  return value;
+}
+
+/** Loopback-only origins may receive the API split (mirrors the old proxy posture). */
+function assertLoopbackOrigin(origin: string): void {
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    throw new Error(`Invalid sidecar server origin "${origin}": must be a URL.`);
+  }
+  if (url.protocol !== "http:") {
+    throw new Error(
+      `Invalid sidecar server origin "${origin}": only http loopback origins are rewritten.`
+    );
+  }
+  const hostname = url.hostname.toLowerCase();
+  if (hostname !== "127.0.0.1" && hostname !== "localhost" && hostname !== "::1" && hostname !== "[::1]") {
+    throw new Error(
+      `Refusing non-loopback sidecar server origin "${origin}": rewrites target the local server only.`
+    );
+  }
+}
+
+/** Boundary-aware split: exact prefix plus subpaths, never near-misses (`/apix`). */
+const SIDECAR_API_PREFIXES: readonly string[] = ["/api", "/artifacts", "/frames"];
+
+function sidecarRewrites(origin: string): Array<{ source: string; destination: string }> {
+  const rules: Array<{ source: string; destination: string }> = [];
+  for (const prefix of SIDECAR_API_PREFIXES) {
+    rules.push({ source: prefix, destination: `${origin}${prefix}` });
+    rules.push({ source: `${prefix}/:path*`, destination: `${origin}${prefix}/:path*` });
+  }
+  return rules;
+}
+
 const distDir = sidecarDistDir();
 const sidecarTsconfig = sidecarTsconfigPath();
+const serverOrigin = sidecarServerOrigin();
+if (serverOrigin !== undefined) assertLoopbackOrigin(serverOrigin);
 
 // Production export branch (default) vs development sidecar branch. The
 // production object is untouched by the sidecar markers.
@@ -60,6 +108,11 @@ const branch: NextConfig =
 
 const nextConfig: NextConfig = {
   ...branch,
+  ...(serverOrigin === undefined
+    ? {}
+    : {
+        rewrites: () => Promise.resolve(sidecarRewrites(serverOrigin)),
+      }),
   images: {
     unoptimized: true,
   },

@@ -6,12 +6,13 @@ import {
   writeFile as fsWriteFile,
 } from "node:fs/promises";
 import { cpus } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startBackendPhase, startDefaultWebPhase } from "./composer.js";
 import type { ServerReadyContext } from "./composer.js";
 import { resolveRunPaths } from "./paths.js";
-import type { WarmupResult } from "./warmup.js";
+import { OrchestratorError } from "./types.js";
+import type { WarmupGateName, WarmupResult } from "./warmup.js";
 
 /**
  * Cold/warm startup benchmark for the dev orchestrator (ticket 08, spec §8).
@@ -48,20 +49,53 @@ interface BenchmarkReport {
   summary: Record<string, { median: number | null; p95: number | null }>;
 }
 
-function parseFlag(name: string, fallback: string): string {
-  const prefix = `--${name}=`;
-  for (const arg of process.argv.slice(2)) {
-    if (arg.startsWith(prefix)) {
-      const value = arg.slice(prefix.length);
-      if (value !== "") return value;
+export interface ParsedBenchmarkArgs {
+  runsPerMode: number;
+  namespace: string;
+  warmup: "route" | "ui";
+}
+
+/**
+ * Parse benchmark flags from an argv array (without the node/script prefix).
+ * Accepts both `--flag=value` and `--flag value` forms; unknown warmup values
+ * throw so a typo never silently benchmarks the wrong level.
+ */
+export function parseBenchmarkArgs(argv: string[]): ParsedBenchmarkArgs {
+  const get = (name: string, fallback: string): string => {
+    const prefix = `--${name}=`;
+    for (let i = 0; i < argv.length; i += 1) {
+      const arg: string | undefined = argv[i];
+      if (arg === undefined) continue;
+      if (arg.startsWith(prefix)) {
+        const value = arg.slice(prefix.length);
+        if (value !== "") return value;
+      } else if (arg === `--${name}`) {
+        const next: string | undefined = argv[i + 1];
+        if (next !== undefined && next !== "" && next.startsWith("--") === false) return next;
+      }
     }
+    return fallback;
+  };
+  const parsedRuns = Number.parseInt(get("runs", "5"), 10);
+  const runsPerMode = Number.isNaN(parsedRuns) ? 5 : Math.max(1, parsedRuns);
+  const namespace = get("namespace", "bench");
+  const warmupFlag = get("warmup", "route");
+  if (warmupFlag !== "route" && warmupFlag !== "ui") {
+    throw new OrchestratorError(
+      `Unknown --warmup "${warmupFlag}": expected "route" or "ui".`,
+      1
+    );
   }
-  return fallback;
+  return { runsPerMode, namespace, warmup: warmupFlag };
+}
+
+function sortedValues(values: number[]): number[] {
+  return [...values].sort((a, b) => a - b);
 }
 
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = sortedValues(values);
   const mid = Math.floor(sorted.length / 2);
   if (sorted.length % 2 === 1) return sorted[mid] as number;
   return (((sorted[mid - 1] as number) + (sorted[mid] as number)) / 2);
@@ -69,12 +103,15 @@ function median(values: number[]): number | null {
 
 function p95(values: number[]): number | null {
   if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = sortedValues(values);
   const index = Math.min(sorted.length - 1, Math.ceil(0.95 * sorted.length) - 1);
   return sorted[index] as number;
 }
 
-function summarize(runs: RunTrace[], mode: "cold" | "warm"): BenchmarkReport["summary"] {
+export function summarizeBenchmarkRuns(
+  runs: RunTrace[],
+  mode: "cold" | "warm"
+): BenchmarkReport["summary"] {
   const subset = runs.filter((r) => r.mode === mode);
   const pick = (fn: (r: RunTrace) => number | null): number[] =>
     subset.map(fn).filter((v): v is number => v !== null);
@@ -90,6 +127,10 @@ function summarize(runs: RunTrace[], mode: "cold" | "warm"): BenchmarkReport["su
   };
 }
 
+function summarize(runs: RunTrace[], mode: "cold" | "warm"): BenchmarkReport["summary"] {
+  return summarizeBenchmarkRuns(runs, mode);
+}
+
 async function lockfileHash(root: string): Promise<string | null> {
   try {
     const content = await fsReadFile(join(root, "pnpm-lock.yaml"), "utf-8");
@@ -99,7 +140,7 @@ async function lockfileHash(root: string): Promise<string | null> {
   }
 }
 
-function timingNamed(result: WarmupResult, name: string): { elapsedMs: number; attempts: number } | null {
+function timingNamed(result: WarmupResult, name: WarmupGateName): { elapsedMs: number; attempts: number } | null {
   const found = result.timings.find((t) => t.name === name);
   return found === undefined ? null : { elapsedMs: found.elapsedMs, attempts: found.attempts };
 }
@@ -154,15 +195,14 @@ async function runOnce(
 }
 
 async function main(): Promise<number> {
-  const parsedRuns = Number.parseInt(parseFlag("runs", "5"), 10);
-  const runsPerMode = Number.isNaN(parsedRuns) ? 5 : Math.max(1, parsedRuns);
-  const namespace = parseFlag("namespace", "bench");
-  const warmupFlag = parseFlag("warmup", "route");
-  if (warmupFlag !== "route" && warmupFlag !== "ui") {
-    console.error(`Unknown --warmup "${warmupFlag}": expected "route" or "ui".`);
+  let args: ParsedBenchmarkArgs;
+  try {
+    args = parseBenchmarkArgs(process.argv.slice(2));
+  } catch (error: unknown) {
+    console.error(error instanceof Error ? error.message : String(error));
     return 1;
   }
-  const warmup: "route" | "ui" = warmupFlag === "ui" ? "ui" : "route";
+  const { runsPerMode, namespace, warmup } = args;
   const here = dirname(fileURLToPath(import.meta.url));
   const root = dirname(dirname(dirname(here)));
   const runs: RunTrace[] = [];
@@ -211,5 +251,14 @@ async function main(): Promise<number> {
   return 0;
 }
 
-const code = await main();
-process.exitCode = code;
+const invokedAsScript = (() => {
+  const invoked = process.argv[1];
+  if (invoked === undefined) return false;
+  const modulePath = fileURLToPath(import.meta.url);
+  return invoked === modulePath || resolve(invoked) === modulePath;
+})();
+
+if (invokedAsScript) {
+  const code = await main();
+  process.exitCode = code;
+}

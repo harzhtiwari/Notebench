@@ -1,0 +1,35 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+/**
+ * Shared temp-root lifecycle for tools/dev suites (ticket 08 hygiene).
+ *
+ * Windows cannot remove a directory while a reaped child still holds it as
+ * cwd, and parallel suites keep locks longer: removal retries transient lock
+ * errors with a generous budget before giving up.
+ */
+export function makeTempRoot(roots: string[], prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  roots.push(dir);
+  return dir;
+}
+
+export async function removeTempRoots(roots: string[]): Promise<void> {
+  while (roots.length > 0) {
+    const dir = roots.pop() as string;
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+        break;
+      } catch (error: unknown) {
+        const code = (error as { code?: string }).code;
+        if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          continue;
+        }
+        throw error;
+      }
+    }
+  }
+}

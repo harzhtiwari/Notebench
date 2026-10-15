@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import canonicalize from "canonicalize";
+import { canonicalizeJson } from "./jcs.js";
 import {
   type ArtifactContent,
   InvarianceViolationError,
@@ -13,10 +13,7 @@ export function computeNodeDigest(node: unknown): string {
     throw new InvarianceViolationError("Cannot compute digest of undefined value");
   }
 
-  const canonical = canonicalize(node);
-  if (canonical === undefined) {
-    throw new InvarianceViolationError("Failed to canonicalize node per RFC 8785");
-  }
+  const canonical = canonicalizeJson(node);
 
   return createHash("sha256").update(canonical, "utf8").digest("hex");
 }

@@ -15,7 +15,7 @@ export type DocumentContent = z.infer<typeof DocumentContentSchema>;
  * Flashcard Item Node (Decision 4.1, C.3.2)
  */
 export const FlashcardItemSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuidv4(),
   front: z.string(),
   back: z.string(),
   citations: z.array(CitationRefSchema).default([]),
@@ -36,7 +36,7 @@ export type FlashcardsContent = z.infer<typeof FlashcardsContentSchema>;
  * Quiz Question Option Node (Decision 4.1, 4.9, C.3.2)
  */
 export const QuizOptionSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuidv4(),
   text: z.string(),
 });
 export type QuizOption = z.infer<typeof QuizOptionSchema>;
@@ -47,10 +47,10 @@ export type QuizOption = z.infer<typeof QuizOptionSchema>;
  */
 export const QuizQuestionSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.uuidv4(),
     prompt: z.string(),
     options: z.array(QuizOptionSchema).min(2).max(6),
-    correctOptionId: z.string().uuid(),
+    correctOptionId: z.uuidv4(),
     explanation: z.string(),
     citations: z.array(CitationRefSchema).default([]),
     locked: z.boolean().optional(),
@@ -74,7 +74,7 @@ export type QuizContent = z.infer<typeof QuizContentSchema>;
  * Timeline Event Node (P1) (Decision 4.1, C.3.2)
  */
 export const TimelineEventSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuidv4(),
   date: z.string(),
   title: z.string(),
   description: z.string(),
@@ -109,7 +109,7 @@ export type DeckContentTheme = z.infer<typeof DeckContentThemeSchema>;
  * Slide Deck Slide Node (Stretch P2 Gated at M5) (C.3.2)
  */
 export const DeckSlideSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuidv4(),
   layout: z.enum(["title", "bullets", "two_column", "image_text"]),
   blocks: z.array(BlockSchema),
   notes: z.string().optional(),

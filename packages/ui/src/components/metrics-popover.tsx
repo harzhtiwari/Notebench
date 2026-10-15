@@ -33,34 +33,34 @@ export function MetricsPopover({ metrics, onManageStorage }: MetricsPopoverProps
           size="sm"
           data-testid="metrics-popover-trigger"
           aria-label="Instance Metrics"
-          className="h-8 w-8 p-0 text-[var(--nb-ink-2)]"
+          className="h-[var(--nb-size-control-sm)] w-[var(--nb-size-control-sm)] p-0 text-[var(--nb-ink-2)]"
         >
           <ChartBar size={16} />
         </Button>
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-80 border-[var(--nb-edge)] bg-[var(--nb-sheet)] p-4 text-[var(--nb-ink)] shadow-[var(--nb-shadow-float)]"
+        className="w-[var(--nb-layout-popover-w)] border border-[var(--nb-edge)] bg-[var(--nb-sheet)] p-[var(--nb-space-4)] text-[var(--nb-ink)] shadow-[var(--nb-shadow-float)]"
       >
-        <div className="mb-3 flex items-center justify-between border-b border-[var(--nb-edge)]/40 pb-2">
+        <div className="mb-[var(--nb-space-3)] flex items-center justify-between border-b border-[var(--nb-hairline)] pb-[var(--nb-space-2)]">
           <span className="text-xs font-semibold uppercase tracking-wider text-[var(--nb-ink-3)]">
             Instance Telemetry
           </span>
-          <span className="text-[11px] text-[var(--nb-ink-2)]">Local Offline</span>
+          <span className="text-[var(--nb-text-2xs)] text-[var(--nb-ink-2)]">Local Offline</span>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-[var(--nb-space-3)]">
           {DASHBOARD_METRICS_CONFIG.map((config) => {
             if (config.id === "storageUsed") {
               return (
-                <div key={config.id} className="space-y-1">
+                <div key={config.id} className="space-y-[var(--nb-space-1)]">
                   <div className="flex justify-between text-xs">
                     <span className="text-[var(--nb-ink-2)]">{config.label}</span>
                     <span className="font-semibold text-[var(--nb-ink)]">
                       {formatBytes(metrics.storageUsedBytes)} / 5.0 GB Safe Cap
                     </span>
                   </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--nb-well)]">
+                  <div className="h-[var(--nb-size-progress)] w-full overflow-hidden rounded-[var(--nb-radius-full)] bg-[var(--nb-well)]">
                     <div
                       className="h-full bg-[var(--nb-ink-2)] transition-all"
                       style={{ width: `${Math.max(2, storagePercentage)}%` }}
@@ -107,12 +107,12 @@ export function MetricsPopover({ metrics, onManageStorage }: MetricsPopoverProps
           })}
         </div>
 
-        <div className="mt-4 border-t border-[var(--nb-edge)]/40 pt-3">
+        <div className="mt-[var(--nb-space-4)] border-t border-[var(--nb-hairline)] pt-[var(--nb-space-3)]">
           <Button
             variant="outline"
             size="sm"
             onClick={onManageStorage}
-            className="w-full h-8 text-xs font-medium justify-between text-[var(--nb-ink)]"
+            className="w-full h-[var(--nb-size-control-sm)] text-xs font-medium justify-between text-[var(--nb-ink)]"
           >
             <span>Manage Storage & Data</span>
             <span>→</span>

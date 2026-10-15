@@ -78,7 +78,14 @@ export const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (
     return value;
   };
 
-  app.post("/api/session/login", async (request, reply) => {
+  app.post(
+    "/api/session/login",
+    {
+      config: {
+        rateLimit: { max: 25, timeWindow: "1 minute" },
+      },
+    },
+    async (request, reply) => {
     const parseResult = LoginInputSchema.safeParse(request.body ?? {});
     if (!parseResult.success) {
       return reply.status(400).send({
@@ -145,7 +152,14 @@ export const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (
     return reply.status(200).send({ sessions });
   });
 
-  app.post("/api/session/change-passcode", async (request, reply) => {
+  app.post(
+    "/api/session/change-passcode",
+    {
+      config: {
+        rateLimit: { max: 20, timeWindow: "1 minute" },
+      },
+    },
+    async (request, reply) => {
     const session = await requireSession(request, reply);
     if (!session) {
       return;

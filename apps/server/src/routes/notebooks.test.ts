@@ -143,4 +143,80 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
     expect(body.metrics.storageSafeCapBytes).toBe(5 * 1024 * 1024 * 1024);
     expect(typeof body.metrics.notebookCount).toBe("number");
   });
+
+  it("GET /api/notebooks?filter= matches titles and returns [] on zero matches", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/api/notebooks",
+      payload: { title: "FilterProbe Alpha" },
+    });
+
+    const hit = await app.inject({
+      method: "GET",
+      url: "/api/notebooks?filter=filterprobe",
+    });
+    expect(hit.statusCode).toBe(200);
+    const hitBody = JSON.parse(hit.body);
+    expect(hitBody.notebooks.length).toBeGreaterThan(0);
+    expect(
+      hitBody.notebooks.every((n: { title: string }) =>
+        n.title.toLowerCase().includes("filterprobe")
+      )
+    ).toBe(true);
+
+    const miss = await app.inject({
+      method: "GET",
+      url: "/api/notebooks?filter=no-such-notebook-zzz",
+    });
+    expect(miss.statusCode).toBe(200);
+    expect(JSON.parse(miss.body).notebooks).toEqual([]);
+  });
+
+  it("GET /api/notebooks?sort= orders by the requested key", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/notebooks?sort=title&dir=asc",
+    });
+    expect(res.statusCode).toBe(200);
+    const titles = JSON.parse(res.body).notebooks.map(
+      (n: { title: string }) => n.title
+    );
+    const ordered = [...titles].sort((a: string, b: string) => a.localeCompare(b));
+    expect(titles).toEqual(ordered);
+  });
+
+  it("PATCH /api/notebooks/:id rejects an empty title with 400", async () => {
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/notebooks",
+      payload: { title: "Rename Guard Probe" },
+    });
+    const createdId = JSON.parse(createRes.body).notebook.id;
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/api/notebooks/${createdId}`,
+      payload: { title: "   " },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("POST /api/notebooks/:id/duplicate with {} defaults to 'Copy of <title>'", async () => {
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/notebooks",
+      payload: { title: "Duplication Default Probe" },
+    });
+    const origId = JSON.parse(createRes.body).notebook.id;
+
+    const dupRes = await app.inject({
+      method: "POST",
+      url: `/api/notebooks/${origId}/duplicate`,
+      payload: {},
+    });
+    expect(dupRes.statusCode).toBe(201);
+    const body = JSON.parse(dupRes.body);
+    expect(body.notebook.id).not.toBe(origId);
+    expect(body.notebook.title).toBe("Copy of Duplication Default Probe");
+  });
 });

@@ -87,11 +87,27 @@ export const setupRoutes: FastifyPluginAsync<SetupRouteOptions> = async (
   };
 
   // 1. Root /setup endpoint mapping
-  app.post("/setup", handleSetupPost);
+  app.post(
+    "/setup",
+    {
+      config: {
+        rateLimit: { max: 10, timeWindow: "1 minute" },
+      },
+    },
+    handleSetupPost
+  );
   app.get("/setup", handleStateGet);
 
   // 2. Canonical /api/setup endpoint mapping
-  app.post("/api/setup", handleSetupPost);
+  app.post(
+    "/api/setup",
+    {
+      config: {
+        rateLimit: { max: 10, timeWindow: "1 minute" },
+      },
+    },
+    handleSetupPost
+  );
   app.get("/api/setup", handleStateGet);
 
   // 3. Application State endpoint (/api/app-state)

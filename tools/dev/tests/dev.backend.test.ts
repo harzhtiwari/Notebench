@@ -1,6 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { existsSync, mkdtempSync, rmSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import getPort from "get-port";
 import { parseNamespace } from "../src/args.js";
@@ -29,6 +28,7 @@ import type {
   ServerSpawnRequest,
 } from "../src/composer.js";
 import { PROCESS_START_TIME_TOLERANCE_MS } from "../src/process-start-time.js";
+import { makeTempRoot as createTempRoot, removeTempRoots } from "./temp-dir.js";
 
 /**
  * Ticket 03 RED suite (written before implementation).
@@ -46,32 +46,10 @@ import { PROCESS_START_TIME_TOLERANCE_MS } from "../src/process-start-time.js";
 const tempRoots: string[] = [];
 
 function makeTempRoot(): string {
-  const dir = mkdtempSync(join(tmpdir(), "notebench-t03-"));
-  tempRoots.push(dir);
-  return dir;
+  return createTempRoot(tempRoots, "notebench-t03-");
 }
 
-afterEach(async () => {
-  while (tempRoots.length > 0) {
-    const dir = tempRoots.pop() as string;
-    // Windows cannot remove a directory while a reaped child still holds it
-    // as cwd, and parallel suites keep locks longer: retry transient lock
-    // errors with a generous budget before giving up.
-    for (let attempt = 0; attempt < 60; attempt += 1) {
-      try {
-        rmSync(dir, { recursive: true, force: true });
-        break;
-      } catch (error: unknown) {
-        const code = (error as { code?: string }).code;
-        if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
-          continue;
-        }
-        throw error;
-      }
-    }
-  }
-}, 120_000);
+afterEach(() => removeTempRoots(tempRoots), 120_000);
 
 const HEALTHY_SCRIPT = `
 const http = require("http");
@@ -145,8 +123,7 @@ describe("ticket 03: OS process start-time reader", () => {
   }, 30_000);
 });
 
-describe("ticket 08: shutdown returns only after owned children are reaped", () => {
-  it("waits for the child exit promise instead of returning after signaling", async () => {
+describe("ticket 08: shutdown returns only after owned children are reaped", () => {  it("waits for the child exit promise instead of returning after signaling", async () => {
     const root = makeTempRoot();
     const { logLine } = silentLogs();
     const exitListeners: Array<(...args: unknown[]) => void> = [];
@@ -179,6 +156,52 @@ describe("ticket 08: shutdown returns only after owned children are reaped", () 
     await expect(shutdownPromise).resolves.toBe(0);
     expect(shutdownReturned).toBe(true);
   }, 30_000);
+
+  it("killing the server child stops the web sibling and exits non-zero (real processes)", async () => {
+    const root = makeTempRoot();
+    const { lines, logLine } = silentLogs();
+    let webPid = 0;
+    const handle = await startBackendPhase(
+      { root, argv: ["--namespace", "kill-server-ns"], env: {} },
+      {
+        logLine,
+        runBuild: () => undefined,
+        createServerSpawn: healthySpawn,
+        startWebPhase: (ctx) => (async () => {
+          const port = await getPort();
+          const child = spawnChild({
+            executable: process.execPath,
+            argv: ["-e", NEVER_LISTENING_SCRIPT],
+            service: "web",
+            namespace: ctx.namespace,
+            runId: ctx.runId,
+            logFile: join(root, "web-fixture.log"),
+            cwd: root,
+          });
+          webPid = child.pid;
+          return {
+            pid: child.pid,
+            startTimeMs: child.startTimeMs,
+            exited: child.exited,
+            logFile: join(root, "web-fixture.log"),
+            port,
+          };
+        })(),
+        probeWeb: () => Promise.resolve(true),
+        warmupDeadlineMs: 5000,
+        warmupUiDeadlineMs: 5000,
+        pollIntervalMs: 25,
+      }
+    );
+    expect(webPid).toBeGreaterThan(0);
+    process.kill(handle.serverChild.pid);
+    const code = await handle.waitForExit();
+    expect(code).toBe(1);
+    expect(lines.some((line) => line.includes("[server] exited unexpectedly"))).toBe(true);
+    expect(() => process.kill(webPid, 0)).toThrow();
+    expect(existsSync(handle.paths.serverPortFile)).toBe(false);
+    expect(existsSync(handle.paths.identityFile)).toBe(false);
+  }, 60_000);
 });
 
 describe("ticket 03: freshness gates for server-consumed compiled outputs", () => {

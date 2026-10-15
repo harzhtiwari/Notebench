@@ -70,6 +70,18 @@ export type SpawnFn = (
   options: SpawnFnOptions
 ) => SpawnFnChild;
 
+/**
+ * Platform gate for supervised-child detachment (research
+ * docs/research/2026-10-15/windows-console-flash.md §2-§4): on Windows,
+ * detached:true is DETACHED_PROCESS (own console), which orphans the whole
+ * subtree into visible popup consoles. POSIX keeps detached:true for
+ * process-group kill; Windows teardown uses taskkill /T instead, and sharing
+ * the console also lets one Ctrl+C reach the whole tree again.
+ */
+export function supervisedDetached(platform: NodeJS.Platform = process.platform): boolean {
+  return platform !== "win32";
+}
+
 export interface SpawnDeps {
   spawnFn?: SpawnFn | undefined;
   now?: (() => number) | undefined;
@@ -93,14 +105,13 @@ function defaultSpawnFn(
     // The caller-owned env record flows through untouched (keys holding
     // undefined reach Node exactly as provided); the assertion only bridges
     // @types/node's ProcessEnv (which requires NODE_ENV) to that record.
-    // Precedent for a local single assertion: sidecar/child.ts `portRaw as string`.
     env: options.env as NodeJS.ProcessEnv | undefined,
     stdio: "pipe",
     detached: options.detached,
-    // No console window for supervised children when the orchestrator itself
-    // was launched without one (Windows GUI shells); all output is piped to
-    // the per-service log tee, so nothing is lost by hiding it.
-    windowsHide: true,
+    // Explicitly attached: the whole supervised tree shares the one user
+    // console, so third-party grandchildren (Next.js workers, turbo tasks)
+    // inherit it instead of flashing fresh windows.
+    windowsHide: false,
   });
   const forward = options.output;
   if (forward !== undefined) {
@@ -169,7 +180,7 @@ export function spawnChild(request: SpawnRequest, deps?: SpawnDeps | undefined):
     cwd: request.cwd,
     env: request.env,
     stdio: "pipe",
-    detached: true,
+    detached: supervisedDetached(),
     output: request.onOutput,
   });
   const pid: number | undefined = child.pid;

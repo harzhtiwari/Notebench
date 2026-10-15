@@ -12,7 +12,7 @@ export const VersionBadge: React.FC<VersionBadgeProps> = ({ milestone, className
   return (
     <span
       data-testid="version-badge"
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--nb-well)] text-[var(--nb-ink-2)] border border-[var(--nb-edge)] select-none ${className}`}
+      className={`inline-flex items-center px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] rounded-[var(--nb-radius-full)] text-[var(--nb-text-2xs)] font-medium bg-[var(--nb-well)] text-[var(--nb-ink-2)] border border-[var(--nb-edge)] select-none ${className}`}
     >
       {label}
     </span>

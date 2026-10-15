@@ -13,7 +13,7 @@ describe("persistent client root (setup-only, stubs removed)", () => {
   it("renders the setup screen on direct deep-link refresh", async () => {
     const { container } = render(<AppRoot initialPath="/setup" />);
     await screen.findByText("Complete Setup");
-    expect(container.querySelector("form")).not.toBeNull();
+    expect(container.querySelector('[data-testid="setup-form"]')).not.toBeNull();
   });
 
   it("renders not-found for removed stub routes", async () => {

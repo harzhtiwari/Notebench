@@ -1,24 +1,26 @@
-import { describe, it, expect, afterEach, beforeAll, vi } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { createServer } from "node:http";
-import type { IncomingMessage, Server, ServerResponse } from "node:http";
-import type { Duplex } from "node:stream";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import type { Server } from "node:http";
+import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { createSidecarProxy } from "../src/sidecar/proxy.js";
+import getPort from "get-port";
+import { makeTempRoot as createTempRoot, removeTempRoots } from "./temp-dir.js";
 
 /**
- * Ticket 04 RED suite (written before implementation).
+ * Ticket 04 suites after the CLI cutover (open-design parity): the web
+ * child runs the real `next dev` CLI, so the genuine Next.js startup block
+ * comes from Next itself.
  *
  * Seams under test (public boundaries only):
- * - proxy: createSidecarProxy observed via real HTTP against fixture origin
- *   servers and an injected page handler (routing, streaming, headers,
- *   outage shape, upgrade split).
- * - adapter: real Next compiler boot observed via real HTTP + real files
- *   (namespaced output, export-dir-moved proof, clean shutdown).
+ * - config: apps/web/next.config.js sidecar branch observed by evaluation
+ *   (distDir isolation, API-split rewrites, loopback refusal).
  * - composer: web-phase supervision observed via real processes running
- *   fixture sidecar entries (order, records, reverse teardown, crashes).
- * - contract pins: spec literals (env names, 502 shape, exit codes).
+ *   fixture entries (order, records, reverse teardown, crashes).
+ * - cli: one real `next dev` boot proving pages serve and /api reaches the
+ *   backend through the config rewrites.
+ * - contract pins: spec literals (env names, exit codes).
  *
  * Vocabulary: orchestrator, server, web sidecar, namespace (spec section 1).
  */
@@ -55,31 +57,10 @@ afterEach(async () => {
 const tempRoots: string[] = [];
 
 function makeTempRoot(): string {
-  const dir = mkdtempSync(join(tmpdir(), "notebench-sidecar-"));
-  tempRoots.push(dir);
-  return dir;
+  return createTempRoot(tempRoots, "notebench-sidecar-");
 }
 
-afterEach(async () => {
-  while (tempRoots.length > 0) {
-    const dir = tempRoots.pop() as string;
-    // Windows lock errors persist longer under parallel suites: retry with
-    // a generous budget before giving up.
-    for (let attempt = 0; attempt < 60; attempt += 1) {
-      try {
-        rmSync(dir, { recursive: true, force: true });
-        break;
-      } catch (error: unknown) {
-        const code = (error as { code?: string }).code;
-        if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
-          continue;
-        }
-        throw error;
-      }
-    }
-  }
-}, 120_000);
+afterEach(() => removeTempRoots(tempRoots), 120_000);
 
 function listen(server: Server): Promise<number> {
   servers.push(server);
@@ -95,413 +76,6 @@ function listen(server: Server): Promise<number> {
     });
   });
 }
-
-function startOrigin(): Promise<{ port: number }> {
-  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ proxied: true, url: req.url, method: req.method }));
-  });
-  return listen(server).then((port) => ({ port }));
-}
-
-function pageHandler(_req: IncomingMessage, res: ServerResponse): void {
-  res.writeHead(200, { "content-type": "text/html" });
-  res.end("<html><body>page</body></html>");
-}
-
-async function startProxy(originPort: number): Promise<{ port: number }> {
-  const proxy = createSidecarProxy({
-    serverOrigin: `http://127.0.0.1:${originPort}`,
-    pageHandler,
-  });
-  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    void proxy.handleRequest(req, res);
-  });
-  const port = await listen(server);
-  return { port };
-}
-
-describe("ticket 04: proxy routes API prefixes to the server first", () => {
-  it("proxies boundary-aware prefixes and leaves near-miss paths to the page handler", async () => {
-    const origin = await startOrigin();
-    const proxy = await startProxy(origin.port);
-    const get = async (path: string): Promise<{ status: number; body: string }> => {
-      const res = await fetch(`http://127.0.0.1:${proxy.port}${path}`);
-      return { status: res.status, body: await res.text() };
-    };
-
-    // Exact prefixes and sub-paths reach the live backend (spec 5.9, 7.4).
-    for (const path of ["/api", "/api/healthz", "/artifacts", "/artifacts/a", "/frames", "/frames/f/1"]) {
-      const { status, body } = await get(path);
-      expect(status).toBe(200);
-      expect(JSON.parse(body)).toMatchObject({ proxied: true, url: path });
-    }
-
-    // Near-miss paths never proxy (spec 5.9).
-    for (const path of ["/apix", "/api-v2", "/artifact", "/frames2", "/"]) {
-      const { status, body } = await get(path);
-      expect(status).toBe(200);
-      expect(body).toContain("<html>");
-    }
-  }, 15_000);
-
-  it("forwards method, path, query, and streaming bodies to the backend intact", async () => {
-    const received: Array<{ method: string; url: string; body: string }> = [];
-    const origin = createServer((req: IncomingMessage, res: ServerResponse) => {
-      let body = "";
-      req.on("data", (chunk: unknown) => {
-        body += String(chunk);
-      });
-      req.on("end", () => {
-        received.push({ method: req.method ?? "", url: req.url ?? "", body });
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ ok: true }));
-      });
-    });
-    const originPort = await listen(origin);
-    const proxy = await startProxy(originPort);
-
-    // Chunked streaming upload with query string, no content-length set.
-    const payload = "x".repeat(64 * 1024);
-    const res = await fetch(`http://127.0.0.1:${proxy.port}/api/upload?mode=stream`, {
-      method: "POST",
-      headers: { "content-type": "text/plain", "x-custom": "kept" },
-      body: payload,
-      duplex: "half",
-    } as RequestInit);
-    expect(res.status).toBe(200);
-
-    expect(received).toHaveLength(1);
-    const hit = received[0] as { method: string; url: string; body: string };
-    expect(hit.method).toBe("POST");
-    expect(hit.url).toBe("/api/upload?mode=stream");
-    expect(hit.body).toBe(payload);
-  }, 15_000);
-
-  it("streams SSE chunks incrementally without buffering (spec 5.9)", async () => {
-    const origin = createServer((_req: IncomingMessage, res: ServerResponse) => {
-      res.writeHead(200, { "content-type": "text/event-stream" });
-      res.write("data: one\n\n");
-      setTimeout(() => res.write("data: two\n\n"), 300);
-      setTimeout(() => res.end("data: three\n\n"), 600);
-    });
-    const originPort = await listen(origin);
-    const proxy = await startProxy(originPort);
-
-    const res = await fetch(`http://127.0.0.1:${proxy.port}/api/events`);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toContain("text/event-stream");
-    const reader = (res.body as ReadableStream<Uint8Array>).getReader();
-    const arrivals: number[] = [];
-    let text = "";
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      arrivals.push(Date.now());
-      text += new TextDecoder().decode(value);
-    }
-    expect(text).toContain("data: one");
-    expect(text).toContain("data: three");
-    // First chunk arrives well before the stream ends: no buffering.
-    const first = arrivals[0] as number;
-    const last = arrivals[arrivals.length - 1] as number;
-    expect(last - first).toBeGreaterThanOrEqual(400);
-  }, 15_000);
-
-  it("strips hop-by-hop headers while keeping end-to-end headers (spec 5.9)", async () => {
-    let seen: Record<string, string | string[] | undefined> | null = null;
-    const origin = createServer((req: IncomingMessage, res: ServerResponse) => {
-      seen = { ...req.headers };
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end("{}");
-    });
-    const originPort = await listen(origin);
-    const proxy = await startProxy(originPort);
-
-    const { request: httpRequest } = await import("node:http");
-    await new Promise<void>((resolve, reject) => {
-      const clientReq = httpRequest(
-        {
-          host: "127.0.0.1",
-          port: proxy.port,
-          path: "/api/headers",
-          method: "GET",
-          headers: {
-            connection: "close",
-            "keep-alive": "timeout=5",
-            "proxy-authorization": "secret",
-            "proxy-authenticate": "challenge",
-            te: "trailers",
-            upgrade: "websocket",
-            "x-custom": "kept",
-          },
-        },
-        (res) => {
-          res.resume();
-          res.on("end", () => resolve());
-        }
-      );
-      clientReq.on("error", reject);
-      clientReq.end();
-    });
-
-    const captured = seen as unknown as Record<string, string | string[] | undefined>;
-    expect(captured).not.toBeNull();
-    // The explicit `connection: close` must not reach the server: the proxy
-    // strips it and the framing header seen here is the HTTP client's own
-    // default (keep-alive on this Node version), never the client's value.
-    expect(captured["connection"]).not.toBe("close");
-    for (const stripped of [
-      "keep-alive",
-      "proxy-authorization",
-      "proxy-authenticate",
-      "te",
-      "upgrade",
-    ]) {
-      expect(captured[stripped]).toBeUndefined();
-    }
-    expect(captured["x-custom"]).toBe("kept");
-  }, 15_000);
-
-  it("refuses non-loopback server origins at construction (spec 5.9)", () => {
-    for (const origin of ["http://127.0.0.1:3001", "http://localhost:3001", "http://[::1]:3001"]) {
-      expect(() =>
-        createSidecarProxy({ serverOrigin: origin, pageHandler })
-      ).not.toThrow();
-    }
-    for (const origin of ["http://192.168.1.10:3001", "http://10.0.0.5:3001", "http://example.com:3001"]) {
-      let failure: unknown = null;
-      try {
-        createSidecarProxy({ serverOrigin: origin, pageHandler });
-      } catch (error: unknown) {
-        failure = error;
-      }
-      expect(failure).not.toBeNull();
-      const message = failure instanceof Error ? failure.message : String(failure);
-      expect(message).toContain("loopback");
-    }
-  });
-
-  it("returns typed JSON 502 (never HTML) when the server is down (spec 7.5)", async () => {
-    // Reserve a loopback port, then close it: connecting fails fast.
-    const held = createServer(() => undefined);
-    const deadPort = await listen(held);
-    await new Promise<void>((resolve) => held.close(() => resolve()));
-    servers.pop();
-
-    const proxy = createSidecarProxy({
-      serverOrigin: `http://127.0.0.1:${deadPort}`,
-      pageHandler,
-    });
-    const front = createServer((req: IncomingMessage, res: ServerResponse) => {
-      void proxy.handleRequest(req, res).catch(() => undefined);
-    });
-    const frontPort = await listen(front);
-
-    const res = await fetch(`http://127.0.0.1:${frontPort}/api/healthz`);
-    expect(res.status).toBe(502);
-    expect(res.headers.get("content-type")).toContain("application/json");
-    const body = (await res.json()) as {
-      error: { code: string; message: string; service: string };
-    };
-    expect(body.error.code).toBe("UPSTREAM_UNAVAILABLE");
-    expect(body.error.service).toBe("server");
-    expect(typeof body.error.message).toBe("string");
-    expect(body.error.message.length).toBeGreaterThan(0);
-  }, 15_000);
-
-  it("breaks (never fabricates) the client stream on mid-stream upstream failure", async () => {
-    const origin = createServer((_req: IncomingMessage, res: ServerResponse) => {
-      res.writeHead(200, { "content-type": "text/event-stream" });
-      res.write("data: partial\n\n");
-      setTimeout(() => res.destroy(), 200);
-    });
-    const originPort = await listen(origin);
-    const proxy = await startProxy(originPort);
-
-    // A truncated chunked stream cannot end cleanly: the break must surface.
-    const res = await fetch(`http://127.0.0.1:${proxy.port}/api/events`);
-    expect(res.status).toBe(200);
-    await expect(res.text()).rejects.toThrow();
-
-    // The proxy survives: non-proxied traffic still serves.
-    const page = await fetch(`http://127.0.0.1:${proxy.port}/`);
-    expect(page.status).toBe(200);
-    expect(await page.text()).toContain("<html>");
-  }, 15_000);
-
-  it("survives client abort: the run settles and later requests still proxy", async () => {
-    const origin = createServer((req: IncomingMessage, res: ServerResponse) => {
-      req.resume();
-      req.on("end", () => {
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end("{}");
-      });
-    });
-    const originPort = await listen(origin);
-    const proxy = createSidecarProxy({
-      serverOrigin: `http://127.0.0.1:${originPort}`,
-      pageHandler,
-    });
-    const front = createServer((req: IncomingMessage, res: ServerResponse) => {
-      void proxy.handleRequest(req, res);
-    });
-    const frontPort = await listen(front);
-
-    // Abort a slow upload mid-flight.
-    const controller = new AbortController();
-    const slowBody = new ReadableStream<Uint8Array>({
-      start(c) {
-        c.enqueue(new TextEncoder().encode("chunk-1"));
-      },
-    });
-    const aborted = fetch(`http://127.0.0.1:${frontPort}/api/upload`, {
-      method: "POST",
-      body: slowBody,
-      duplex: "half",
-      signal: controller.signal,
-    } as RequestInit);
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    controller.abort();
-    await expect(aborted).rejects.toThrow();
-
-    // The proxy is not wedged: a later request proxies normally.
-    const res = await fetch(`http://127.0.0.1:${frontPort}/api/healthz`);
-    expect(res.status).toBe(200);
-    expect(await res.text()).toContain("{}");
-  }, 15_000);
-
-  it("routes upgrades to the compiler handler, and rejects upgrades on API prefixes (spec 5.8)", async () => {
-    const origin = await startOrigin();
-    const heldSockets: Duplex[] = [];
-    const proxy = createSidecarProxy({
-      serverOrigin: `http://127.0.0.1:${origin.port}`,
-      pageHandler,
-      upgradeHandler: (_req, socket) => {
-        heldSockets.push(socket);
-        // Fake compiler HMR socket: accept the upgrade.
-        socket.write(
-          "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"
-        );
-      },
-    });
-    const front = createServer((req: IncomingMessage, res: ServerResponse) => {
-      void proxy.handleRequest(req, res);
-    });
-    front.on("upgrade", (req, socket, head) => {
-      proxy.handleUpgrade(req, socket, head);
-    });
-    const frontPort = await listen(front);
-
-    const { request: httpRequest } = await import("node:http");
-    const attemptUpgrade = (path: string): Promise<{ upgraded: boolean }> =>
-      new Promise((resolve) => {
-        const req = httpRequest({
-          host: "127.0.0.1",
-          port: frontPort,
-          path,
-          method: "GET",
-          headers: { connection: "Upgrade", upgrade: "websocket" },
-        });
-        req.on("upgrade", () => resolve({ upgraded: true }));
-        req.on("error", () => resolve({ upgraded: false }));
-        req.on("close", () => resolve({ upgraded: false }));
-        req.end();
-      });
-
-    // Dev-transport path reaches the compiler handler (101).
-    expect(await attemptUpgrade("/_next/webpack-hmr")).toEqual({ upgraded: true });
-    // API prefixes never receive upgrades: rejected, never proxied.
-    expect(await attemptUpgrade("/api/socket")).toEqual({ upgraded: false });
-    for (const socket of heldSockets) socket.destroy();
-  }, 15_000);
-});
-
-describe("ticket 04: compiler adapter loads the pinned Next.js API", () => {
-  it("pins Next 16.4.0 and selects webpack by default (spec 5.10)", async () => {
-    const { createCompilerApp } = await import("../src/sidecar/adapter.js");
-    const seenWebDirs: unknown[] = [];
-    const receivedOptions: unknown[] = [];
-    const prepareCalls: unknown[][] = [];
-    const fakeApp = {
-      prepare: (...args: unknown[]) => {
-        prepareCalls.push(args);
-        return Promise.resolve();
-      },
-      getRequestHandler: () => () => Promise.resolve(),
-      getUpgradeHandler: () => () => undefined,
-      close: () => Promise.resolve(),
-    };
-    const app = await createCompilerApp(
-      { webDir: "/repo/apps/web", hostname: "127.0.0.1", port: 3001, bundler: "webpack" },
-      {
-        loadFactory: (webDir: string) => {
-          seenWebDirs.push(webDir);
-          return Promise.resolve({
-            default: (opts: unknown) => {
-              receivedOptions.push(opts);
-              return fakeApp;
-            },
-          });
-        },
-        readPinnedVersion: () => "16.4.0",
-      }
-    );
-    // The adapter narrows (wraps) the raw factory product and delegates.
-    await app.prepare();
-    expect(prepareCalls).toEqual([[]]);
-    expect(typeof app.getRequestHandler()).toBe("function");
-    expect(typeof app.getUpgradeHandler()).toBe("function");
-    await app.close();
-    // Factory loads anchored at the web workspace (never a root-level import).
-    expect(seenWebDirs).toEqual(["/repo/apps/web"]);
-    // The bundler flag is honored: shipped createServer bridges
-    // options.webpack onto the environment before the compiler boots, while
-    // an unset flag would default to Turbopack (TURBOPACK='auto'). The
-    // factory's conf option is NOT passed: it is silently dropped on the
-    // custom-server path (distDir comes from the next.config.ts branch).
-    expect(receivedOptions).toEqual([
-      { dev: true, dir: "/repo/apps/web", hostname: "127.0.0.1", port: 3001, webpack: true },
-    ]);
-  });
-
-  it("selects Turbopack only for the explicit opt-in bundler (spec 5.10)", async () => {
-    const { createCompilerApp } = await import("../src/sidecar/adapter.js");
-    const receivedOptions: unknown[] = [];
-    const fakeApp = {
-      prepare: () => Promise.resolve(),
-      getRequestHandler: () => () => Promise.resolve(),
-      getUpgradeHandler: () => () => undefined,
-      close: () => Promise.resolve(),
-    };
-    await createCompilerApp(
-      { webDir: "/repo/apps/web", hostname: "127.0.0.1", port: 3001, bundler: "turbopack" },
-      {
-        loadFactory: () => Promise.resolve({ default: (opts: unknown) => {
-          receivedOptions.push(opts);
-          return fakeApp;
-        } }),
-        readPinnedVersion: () => "16.4.0",
-      }
-    );
-    expect(receivedOptions).toEqual([
-      { dev: true, dir: "/repo/apps/web", hostname: "127.0.0.1", port: 3001, turbopack: true },
-    ]);
-  });
-
-  it("refuses an unexpected Next.js version (re-pin per ticket process)", async () => {
-    const { createCompilerApp } = await import("../src/sidecar/adapter.js");
-    await expect(
-      createCompilerApp(
-        { webDir: "/repo/apps/web", hostname: "127.0.0.1", port: 3001, bundler: "webpack" },
-        {
-          loadFactory: () => Promise.resolve({ default: () => ({}) }),
-          readPinnedVersion: () => "15.0.0",
-        }
-      )
-    ).rejects.toThrow(/16\.4\.0/);
-  });
-});
 
 describe("ticket 04: web config carries an explicit sidecar branch", () => {
   const DIST_DIR_ENV = "NOTEBENCH_WEB_DIST_DIR";
@@ -553,355 +127,180 @@ describe("ticket 04: web config carries an explicit sidecar branch", () => {
       delete process.env[DIST_DIR_ENV_ALIAS];
     }
   });
-});
 
-describe("ticket 04: sidecar entry resolves its environment", () => {
-  it("uses Notebench-owned env names with NB_ aliases (spec 7.2)", async () => {
-    const entry = await import("../src/sidecar/entry.js");
-    expect(entry.SERVER_ORIGIN_ENV).toBe("NOTEBENCH_SERVER_ORIGIN");
-    expect(entry.SERVER_ORIGIN_ENV_ALIAS).toBe("NB_SERVER_ORIGIN");
-    expect(entry.WEB_DIST_DIR_ENV).toBe("NOTEBENCH_WEB_DIST_DIR");
-    expect(entry.WEB_DIST_DIR_ENV_ALIAS).toBe("NB_WEB_DIST_DIR");
-    expect(entry.WEB_DEV_BUNDLER_ENV).toBe("NOTEBENCH_WEB_DEV_BUNDLER");
-    expect(entry.WEB_DEV_BUNDLER_ENV_ALIAS).toBe("NB_WEB_DEV_BUNDLER");
-  });
-
-  it("resolves origin/distDir/bundler with canonical-over-alias precedence", async () => {
-    const { resolveSidecarEnv } = await import("../src/sidecar/entry.js");
-    expect(
-      resolveSidecarEnv({
-        NOTEBENCH_SERVER_ORIGIN: "http://127.0.0.1:3001",
-        NOTEBENCH_WEB_DIST_DIR: "/tmp/build/a",
-      })
-    ).toEqual({ serverOrigin: "http://127.0.0.1:3001", distDir: "/tmp/build/a", bundler: "webpack" });
-    expect(
-      resolveSidecarEnv({
-        NB_SERVER_ORIGIN: "http://127.0.0.1:3002",
-        NB_WEB_DIST_DIR: "/tmp/build/b",
-        NB_WEB_DEV_BUNDLER: "turbopack",
-      })
-    ).toEqual({ serverOrigin: "http://127.0.0.1:3002", distDir: "/tmp/build/b", bundler: "turbopack" });
-    expect(
-      resolveSidecarEnv({
-        NOTEBENCH_SERVER_ORIGIN: "http://127.0.0.1:3001",
-        NB_SERVER_ORIGIN: "http://127.0.0.1:9999",
-        NOTEBENCH_WEB_DIST_DIR: "/tmp/build/a",
-        NB_WEB_DIST_DIR: "/tmp/build/z",
-        NOTEBENCH_WEB_DEV_BUNDLER: "turbopack",
-        NB_WEB_DEV_BUNDLER: "webpack",
-      })
-    ).toEqual({ serverOrigin: "http://127.0.0.1:3001", distDir: "/tmp/build/a", bundler: "turbopack" });
-  });
-
-  it("fails fast on missing origin, missing distDir, relative distDir, or unknown bundler", async () => {
-    const { resolveSidecarEnv } = await import("../src/sidecar/entry.js");
-    expect(() => resolveSidecarEnv({})).toThrow(/NOTEBENCH_SERVER_ORIGIN/);
-    expect(() =>
-      resolveSidecarEnv({ NOTEBENCH_SERVER_ORIGIN: "http://127.0.0.1:1" })
-    ).toThrow(/NOTEBENCH_WEB_DIST_DIR/);
-    expect(() =>
-      resolveSidecarEnv({
-        NOTEBENCH_SERVER_ORIGIN: "http://127.0.0.1:1",
-        NOTEBENCH_WEB_DIST_DIR: "relative/path",
-      })
-    ).toThrow(/absolute/);
-    expect(() =>
-      resolveSidecarEnv({
-        NOTEBENCH_SERVER_ORIGIN: "http://127.0.0.1:1",
-        NOTEBENCH_WEB_DIST_DIR: "/tmp/build/a",
-        NOTEBENCH_WEB_DEV_BUNDLER: "rspack",
-      })
-    ).toThrow(/bundler/);
-  });
-
-  it("maps the bundler onto TURBOPACK for the run and restores the environment on close", async () => {
-    const { startSidecar } = await import("../src/sidecar/entry.js");
-    const origin = await startOrigin();
-    const fakeApp = {
-      prepare: () => Promise.resolve(),
-      getRequestHandler: () => (_req: IncomingMessage, res: ServerResponse) => {
-        res.writeHead(200, { "content-type": "text/html" });
-        res.end("<html><body>fake-compiler</body></html>");
-      },
-      getUpgradeHandler: () => () => undefined,
-      close: () => Promise.resolve(),
-    };
-    const previousTurbopack = process.env["TURBOPACK"];
-    const previousDistDir = process.env["NOTEBENCH_WEB_DIST_DIR"];
-
-    const handle = await startSidecar({
-      webDir: "/repo/apps/web",
-      host: "127.0.0.1",
-      port: 0,
-      env: {
-        NOTEBENCH_SERVER_ORIGIN: `http://127.0.0.1:${origin.port}`,
-        NOTEBENCH_WEB_DIST_DIR: "/tmp/build/ns/web-dist",
-        NOTEBENCH_WEB_DEV_BUNDLER: "turbopack",
-      },
-      createApp: () => Promise.resolve(fakeApp),
-    });
+  it("rewrites /api, /artifacts, /frames to the server origin under sidecar env", async () => {
+    process.env[DIST_DIR_ENV] = "/tmp/build/ns/web-dist";
+    process.env["NOTEBENCH_SERVER_ORIGIN"] = "http://127.0.0.1:57570";
     try {
-      expect(process.env["TURBOPACK"]).toBe("1");
-      expect(process.env["NOTEBENCH_WEB_DIST_DIR"]).toBe("/tmp/build/ns/web-dist");
-      // Pages come from the compiler handler; APIs still reach the backend.
-      const page = await fetch(`http://127.0.0.1:${handle.port}/`);
-      expect(await page.text()).toContain("fake-compiler");
-      const api = await fetch(`http://127.0.0.1:${handle.port}/api/x`);
-      expect(JSON.parse(await api.text())).toMatchObject({ proxied: true });
-    } finally {
-      await handle.close();
-    }
-    expect(process.env["TURBOPACK"]).toBe(previousTurbopack);
-    expect(process.env["NOTEBENCH_WEB_DIST_DIR"]).toBe(previousDistDir);
-  }, 15_000);
-
-  it("leaves TURBOPACK unset for the webpack default", async () => {
-    const { startSidecar } = await import("../src/sidecar/entry.js");
-    const origin = await startOrigin();
-    const fakeApp = {
-      prepare: () => Promise.resolve(),
-      getRequestHandler: () => (_req: IncomingMessage, res: ServerResponse) => {
-        res.writeHead(200, { "content-type": "text/html" });
-        res.end("<html></html>");
-      },
-      getUpgradeHandler: () => () => undefined,
-      close: () => Promise.resolve(),
-    };
-    process.env["TURBOPACK"] = "leaked-1";
-    const handle = await startSidecar({
-      webDir: "/repo/apps/web",
-      host: "127.0.0.1",
-      port: 0,
-      env: {
-        NOTEBENCH_SERVER_ORIGIN: `http://127.0.0.1:${origin.port}`,
-        NOTEBENCH_WEB_DIST_DIR: "/tmp/build/ns/web-dist",
-      },
-      createApp: () => Promise.resolve(fakeApp),
-    });
-    try {
-      expect(process.env["TURBOPACK"]).toBeUndefined();
-      const page = await fetch(`http://127.0.0.1:${handle.port}/`);
-      expect(page.status).toBe(200);
-    } finally {
-      await handle.close();
-    }
-    // The leaked marker is restored, not dropped.
-    expect(process.env["TURBOPACK"]).toBe("leaked-1");
-    delete process.env["TURBOPACK"];
-  }, 15_000);
-});
-
-describe("ticket 04: sidecar boots the real compiler from source", () => {
-  // One namespaced output dir per worker for all boots in this file: Next
-  // caches the loaded file config per (phase, dir) in-module, so sequential
-  // boots with different distDirs would reuse the first boot's config
-  // (shipped config.js configCache). Sharing is also faster (warm cache).
-  // Staged under the canonical build root (spec 5.5), removed by the
-  // file's temp cleanup.
-  let sharedDistDir = "";
-  beforeAll(() => {
-    const base = join(process.cwd(), ".tmp", "build", "sidecar-shared");
-    mkdirSync(base, { recursive: true });
-    const dir = mkdtempSync(join(base, "ns-"));
-    tempRoots.push(dir);
-    sharedDistDir = join(dir, "web-dist");
-  });
-
-  // The export-moved test runs before any other boot in this worker: a
-  // just-closed compiler can hold the app tree's directory handles for many
-  // seconds on Windows, which would block parking apps/web/out.
-  it("serves with the production export directory moved away (spec 5.10)", async () => {
-    const { startSidecar } = await import("../src/sidecar/entry.js");
-    const { renameSync } = await import("node:fs");
-    const root = process.cwd();
-    const webDir = join(root, "apps", "web");
-    const exportDir = join(webDir, "out");
-    // Park under the canonical build root, outside the watched app tree
-    // (never registered for temp cleanup: these are production files,
-    // restored in the finally below).
-    const stageDir = join(root, ".tmp", "build", "sidecar-parked");
-    mkdirSync(stageDir, { recursive: true });
-    const parkedDir = join(stageDir, "out");
-    const distDir = sharedDistDir;
-    const origin = await startOrigin();
-
-    if (!existsSync(exportDir)) {
-      throw new Error(
-        `apps/web/out is missing: a previous crashed run may have staged it at ${parkedDir}; restore it before running this test.`
-      );
-    }
-    rmSync(parkedDir, { recursive: true, force: true });
-    // Parking can collide with a virus scanner pass: retry briefly. The
-    // rename is atomic, so a failed park leaves the tree untouched.
-    for (let attempt = 0; ; attempt += 1) {
-      try {
-        renameSync(exportDir, parkedDir);
-        break;
-      } catch (error: unknown) {
-        const code = (error as { code?: string }).code;
-        if ((code === "EPERM" || code === "EBUSY") && attempt < 20) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
-          continue;
-        }
-        throw error;
+      const config = await loadWebConfig();
+      expect(typeof config["rewrites"]).toBe("function");
+      const rules = (await (config["rewrites"] as () => Promise<unknown[]>)()) as Array<{
+        source: string;
+        destination: string;
+      }>;
+      const pairs = rules.map((rule) => `${rule.source} -> ${rule.destination}`);
+      for (const prefix of ["/api", "/artifacts", "/frames"]) {
+        expect(pairs).toContain(`${prefix} -> http://127.0.0.1:57570${prefix}`);
+        expect(pairs).toContain(
+          `${prefix}/:path* -> http://127.0.0.1:57570${prefix}/:path*`
+        );
       }
+    } finally {
+      delete process.env[DIST_DIR_ENV];
+      delete process.env["NOTEBENCH_SERVER_ORIGIN"];
+    }
+  });
+
+  it("accepts the NB_ alias for the server origin", async () => {
+    process.env[DIST_DIR_ENV] = "/tmp/build/ns/web-dist";
+    process.env["NB_SERVER_ORIGIN"] = "http://localhost:4123";
+    try {
+      const config = await loadWebConfig();
+      const rules = (await (config["rewrites"] as () => Promise<unknown[]>)()) as Array<{
+        destination: string;
+      }>;
+      expect(rules.length).toBeGreaterThan(0);
+      for (const rule of rules) {
+        expect(rule.destination.startsWith("http://localhost:4123")).toBe(true);
+      }
+    } finally {
+      delete process.env[DIST_DIR_ENV];
+      delete process.env["NB_SERVER_ORIGIN"];
+    }
+  });
+
+  it("refuses a non-loopback server origin at config load", async () => {
+    process.env[DIST_DIR_ENV] = "/tmp/build/ns/web-dist";
+    process.env["NOTEBENCH_SERVER_ORIGIN"] = "https://example.com";
+    try {
+      await expect(loadWebConfig()).rejects.toThrow();
+    } finally {
+      delete process.env[DIST_DIR_ENV];
+      delete process.env["NOTEBENCH_SERVER_ORIGIN"];
+    }
+  });
+
+  it("exposes no rewrites on the production export branch", async () => {
+    delete process.env[DIST_DIR_ENV];
+    delete process.env[DIST_DIR_ENV_ALIAS];
+    delete process.env["NOTEBENCH_SERVER_ORIGIN"];
+    delete process.env["NB_SERVER_ORIGIN"];
+    const config = await loadWebConfig();
+    expect(config["rewrites"]).toBeUndefined();
+  });
+});
+
+describe("ticket 04: web child runs the real Next.js CLI", () => {
+  async function killTree(child: ChildProcess): Promise<void> {
+    const pid = child.pid;
+    if (pid === undefined) return;
+    if (process.platform === "win32") {
+      const { execFile } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      try {
+        await promisify(execFile)("taskkill", ["/T", "/F", "/PID", String(pid)], {
+          shell: false,
+          windowsHide: true,
+        });
+      } catch {
+        // Already gone.
+      }
+      return;
     }
     try {
-      const handle = await startSidecar({
-        webDir,
-        host: "127.0.0.1",
-        port: 0,
+      process.kill(0 - pid, "SIGKILL");
+    } catch {
+      // Already gone.
+    }
+  }
+
+  it("serves pages from the CLI and rewrites /api to the backend (turbopack)", async () => {
+    const { resolveNextBin } = await import("../src/composer.js");
+    const backend = createServer((req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ marker: "backend-v1", url: req.url }));
+    });
+    servers.push(backend);
+    const backendPort = await listen(backend);
+    const webDir = join(process.cwd(), "apps", "web");
+    // distDir must live inside the workspace: the real CLI rejects
+    // out-of-tree distDirs (InvalidDistDirError). Production already does
+    // this (.tmp/build/<ns>/web-dist); the test mirrors it.
+    const distNsDir = join(process.cwd(), ".tmp", "build", "cli-e2e-ns");
+    const distDir = join(distNsDir, "web-dist");
+    const nextDirBefore = existsSync(join(webDir, ".next"));
+    const webPort = await getPort({ host: "127.0.0.1" });
+    const child = spawn(
+      process.execPath,
+      [resolveNextBin(webDir), "dev", webDir, "-H", "127.0.0.1", "-p", String(webPort), "--turbopack"],
+      {
+        cwd: process.cwd(),
         env: {
-          NOTEBENCH_SERVER_ORIGIN: `http://127.0.0.1:${origin.port}`,
+          ...process.env,
           NOTEBENCH_WEB_DIST_DIR: distDir,
+          NOTEBENCH_SERVER_ORIGIN: `http://127.0.0.1:${backendPort}`,
         },
-      });
-      try {
-        const page = await fetch(`http://127.0.0.1:${handle.port}/`);
-        expect(page.status).toBe(200);
-        expect(await page.text()).toContain("<html");
-      } finally {
-        await handle.close();
+        stdio: "pipe",
+        detached: process.platform !== "win32",
+        windowsHide: false,
       }
-    } finally {
-      // Windows releases directory handles asynchronously after close:
-      // retry the restore briefly before giving up.
-      for (let attempt = 0; ; attempt += 1) {
-        try {
-          renameSync(parkedDir, exportDir);
-          break;
-        } catch (error: unknown) {
-          const code = (error as { code?: string }).code;
-          if ((code === "EPERM" || code === "EBUSY") && attempt < 20) {
-            await new Promise((resolve) => setTimeout(resolve, 250));
-            continue;
-          }
-          throw error;
+    );
+    // Drain pipes (an unconsumed pipe can block the child) and keep the tail
+    // for the failure message.
+    const tail: string[] = [];
+    const remember = (chunk: unknown): void => {
+      for (const line of String(chunk).split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed !== "") {
+          tail.push(trimmed);
+          if (tail.length > 40) tail.shift();
         }
       }
-    }
-    expect(existsSync(exportDir)).toBe(true);
-  }, 180_000);
-
-  it("prepares before listening and serves pages through proxy-before-Next", async () => {
-    const { startSidecar } = await import("../src/sidecar/entry.js");
-    const root = process.cwd();
-    const webDir = join(root, "apps", "web");
-    const distDir = sharedDistDir;
-    const origin = await startOrigin();
-
-    const handle = await startSidecar({
-      webDir,
-      host: "127.0.0.1",
-      port: 0,
-      env: {
-        NOTEBENCH_SERVER_ORIGIN: `http://127.0.0.1:${origin.port}`,
-        NOTEBENCH_WEB_DIST_DIR: distDir,
-      },
-    });
-    try {
-      // Pages come from the freshly prepared compiler, not the export dir.
-      const page = await fetch(`http://127.0.0.1:${handle.port}/`);
-      expect(page.status).toBe(200);
-      const html = await page.text();
-      expect(html).toContain("<html");
-      // API prefixes still reach the live backend through the same listener.
-      const api = await fetch(`http://127.0.0.1:${handle.port}/api/healthz`);
-      expect(api.status).toBe(200);
-      expect(JSON.parse(await api.text())).toMatchObject({ proxied: true });
-      // The namespaced compiler output received files (config-branch proof).
-      expect(existsSync(distDir)).toBe(true);
-      // Webpack stays selected: nothing re-armed TURBOPACK behind us
-      // (an unset flag would have defaulted to Turbopack auto mode).
-      expect(process.env["TURBOPACK"]).toBeUndefined();
-      // The unified HMR endpoint upgrades through the sidecar, proving the
-      // dev-transport upgrade path is intact (spec 5.8). Only a valid
-      // websocket handshake is answered; a bare Upgrade is held, so the
-      // attempt carries a deadline instead of hanging.
-      const { connect } = await import("node:net");
-      const upgraded = await new Promise<boolean>((resolve) => {
-        const done = (value: boolean): void => {
-          clearTimeout(timer);
-          resolve(value);
-        };
-        const timer = setTimeout(() => {
-          socket.destroy();
-          done(false);
-        }, 15_000);
-        const socket = connect(handle.port, "127.0.0.1", () => {
-          socket.write(
-            "GET /_next/hmr HTTP/1.1\r\n" +
-              `Host: 127.0.0.1:${handle.port}\r\n` +
-              "Connection: Upgrade\r\n" +
-              "Upgrade: websocket\r\n" +
-              "Sec-WebSocket-Version: 13\r\n" +
-              "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n" +
-              "\r\n"
-          );
-        });
-        let head = "";
-        socket.on("data", (chunk: Buffer) => {
-          head += chunk.toString("utf-8");
-          const end = head.indexOf("\r\n\r\n");
-          if (end !== -1) {
-            const statusLine = head.slice(0, head.indexOf("\r\n"));
-            socket.destroy();
-            done(statusLine.includes("101"));
-          }
-        });
-        socket.on("error", () => done(false));
-        socket.on("close", () => done(false));
-      });
-      expect(upgraded).toBe(true);
-    } finally {
-      await handle.close();
-    }
-  }, 180_000);
-
-  it("writes no compiler output inside the web package (spec 5.5, 5.10)", async () => {
-    const { startSidecar } = await import("../src/sidecar/entry.js");
-    const { readdir } = await import("node:fs/promises");
-    const { relative: relPath } = await import("node:path");
-    const root = process.cwd();
-    const webDir = join(root, "apps", "web");
-    const listAppTree = async (): Promise<string[]> => {
-      const out: string[] = [];
-      const stack: string[] = [webDir];
-      while (stack.length > 0) {
-        const current = stack.pop() as string;
-        const entries = await readdir(current, { withFileTypes: true });
-        for (const entry of entries) {
-          if (entry.name === "node_modules") continue;
-          const full = join(current, entry.name);
-          out.push(relPath(webDir, full));
-          if (entry.isDirectory()) stack.push(full);
-        }
-      }
-      return out.sort();
     };
-
-    const before = await listAppTree();
-    expect(before.length).toBeGreaterThan(0);
-    const distDir = sharedDistDir;
-    const origin = await startOrigin();
-    const handle = await startSidecar({
-      webDir,
-      host: "127.0.0.1",
-      port: 0,
-      env: {
-        NOTEBENCH_SERVER_ORIGIN: `http://127.0.0.1:${origin.port}`,
-        NOTEBENCH_WEB_DIST_DIR: distDir,
-      },
+    child.stdout?.on("data", remember);
+    child.stderr?.on("data", remember);
+    child.on("error", (error: unknown) => {
+      remember(`spawn error: ${error instanceof Error ? error.message : String(error)}`);
     });
     try {
-      const page = await fetch(`http://127.0.0.1:${handle.port}/`);
-      expect(page.status).toBe(200);
-      await page.text();
+      const deadline = Date.now() + 180_000;
+      let pageOk = false;
+      let apiOk = false;
+      while (Date.now() < deadline && !(pageOk && apiOk)) {
+        try {
+          const page = await fetch(`http://127.0.0.1:${webPort}/`);
+          if (page.status === 200 && (await page.text()).includes("<html")) pageOk = true;
+          const api = await fetch(`http://127.0.0.1:${webPort}/api/smoke`);
+          if (api.status === 200) {
+            const body = (await api.json()) as { marker?: string };
+            if (body.marker === "backend-v1") apiOk = true;
+          }
+        } catch {
+          // Not listening yet.
+        }
+        if (!(pageOk && apiOk)) await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      if (!(pageOk && apiOk)) {
+        console.log(`CLI tail:\n${tail.join("\n")}`);
+      }
+      expect(pageOk).toBe(true);
+      expect(apiOk).toBe(true);
+      // Compiler output stays namespaced (spec 5.5): the run's distDir
+      // receives files, and no fresh `.next` appears in the web package
+      // (guarded: a stale pre-existing dir is the environment's, not ours).
+      const { readdirSync } = await import("node:fs");
+      expect(readdirSync(distDir).length).toBeGreaterThan(0);
+      if (!nextDirBefore) expect(existsSync(join(webDir, ".next"))).toBe(false);
     } finally {
-      await handle.close();
+      await killTree(child);
+      const { rmSync } = await import("node:fs");
+      try {
+        rmSync(distNsDir, { recursive: true, force: true });
+      } catch {
+        // Disposable state; best-effort cleanup only.
+      }
     }
-    expect(await listAppTree()).toEqual(before);
-  }, 180_000);
+  }, 240_000);
 });
 
 describe("ticket 04: composer supervises the sidecar under one run", () => {

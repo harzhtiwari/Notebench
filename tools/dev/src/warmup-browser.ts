@@ -17,9 +17,12 @@ export const APP_MOUNTED_SELECTOR = '[data-app-mounted="true"]';
 
 /**
  * Screen controls proving a screen rendered, not just the shell: the setup
- * form on first run, the deep-link shell otherwise.
+ * form on first run, the deep-link shell otherwise. The setup branch is
+ * scoped to the stable form testid so an arbitrary form can never satisfy
+ * the gate; at `/` the probe proves the deep-link shell rendered.
  */
-export const SCREEN_CONTROL_SELECTOR = 'form, [data-testid="route-not-found"]';
+export const SCREEN_CONTROL_SELECTOR =
+  'form[data-testid="setup-form"], [data-testid="route-not-found"]';
 
 export interface BrowserProbeOptions {
   /** Per-attempt budget for load + marker + control (default 30 s). */

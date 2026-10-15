@@ -105,10 +105,16 @@ const execFileAsync = promisify(nodeExecFile);
  * explicit `cmd.exe /d /s /c` argv form is used. Never touches `apps/web`.
  */
 export async function defaultRunBuild(dep: CompiledDep, root: string): Promise<void> {
+  // Mid-tree delegation: cmd.exe -> pnpm -> turbo -> node tasks. Shares the
+  // parent console on purpose (see spawn.ts supervisedDetached): hiding or
+  // detaching here would leave the whole build toolchain without a console,
+  // and each descendant would pop a fresh visible window on `pnpm dev`.
+  // Flags are explicit so a later sweep can't silently re-hide this link.
   if (process.platform === "win32") {
     await execFileAsync("cmd.exe", ["/d", "/s", "/c", `pnpm --filter ${dep.name} build`], {
       cwd: root,
       shell: false,
+      windowsHide: false,
     });
     return;
   }

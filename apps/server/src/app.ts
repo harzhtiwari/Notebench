@@ -1,5 +1,6 @@
 import fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -70,7 +71,6 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     staticDir,
     customLogger,
     docWorkerPool,
-    sqliteDb,
     serverHost,
     hasOwnerPasscode,
     notebookRepo: customNotebookRepo,
@@ -81,6 +81,20 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
 
   // Support `db` as an ergonomic alias for `sqliteInstance` (used in tests)
   const resolvedSqliteInstance = options.sqliteInstance ?? options.db;
+
+  // Shared SQLite handle for health probes (Decision 8.8): the doctor route
+  // must query a real DB in production instead of reporting "not provided".
+  // Reused by the domain blocks below so production opens one handle,
+  // not three. Tests passing sqliteDb/sqliteInstance/db are unaffected.
+  let sharedSqliteInstance = resolvedSqliteInstance;
+  function ensureSharedSqlite(): SqliteDatabaseInstance {
+    if (!sharedSqliteInstance) {
+      sharedSqliteInstance = createSqliteDatabase({ dbPath: options.dbPath });
+    }
+    return sharedSqliteInstance;
+  }
+  const doctorSqliteDb =
+    options.sqliteDb ?? sharedSqliteInstance?.sqlite ?? ensureSharedSqlite().sqlite;
 
   const defaultUserId = customUserId ?? "11111111-1111-4111-8111-111111111111";
   const appLogger = customLogger ?? createLogger({ name: "server", level: "info" });
@@ -98,6 +112,29 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     credentials: true,
   });
 
+  // HTTP rate limiting (CodeQL js/missing-rate-limiting defense-in-depth).
+  // global:false so health probes, static SPA, and read-only state GETs stay
+  // unlimited; sensitive POSTs opt in via per-route config.rateLimit.
+  // Ceilings sit strictly above the domain 5/60s lockout so the existing
+  // 5x401->429 domain sequence stays observable. In-memory LRU: single-process
+  // localhost daemon, no redis. No trustProxy, no loopback allowList.
+  await app.register(rateLimit, {
+    global: false,
+    cache: 5000,
+    allowList: [],
+    errorResponseBuilder: (_request, context) => ({
+      statusCode: 429,
+      error: {
+        code: "RATE_LIMITED",
+        message: `Rate limit exceeded. Retry in ${String(context.after)}.`,
+        details: {
+          retryAfterSeconds: Math.ceil(context.ttl / 1000),
+          limit: context.max,
+        },
+      },
+    }),
+  });
+
   // Health probe endpoints
   app.get("/healthz", async () => {
     return { status: "ok" };
@@ -110,7 +147,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   // System diagnostic endpoint (NOTEBENCH Decision 8.8)
   registerDoctorRoutes(app, {
     docWorkerPool,
-    sqliteDb,
+    sqliteDb: doctorSqliteDb,
     serverHost,
     hasOwnerPasscode,
     appLogger,
@@ -119,9 +156,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   // Owner setup and application access state routes (Ticket 01)
   let setupService = options.ownerSetupService;
   if (!setupService) {
-    const sqliteInstance = resolvedSqliteInstance ?? createSqliteDatabase({
-      dbPath: options.dbPath,
-    });
+    const sqliteInstance = sharedSqliteInstance ?? ensureSharedSqlite();
     const repo = new SqliteAccountRepository(sqliteInstance.db, sqliteInstance.sqlite);
     const hasher = new Argon2PasscodeHasher();
     setupService = new OwnerSetupService({ repository: repo, hasher });
@@ -134,9 +169,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   // Session login/logout routes and global session guard (Ticket 02)
   let sessionService = options.sessionService;
   if (!sessionService) {
-    const sqliteInstance = resolvedSqliteInstance ?? createSqliteDatabase({
-      dbPath: options.dbPath,
-    });
+    const sqliteInstance = sharedSqliteInstance ?? ensureSharedSqlite();
     const accountRepo = new SqliteAccountRepository(sqliteInstance.db, sqliteInstance.sqlite);
     const sessionRepo = new SqliteSessionRepository(sqliteInstance.db, sqliteInstance.sqlite);
     sessionService = new SessionService({
@@ -165,7 +198,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   let notebookService = customNotebookService;
 
   if (!notebookService && !notebookRepo) {
-    const dbInstance = resolvedSqliteInstance ?? createSqliteDatabase({ dbPath: options.dbPath });
+    const dbInstance = sharedSqliteInstance ?? ensureSharedSqlite();
     initializeSqliteSchema(dbInstance.sqlite);
     const now = new Date().toISOString();
     dbInstance.sqlite.exec(`
@@ -203,8 +236,12 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   // SPA fallback policy (ticket 06): only browser navigations (GET/HEAD
   // accepting HTML) fall back to the exported shell. API paths, stale asset
   // requests, and non-HTML probes get a structured JSON 404 instead — an API
-  // path must never fall through to HTML.
-  app.setNotFoundHandler(async (request, reply) => {
+  // path must never fall through to HTML. Rate-limited to blunt URL guessing.
+  app.setNotFoundHandler(
+    {
+      preHandler: app.rateLimit({ max: 50, timeWindow: "1 minute" }),
+    },
+    async (request, reply) => {
     const url = request.url;
     // request.url carries the query string: match policy on the pathname so
     // `/api?x=1` cannot slip past the API exclusion into the HTML shell.

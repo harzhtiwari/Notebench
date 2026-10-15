@@ -233,6 +233,9 @@ export const sqliteVecProbe: HealthProbeDefinition = {
     }
 
     try {
+      // Extension registration (sqliteVec.load(db) per the sqlite-vec docs)
+      // happens once at database open in packages/infra-vectorstore; this
+      // probe only reads SELECT vec_version() and never writes.
       const stmt = db.prepare("SELECT vec_version() AS version");
       const row = stmt.get() as { version?: unknown } | undefined;
       const durationMs = Date.now() - startTime;
@@ -292,9 +295,9 @@ export const diskCapacityProbe: HealthProbeDefinition = {
       });
 
       const stats = await statfsFn(notebookPath);
-      const bavail = typeof stats.bavail === "bigint" ? Number(stats.bavail) : Number(stats.bavail);
-      const bsize = typeof stats.bsize === "bigint" ? Number(stats.bsize) : Number(stats.bsize);
-      const freeBytes = bavail * bsize;
+      // Mandatory formula (Node fs.statfs docs): free bytes available to the
+      // unprivileged user = BigInt(bavail) * BigInt(bsize). bavail, NOT bfree.
+      const freeBytes = Number(BigInt(stats.bavail) * BigInt(stats.bsize));
       const freeGb = freeBytes / (1024 * 1024 * 1024);
       const durationMs = Date.now() - startTime;
 

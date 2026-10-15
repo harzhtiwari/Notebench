@@ -70,7 +70,7 @@ export function RoutePage() {
 }
 
 const BASE: FileMap = {
-  "apps/web/src/app/page.tsx": PAGE,
+  "apps/web/src/app/[[...slug]]/page.tsx": PAGE,
   "packages/ui/src/index.ts": UI_INDEX,
   "packages/ui/src/lib/utils.ts": UTILS,
   "packages/ui/package.json": UI_PACKAGE_JSON,
@@ -145,6 +145,16 @@ describe("guard UI discipline (ticket 03)", () => {
     expect(r.stderr).toContain("Shared");
   }, 120_000);
 
+  it("fails a second route entry beside the catch-all [Check #37]", async () => {
+    const dir = buildTree("guard-second-entry", {
+      "apps/web/src/app/dashboard/page.tsx": PAGE,
+    });
+    const r = await runGuard(dir);
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("[Check #37]");
+    expect(r.stderr).toContain("dashboard");
+  }, 120_000);
+
   it("passes a stray toolchain .tmp/test/ dir [Check #35]", async () => {
     const dir = buildTree("guard-tmp-test", {
       ".tmp/test/placeholder": "",
@@ -164,5 +174,38 @@ describe("guard UI discipline (ticket 03)", () => {
     expect(r.stderr).toContain("[Check #28]");
     expect(r.stderr).toContain("tokens.css");
     expect(r.stderr).toContain("build_tokens.py");
+  }, 120_000);
+});
+
+describe("guard hex-colour discipline (ticket 29)", () => {
+  it("fails a hard-coded hex colour in a web component [Check #36]", async () => {
+    const dir = buildTree("guard-hex-fail", {
+      "apps/web/src/app/colors/page.tsx": `import * as React from "react";\n\nexport default function Page() {\n  return <div style={{ color: '#fff' }}>hi</div>;\n}\n`,
+    });
+    const r = await runGuard(dir);
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("[Check #36]");
+    expect(r.stderr).toContain("#fff");
+    expect(r.stderr).toContain("colors");
+  }, 120_000);
+
+  it("passes token var() references with no hex [Check #36]", async () => {
+    const dir = buildTree("guard-hex-var", {
+      "apps/web/src/components/token-sample.tsx": `import * as React from "react";\n\nexport function TokenSample() {\n  return <div style={{ color: "var(--nb-ink)" }}>hi</div>;\n}\n`,
+    });
+    const r = await runGuard(dir);
+    expect(r.stderr).toBe("");
+    expect(r.code).toBe(0);
+  }, 120_000);
+
+  it("passes generated hex in tokens.css [Check #36]", async () => {
+    const hexTokens = ":root {\n  --nb-ground: #F5F4F1;\n  --nb-ink: #161615;\n}\n";
+    const dir = buildTree("guard-hex-tokens", {
+      "docs/ui/tokens.css": hexTokens,
+      "packages/ui/tokens.css": hexTokens,
+    });
+    const r = await runGuard(dir);
+    expect(r.stderr).toBe("");
+    expect(r.code).toBe(0);
   }, 120_000);
 });

@@ -54,6 +54,12 @@ export function registerDoctorRoutes(
 
       const probes = await runHealthProbes(probeContext);
 
+      const aggregateStatus = probes.some((p) => p.status === "fail")
+        ? "error"
+        : probes.some((p) => p.status === "warn")
+          ? "warn"
+          : "ok";
+
       // Backward-compatible docWorker summary for existing clients and tests
       let docWorkerStatus: unknown = undefined;
       if (options.docWorkerPool) {
@@ -75,7 +81,7 @@ export function registerDoctorRoutes(
       }
 
       const report: DoctorReport = {
-        status: "ok",
+        status: aggregateStatus,
         version: "0.1.0",
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),

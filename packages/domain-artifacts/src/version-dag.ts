@@ -98,9 +98,10 @@ export class ArtifactVersionDagService {
   }
 
   /**
-   * Non-destructive restore mechanic (Decision 4.3).
-   * Restores an earlier version by creating a new version cloning the target version's content.
-   * Requirement: "Restore creates a new row whose parentVersionId points at the version it restores from; the old row is unchanged."
+   * Non-destructive restore mechanic (Decision 4.3, git-style).
+   * Restores an earlier version by creating a new version cloning the target
+   * version's content, with the parent staying on latest so history remains
+   * linear (V5 → V4 → …), like `git revert`. The old rows are unchanged.
    */
   public async restoreVersion(
     artifactId: string,
@@ -118,7 +119,7 @@ export class ArtifactVersionDagService {
     const latest = await this.repository.getLatestVersion(artifactId);
     const nextNumber = latest ? latest.number + 1 : 1;
 
-    const parentVersionId = options?.parentVersionId ?? targetVersionId;
+    const parentVersionId = options?.parentVersionId ?? latest?.id ?? targetVersionId;
     const instruction =
       options?.instruction ?? `Restored from Version ${targetVersion.number}`;
 

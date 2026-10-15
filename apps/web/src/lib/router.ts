@@ -1,4 +1,4 @@
-export type ScreenId = "setup" | "login" | "not-found";
+export type ScreenId = "setup" | "login" | "health" | "dashboard" | "notebook" | "trash" | "not-found";
 
 export interface ParsedRoute {
   screen: ScreenId;
@@ -37,13 +37,25 @@ function normalizePathname(path: string): string {
 const PATH_SCREENS: Record<string, ScreenId> = {
   "/setup": "setup",
   "/login": "login",
+  "/health": "health",
+  "/dashboard": "dashboard",
+  "/notebooks": "dashboard",
+  "/trash": "trash",
 };
+
+function matchNotebookRoute(pathname: string): ScreenId | null {
+  if (pathname.startsWith("/notebooks/") && pathname.length > "/notebooks/".length) {
+    const rest = pathname.slice("/notebooks/".length);
+    if (rest.length > 0 && !rest.includes("/")) return "notebook";
+  }
+  return null;
+}
 
 export function parseRoute(input: string): ParsedRoute {
   const { path, search, hash } = splitPath(input);
   const pathname = normalizePathname(path);
   const slug = pathname === "/" ? [] : pathname.slice(1).split("/");
-  const screen: ScreenId = PATH_SCREENS[pathname] ?? "not-found";
+  const screen: ScreenId = PATH_SCREENS[pathname] ?? matchNotebookRoute(pathname) ?? "not-found";
   return { screen, slug, path: pathname, search, hash };
 }
 

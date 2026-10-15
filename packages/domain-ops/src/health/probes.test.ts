@@ -264,6 +264,37 @@ describe("System Health 6-Point Diagnostic Suite (Ticket 24 - RED phase)", () =>
       expect(result.status).toBe("fail");
       expect(result.message).toContain("0.50 GB");
     });
+
+    it("computes BigInt(bavail) * BigInt(bsize) from bigint statfs inputs", async () => {
+      const bavail = BigInt(Math.floor((6 * ONE_GB) / 4096));
+      const fakeStatfs = vi.fn().mockResolvedValue({
+        bsize: 4096n,
+        bavail,
+      });
+
+      const result = await diskProbe.run({
+        statfsFn: fakeStatfs,
+      });
+
+      expect(result.id).toBe("disk_capacity");
+      expect(result.status).toBe("pass");
+      expect(result.details?.["freeBytes"]).toBe(Number(bavail * 4096n));
+    });
+
+    it("uses bavail (not bfree): huge bfree with tiny bavail still fails", async () => {
+      const fakeStatfs = vi.fn().mockResolvedValue({
+        bsize: 4096,
+        bavail: Math.floor((0.5 * ONE_GB) / 4096),
+        bfree: Math.floor((100 * ONE_GB) / 4096),
+      });
+
+      const result = await diskProbe.run({
+        statfsFn: fakeStatfs,
+      });
+
+      expect(result.id).toBe("disk_capacity");
+      expect(result.status).toBe("fail");
+    });
   });
 
   describe("Probe 6: Exposure Alert", () => {

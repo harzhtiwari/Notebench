@@ -49,7 +49,7 @@ function getAllFiles(dir: string, extension: string[] = [".ts", ".tsx"]): string
   return files;
 }
 
-console.log("🔍 Running Notebench Architectural Guardrails (35 AST Boundary Checks)...");
+console.log("🔍 Running Notebench Architectural Guardrails (37 AST Boundary Checks)...");
 
 // ============================================================================
 // SOURCE SCANNER HELPERS (comment/string-aware, line-precise, no compiler API)
@@ -620,6 +620,62 @@ if (docsUiSeen) {
   }
 }
 
+// >>> TICKET-29: hex-colour guard (Check 36) — append-only hunk, do not restructure <<<
+// Check 36: Hex-colour literals banned outside generated tokens. Components
+// must use design tokens (var(--nb-*)); hard-coded hex breaks dark mode and
+// theming (spec Decisions 1.1/1.2; tokens.css header: "A literal color ...
+// in a component is a bug"). Zero-dependency scan: stripComments, then match
+// #rgb/#rrggbb/#rrggbbaa inside string/template literal bodies with the shared
+// lineOf mapping. stripStrings is deliberately NOT applied first — it blanks
+// the very literals under test. No ts-morph / TS compiler API (TS 7 ships no
+// stable JS API; see file header + research 02-storage-health-release §29).
+const hexColourConfig = [
+  { dir: join(ROOT, "apps", "web"), allowHexIn: [] as string[] },
+  { dir: join(ROOT, "packages", "ui"), allowHexIn: [join(ROOT, "packages", "ui", "tokens.css")] },
+];
+const hexLiteralRe = /#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b/g;
+const stringLiteralRe = /'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`/g;
+for (const { dir, allowHexIn } of hexColourConfig) {
+  const hexAllowed = new Set(allowHexIn);
+  for (const file of getAllFiles(dir)) {
+    if (hexAllowed.has(file)) continue;
+    const codeNoComments = stripComments(readFileSync(file, "utf-8"));
+    stringLiteralRe.lastIndex = 0;
+    let lit: RegExpExecArray | null;
+    while ((lit = stringLiteralRe.exec(codeNoComments)) !== null) {
+      hexLiteralRe.lastIndex = 0;
+      let hx: RegExpExecArray | null;
+      while ((hx = hexLiteralRe.exec(lit[0])) !== null) {
+        addViolation(
+          36,
+          "Design Token Discipline",
+          file,
+          `Hex colour literal '${hx[0]}' at line ${lineOf(codeNoComments, lit.index + hx.index)}. Use a var(--nb-*) token; hex is allowed only in packages/ui/tokens.css.`
+        );
+      }
+    }
+  }
+}
+// <<< TICKET-29 end <<<
+
+// Check 37: Single catch-all route entry (ticket 06) — the product UI is
+// served by apps/web/src/app/[[...slug]]/page.tsx only. A second page entry
+// (e.g. app/dashboard/page.tsx) would load outside the persistent AppRoot
+// shell: shared state remounts, the route compiles separately, and the
+// warmup app-mounted marker is bypassed.
+const appDir = join(ROOT, "apps", "web", "src", "app");
+const catchAllPage = join(appDir, "[[...slug]]", "page.tsx");
+for (const file of getAllFiles(appDir, [".tsx"])) {
+  if (basename(file) === "page.tsx" && file !== catchAllPage) {
+    addViolation(
+      37,
+      "Single Route Entry",
+      relative(ROOT, file),
+      "Only apps/web/src/app/[[...slug]]/page.tsx may be a route entry (ticket 06: one catch-all, merged not duplicated). Render the screen through AppRoot's registry instead."
+    );
+  }
+}
+
 // ============================================================================
 // REPORTING SUMMARY
 // ============================================================================
@@ -631,5 +687,5 @@ if (violations.length > 0) {
   }
   process.exit(1);
 } else {
-  console.log("✅ All 35 architectural boundary checks passed successfully!");
+  console.log("✅ All 37 architectural boundary checks passed successfully!");
 }

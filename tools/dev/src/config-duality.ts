@@ -18,6 +18,8 @@ export const WEB_TSCONFIG_ENV = "NOTEBENCH_WEB_TSCONFIG_PATH";
 export const WEB_TSCONFIG_ENV_ALIAS = "NB_WEB_TSCONFIG_PATH";
 export const WEB_DEV_BUNDLER_ENV = "NOTEBENCH_WEB_DEV_BUNDLER";
 export const WEB_DEV_BUNDLER_ENV_ALIAS = "NB_WEB_DEV_BUNDLER";
+/** Live backend origin for the sidecar API split (canonical name). */
+export const SERVER_ORIGIN_ENV = "NOTEBENCH_SERVER_ORIGIN";
 
 export type WebDevBundler = "webpack" | "turbopack";
 

@@ -16,8 +16,10 @@ import type { WarmupMode } from "./types.js";
  */
 
 /** One verified readiness gate with its observed timing. */
+export type WarmupGateName = "route-ready" | "ui-ready";
+
 export interface WarmupGateTiming {
-  name: string;
+  name: WarmupGateName;
   elapsedMs: number;
   attempts: number;
 }
@@ -28,6 +30,15 @@ export interface WarmupResult {
   timings: WarmupGateTiming[];
   totalElapsedMs: number;
 }
+
+/**
+ * Default budget for the ui-level browser gate (confirm: spec section 8
+ * assigns numeric budgets to the server-health and sidecar-listener gates
+ * only; ui time is otherwise a benchmark metric, so this mirrors the
+ * server-health order of magnitude to allow several per-attempt probe
+ * retries instead of racing a single attempt against the 35 s sidecar wait).
+ */
+export const UI_WARMUP_DEADLINE_MS = 120_000;
 
 /** Real request through the sidecar (route-ready gate). */
 export type RouteProbe = () => Promise<boolean> | boolean;
@@ -48,6 +59,8 @@ export interface VerifyWarmupOptions {
   probeRoute: RouteProbe;
   probeUi?: UiProbe | undefined;
   deadlineMs: number;
+  /** Budget for the ui gate; defaults to deadlineMs (the route/sidecar wait). */
+  uiDeadlineMs?: number | undefined;
   intervalMs?: number | undefined;
 }
 
@@ -110,6 +123,7 @@ export async function verifyWarmup(
   }
 
   const uiStart = now();
+  const uiDeadlineMs = options.uiDeadlineMs ?? options.deadlineMs;
   let attempts = 0;
   let last: UiProbeResult = { mounted: false, screenControl: null };
   let lastProbeError: string | null = null;
@@ -133,7 +147,7 @@ export async function verifyWarmup(
       timings.push({ name: "ui-ready", elapsedMs: now() - uiStart, attempts });
       return { level: "ui", timings, totalElapsedMs: now() - start };
     }
-    if (now() - uiStart >= options.deadlineMs) {
+    if (now() - uiStart >= uiDeadlineMs) {
       const uiElapsedMs = now() - uiStart;
       timings.push({ name: "ui-ready", elapsedMs: uiElapsedMs, attempts });
       const probeState =
@@ -142,7 +156,7 @@ export async function verifyWarmup(
           : `Last probe error: ${lastProbeError}. Last state: ${describeUiProbe(last)}.`;
       throw new OrchestratorError(
         `UI warm-up failed for ${options.webOrigin}: app-mounted marker and screen control ` +
-          `not observed within ${options.deadlineMs}ms (${attempts} attempts). ` +
+          `not observed within ${uiDeadlineMs}ms (${attempts} attempts). ` +
           `${probeState} ` +
           `Timings: routeReadyMs=${timings[0]?.elapsedMs ?? 0}, uiReadyMs=${uiElapsedMs}.`,
         5

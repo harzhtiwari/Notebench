@@ -63,14 +63,18 @@ export async function describePortOccupant(port: number, host: string): Promise<
 }
 
 async function describeOccupantWindows(port: number, host: string): Promise<string> {
-  const { stdout } = await execFileAsync("netstat", ["-ano", "-p", "TCP"], { timeout: 2000 });
+  const { stdout } = await execFileAsync("netstat", ["-ano", "-p", "TCP"], {
+    timeout: 2000,
+    shell: false,
+    windowsHide: true,
+  });
   const pid = parseNetstatPid(stdout, port, host);
   if (pid === undefined) return "unknown";
   try {
     const { stdout: task } = await execFileAsync(
       "tasklist",
       ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"],
-      { timeout: 2000 }
+      { timeout: 2000, shell: false, windowsHide: true }
     );
     const image = task.split(",")[0]?.replaceAll('"', "").trim();
     return image !== undefined && image !== "" ? `pid ${pid} (${image})` : `pid ${pid}`;
@@ -100,7 +104,7 @@ async function describeOccupantPosix(port: number, host: string): Promise<string
   const { stdout } = await execFileAsync(
     "lsof",
     [`-iTCP:${port}`, "-sTCP:LISTEN", "-P", "-n"],
-    { timeout: 2000 }
+    { timeout: 2000, shell: false, windowsHide: true }
   );
   let fallback: string | undefined;
   for (const line of stdout.split("\n").slice(1)) {

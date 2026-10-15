@@ -38,7 +38,7 @@ import { teardownOwnedRun } from "./cleanup.js";
 import type { OwnedChild } from "./cleanup.js";
 import { ensureServerFreshness } from "./freshness.js";
 import type { CompiledDep } from "./freshness.js";
-import { formatReadyLine, verifyWarmup } from "./warmup.js";
+import { formatReadyLine, UI_WARMUP_DEADLINE_MS, verifyWarmup } from "./warmup.js";
 import type { UiProbe, UiProbeResult, WarmupResult } from "./warmup.js";
 import { probeAppMounted } from "./warmup-browser.js";
 import { resolveGeneratedPathsForRun } from "./isolate.js";
@@ -47,8 +47,8 @@ import {
   WEB_DEV_BUNDLER_ENV,
   WEB_DEV_BUNDLER_ENV_ALIAS,
   WEB_DIST_DIR_ENV,
-} from "./sidecar/entry.js";
-import type { SidecarBundler } from "./sidecar/entry.js";
+} from "./config-duality.js";
+import type { WebDevBundler } from "./config-duality.js";
 import type { ChildExit } from "./spawn.js";
 import { OrchestratorError } from "./types.js";
 
@@ -98,9 +98,8 @@ interface WebSpawnContext {
   port: number;
   serverOrigin: string;
   distDir: string;
-  bundler: SidecarBundler;
+  bundler: WebDevBundler;
   webDir: string;
-  entry: string;
 }
 
 /** A started web sidecar child: enough to supervise, gate, and record it. */
@@ -168,7 +167,6 @@ export interface BackendPhaseDeps {
   statMtimeMs?: ((path: string) => Promise<number | null>) | undefined;
   listFilesRecursive?: ((dir: string) => Promise<string[]>) | undefined;
   createWebSpawn?: ((ctx: WebSpawnContext) => WebSpawnRequest) | undefined;
-  webEntryPath?: string | undefined;
   webDeadlineMs?: number | undefined;
   probeWeb?: ((url: string) => Promise<boolean>) | undefined;
   /**
@@ -185,6 +183,12 @@ export interface BackendPhaseDeps {
   probeUi?: UiProbe | undefined;
   /** Deadline per warmup gate (default 35 s, spec section 8 sidecar wait). */
   warmupDeadlineMs?: number | undefined;
+  /**
+   * Budget for the ui-level browser gate (default 120 s). Kept separate from
+   * the route/sidecar wait so the browser probe can retry several per-attempt
+   * timeouts instead of racing a single 30 s attempt against the 35 s gate.
+   */
+  warmupUiDeadlineMs?: number | undefined;
   /**
    * Benchmark hook (ticket 08): invoked with the verified warmup result
    * after the ready line is logged. Absent in normal runs.
@@ -255,14 +259,55 @@ async function defaultProbeWeb(url: string): Promise<boolean> {
 
 /** Real headless-browser probe for `--warmup ui` (lazy browser load). */
 function defaultProbeUi(webOrigin: string): Promise<UiProbeResult> {
-  return probeAppMounted(webOrigin);
+  return probeAppMounted(webOrigin, { timeoutMs: 30_000 });
+}
+
+/**
+ * CLI cutover (open-design parity): the web child is the real `next dev`
+ * CLI, so the genuine Next.js startup block, HMR, and compile output come
+ * from Next itself. The API split moved to the web config's sidecar
+ * rewrites; supervision and readiness gating are unchanged.
+ */
+export function resolveNextBin(webDir: string): string {
+  return join(webDir, "node_modules", "next", "dist", "bin", "next");
+}
+
+export interface NextDevArgv {
+  nextBin: string;
+  webDir: string;
+  host: string;
+  port: number;
+  bundler: WebDevBundler;
+}
+
+export function buildNextDevArgv(request: NextDevArgv): string[] {
+  return [
+    request.nextBin,
+    "dev",
+    request.webDir,
+    "-H",
+    request.host,
+    "-p",
+    String(request.port),
+    request.bundler === "turbopack" ? "--turbopack" : "--webpack",
+  ];
 }
 
 function defaultCreateWebSpawn(ctx: WebSpawnContext): WebSpawnRequest {
-  return { executable: process.execPath, argv: ["--import", resolveTsxLoader(), ctx.entry] };
+  const nextBin = resolveNextBin(ctx.webDir);
+  return {
+    executable: process.execPath,
+    argv: buildNextDevArgv({
+      nextBin,
+      webDir: ctx.webDir,
+      host: ctx.host,
+      port: ctx.port,
+      bundler: ctx.bundler,
+    }),
+  };
 }
 
-function resolveWebBundler(env: Record<string, string | undefined>): SidecarBundler {
+function resolveWebBundler(env: Record<string, string | undefined>): WebDevBundler {
   const raw =
     env[WEB_DEV_BUNDLER_ENV] ?? env[WEB_DEV_BUNDLER_ENV_ALIAS] ?? "webpack";
   if (raw !== "webpack" && raw !== "turbopack") {
@@ -308,7 +353,6 @@ export async function startDefaultWebPhase(
     previousFile: join(dirname(ctx.paths.webLogFile), "previous.log"),
   });
 
-  const entry = deps?.webEntryPath ?? join(resolveRepoRoot(), "tools", "dev", "src", "sidecar", "child.ts");
   const spawnRequest = createWebSpawn({
     host: ctx.host,
     port,
@@ -316,7 +360,6 @@ export async function startDefaultWebPhase(
     distDir: generated.distDir,
     bundler,
     webDir,
-    entry,
   });
 
   logLine(
@@ -739,6 +782,7 @@ export async function startBackendPhase(
           probeRoute: () => probeWebRoute(`${webOrigin}/`),
           probeUi: deps?.probeUi ?? defaultProbeUi,
           deadlineMs: deps?.warmupDeadlineMs ?? SIDECAR_DEADLINE_MS,
+          uiDeadlineMs: deps?.warmupUiDeadlineMs ?? UI_WARMUP_DEADLINE_MS,
           intervalMs: pollIntervalMs,
         },
         {

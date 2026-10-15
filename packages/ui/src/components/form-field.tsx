@@ -53,7 +53,7 @@ const FormField = React.forwardRef<HTMLDivElement, FormFieldProps>(
         </label>
         {control}
         {hint !== undefined && !hasError ? (
-          <p className="text-[11px] text-[var(--nb-ink-2)]">{hint}</p>
+          <p className="text-[var(--nb-text-2xs)] text-[var(--nb-ink-2)]">{hint}</p>
         ) : null}
         {hasError ? (
           <p

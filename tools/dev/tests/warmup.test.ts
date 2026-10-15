@@ -1,6 +1,4 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import getPort from "get-port";
 import { startBackendPhase } from "../src/composer.js";
@@ -16,6 +14,7 @@ import {
   verifyWarmup,
 } from "../src/warmup.js";
 import type { RouteProbe, UiProbeResult, WarmupGateTiming, WarmupResult } from "../src/warmup.js";
+import { makeTempRoot as createTempRoot, removeTempRoots } from "./temp-dir.js";
 
 /**
  * Ticket 07 RED suite (written before implementation).
@@ -46,7 +45,9 @@ function controllableTime(): { now: () => number; sleep: (ms: number) => Promise
 describe("ticket 07: probe/marker contract", () => {
   it("pins the shared marker and control selectors", () => {
     expect(APP_MOUNTED_SELECTOR).toBe('[data-app-mounted="true"]');
-    expect(SCREEN_CONTROL_SELECTOR).toBe('form, [data-testid="route-not-found"]');
+    expect(SCREEN_CONTROL_SELECTOR).toBe(
+      'form[data-testid="setup-form"], [data-testid="route-not-found"]'
+    );
   });
 });
 
@@ -191,6 +192,29 @@ describe("ticket 07: ui readiness level", () => {
     expect((error as Error).message).toContain("missing browser binary");
   });
 
+  it("ui gate honors its own deadline, not the route budget", async () => {
+    const { now, sleep } = controllableTime();
+    const error = await verifyWarmup(
+      {
+        mode: "ui",
+        serverOrigin: "http://127.0.0.1:41001",
+        webOrigin: "http://127.0.0.1:41002",
+        probeRoute: () => true,
+        probeUi: async () => ({ mounted: false, screenControl: null }),
+        deadlineMs: 300,
+        uiDeadlineMs: 900,
+        intervalMs: 150,
+      },
+      { now, sleep }
+    ).then(
+      () => null,
+      (e: unknown) => e
+    );
+    expect(error).toBeInstanceOf(OrchestratorError);
+    expect((error as OrchestratorError).exitCode).toBe(5);
+    expect((error as Error).message).toContain("within 900ms");
+  });
+
   it("ui mode without a browser probe fails fast instead of hanging", async () => {
     const { now, sleep } = controllableTime();
     const error = await verifyWarmup(
@@ -255,31 +279,10 @@ describe("ticket 07: composer warmup wiring (log contract)", () => {
   const tempRoots: string[] = [];
 
   function makeTempRoot(): string {
-    const dir = mkdtempSync(join(tmpdir(), "notebench-t07-"));
-    tempRoots.push(dir);
-    return dir;
+    return createTempRoot(tempRoots, "notebench-t07-");
   }
 
-  afterEach(async () => {
-    while (tempRoots.length > 0) {
-      const dir = tempRoots.pop() as string;
-      // Windows lock errors persist longer under parallel suites: retry with
-      // a generous budget before giving up.
-      for (let attempt = 0; attempt < 60; attempt += 1) {
-        try {
-          rmSync(dir, { recursive: true, force: true });
-          break;
-        } catch (error: unknown) {
-          const code = (error as { code?: string }).code;
-          if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
-            await new Promise((resolve) => setTimeout(resolve, 250));
-            continue;
-          }
-          throw error;
-        }
-      }
-    }
-  }, 120_000);
+  afterEach(() => removeTempRoots(tempRoots), 120_000);
 
   const HEALTHY_SCRIPT = `
 const http = require("http");
@@ -397,6 +400,7 @@ http.createServer((req, res) => {
         probeWeb: () => Promise.resolve(true),
         probeUi: () => Promise.resolve({ mounted: false, screenControl: null }),
         warmupDeadlineMs: 400,
+        warmupUiDeadlineMs: 400,
         pollIntervalMs: 25,
       }
     ).then(

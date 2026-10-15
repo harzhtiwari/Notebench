@@ -11,7 +11,10 @@ import {
 import { resolveScreen } from "../lib/screens";
 import { SetupScreen } from "../screens/setup-screen";
 import { LoginScreen } from "../screens/login-screen";
+import { HealthScreen } from "../screens/health-screen";
+import { TrashScreen } from "../screens/trash-screen";
 import { NotFoundScreen } from "../screens/not-found-screen";
+import { DashboardContainer } from "../app/dashboard/dashboard-container";
 
 function liveUrl(): string {
   return `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -99,6 +102,10 @@ export function AppRoot({ initialPath }: { initialPath: string }) {
   const screens: Record<ScreenId, React.JSX.Element> = {
     setup: <SetupScreen navigate={(to) => router.navigate(to)} />,
     login: <LoginScreen navigate={(to) => router.navigate(to)} />,
+    health: <HealthScreen />,
+    dashboard: <DashboardContainer navigate={(to) => router.navigate(to)} />,
+    notebook: <DashboardContainer navigate={(to) => router.navigate(to)} />,
+    trash: <TrashScreen navigate={(to) => router.navigate(to)} />,
     "not-found": <NotFoundScreen path={entry.path} />,
   };
 
@@ -111,6 +118,9 @@ export function AppRoot({ initialPath }: { initialPath: string }) {
       <nav>
         <a href="/setup">Setup</a>
         <a href="/login">Login</a>
+        <a href="/health">Health</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/trash">Trash</a>
       </nav>
       {screens[screen]}
     </div>
