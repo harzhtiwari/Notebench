@@ -23,6 +23,7 @@ import {
   POLL_INTERVAL_MS,
   SERVER_HEALTH_DEADLINE_MS,
   SIDECAR_DEADLINE_MS,
+  TEARDOWN_GRACE_MS,
   waitForReadiness,
 } from "./readiness.js";
 import { createOsPidLivenessChecker } from "./process-start-time.js";
@@ -38,7 +39,7 @@ import type { OwnedChild } from "./cleanup.js";
 import { ensureServerFreshness } from "./freshness.js";
 import type { CompiledDep } from "./freshness.js";
 import { formatReadyLine, verifyWarmup } from "./warmup.js";
-import type { UiProbe, UiProbeResult } from "./warmup.js";
+import type { UiProbe, UiProbeResult, WarmupResult } from "./warmup.js";
 import { probeAppMounted } from "./warmup-browser.js";
 import { resolveGeneratedPathsForRun } from "./isolate.js";
 import {
@@ -184,6 +185,11 @@ export interface BackendPhaseDeps {
   probeUi?: UiProbe | undefined;
   /** Deadline per warmup gate (default 35 s, spec section 8 sidecar wait). */
   warmupDeadlineMs?: number | undefined;
+  /**
+   * Benchmark hook (ticket 08): invoked with the verified warmup result
+   * after the ready line is logged. Absent in normal runs.
+   */
+  onWarmup?: ((result: WarmupResult) => Promise<void> | void) | undefined;
 }
 
 function defaultLogLine(line: string): void {
@@ -275,7 +281,7 @@ function resolveWebBundler(env: Record<string, string | undefined>): SidecarBund
  * own child before throwing; the backend catch path then tears down the
  * server (teardown is idempotent, so the overlap is safe).
  */
-async function defaultStartWebPhase(
+export async function startDefaultWebPhase(
   ctx: ServerReadyContext,
   deps?: BackendPhaseDeps | undefined,
   env?: Record<string, string | undefined> | undefined
@@ -592,6 +598,11 @@ export async function startBackendPhase(
   // Supervised children in start order; teardown reverses it (web before
   // server). The web phase appends once the sidecar is gated.
   const owned: OwnedChild[] = [ownedServer];
+  // Exit promises in the same order. Shutdown returns only after every
+  // owned child is actually reaped (not merely signaled): reaping is what
+  // releases OS locks such as the Windows working-directory handle, so
+  // post-run cleanup never races a dying child.
+  const exitPromises: Array<Promise<ChildExit>> = [serverChild.exited];
   let childExited = false;
   let shuttingDown = false;
   let settled = false;
@@ -615,6 +626,20 @@ export async function startBackendPhase(
     removeSignal("SIGTERM", handleSigterm);
     await teardownOwnedRun(paths, owned, { isPidLive });
     await flushOutput();
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const reaped = await Promise.race([
+        Promise.allSettled(exitPromises).then(() => true),
+        new Promise<false>((resolve) => {
+          settleTimer = setTimeout(() => resolve(false), TEARDOWN_GRACE_MS);
+        }),
+      ]);
+      if (!reaped) {
+        logLine(`[dev] shutdown proceeding with owned children still attached after ${String(TEARDOWN_GRACE_MS)}ms`);
+      }
+    } finally {
+      if (settleTimer !== undefined) clearTimeout(settleTimer);
+    }
     finish(0);
     return settledCode;
   };
@@ -685,6 +710,7 @@ export async function startBackendPhase(
         startTimeMs: web.startTimeMs,
       };
       owned.push(ownedWeb);
+      exitPromises.push(web.exited);
       await fsWriteFile(paths.webPortFile, `${web.port}\n`, "utf-8");
       await fsWriteFile(paths.webPidFile, `${web.pid}\n`, "utf-8");
       identityRecord.children["web"] = { pid: web.pid, startTimeMs: web.startTimeMs };
@@ -725,6 +751,10 @@ export async function startBackendPhase(
       logLine(
         formatReadyLine({ namespace: paths.namespace, serverOrigin, webOrigin, result: warmup })
       );
+      const onWarmup = deps?.onWarmup;
+      if (onWarmup !== undefined) {
+        await onWarmup(warmup);
+      }
     }
     onSignal("SIGINT", handleSigint);
     onSignal("SIGTERM", handleSigterm);
@@ -762,7 +792,7 @@ export async function runDevCommand(
   const logLine = deps?.logLine ?? defaultLogLine;
   try {
     const startWebPhase =
-      deps?.startWebPhase ?? ((ctx: ServerReadyContext) => defaultStartWebPhase(ctx, deps, options?.env));
+      deps?.startWebPhase ?? ((ctx: ServerReadyContext) => startDefaultWebPhase(ctx, deps, options?.env));
     const handle = await startBackendPhase(options, { ...deps, startWebPhase });
     return await handle.waitForExit();
   } catch (error: unknown) {

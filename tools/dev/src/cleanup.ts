@@ -83,7 +83,8 @@ function defaultGracefulStop(child: OwnedChild): void {
 async function defaultForceKill(pid: number, platform: string): Promise<void> {
   try {
     if (platform === "win32") {
-      await execFileAsync("taskkill", ["/T", "/F", "/PID", String(pid)], { shell: false });
+      // windowsHide: the force-kill helper must not flash a console window.
+      await execFileAsync("taskkill", ["/T", "/F", "/PID", String(pid)], { shell: false, windowsHide: true });
     } else {
       process.kill(0 - pid, "SIGKILL");
     }

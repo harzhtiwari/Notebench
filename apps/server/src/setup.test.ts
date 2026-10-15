@@ -12,7 +12,27 @@ import {
 } from "@notebook/domain-account";
 import { buildServer } from "./app.js";
 
-const TEST_DIR = resolve(".tmp/test-server-setup");
+const TEST_DIR = resolve(`.tmp/test/test-server-setup-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
+
+/**
+ * Windows holds file locks briefly after sqlite handles close, longer under
+ * parallel suites: retry transient lock errors with a generous budget.
+ */
+async function removeDirWithRetry(dir: string): Promise<void> {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch (error: unknown) {
+      const code = (error as { code?: string }).code;
+      if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        continue;
+      }
+      throw error;
+    }
+  }
+}
 
 describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
   let app: FastifyInstance;
@@ -21,13 +41,13 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
 
   beforeEach(async () => {
     if (existsSync(TEST_DIR)) {
-      rmSync(TEST_DIR, { recursive: true, force: true });
+      await removeDirWithRetry(TEST_DIR);
     }
     mkdirSync(TEST_DIR, { recursive: true });
 
     testDbPath = join(TEST_DIR, `setup-test-${Date.now()}.sqlite`);
     capturedLogs = [];
-  });
+  }, 120_000);
 
   afterEach(async () => {
     if (app) {
@@ -35,12 +55,12 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
     }
     if (existsSync(TEST_DIR)) {
       try {
-        rmSync(TEST_DIR, { recursive: true, force: true });
+        await removeDirWithRetry(TEST_DIR);
       } catch {
         // Non-fatal if OS locks transitioning
       }
     }
-  });
+  }, 120_000);
 
   it("POST /setup creates the owner once; second call is rejected with stable code SETUP_ALREADY_COMPLETED", async () => {
     const sqliteInstance = createSqliteDatabase({ dbPath: testDbPath });

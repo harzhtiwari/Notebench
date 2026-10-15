@@ -25,7 +25,9 @@ export interface StartTimeExecDeps {
 const execFileAsync = promisify(nodeExecFile);
 
 async function defaultExecFile(command: string, args: string[]): Promise<{ stdout: string }> {
-  const result = await execFileAsync(command, args, { shell: false, timeout: 5000 });
+  // windowsHide: short-lived helper consoles (powershell start-time reads)
+  // must never flash a window on every identity check.
+  const result = await execFileAsync(command, args, { shell: false, timeout: 5000, windowsHide: true });
   return { stdout: typeof result.stdout === "string" ? result.stdout : String(result.stdout) };
 }
 

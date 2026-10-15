@@ -28,7 +28,27 @@ const servers: Server[] = [];
 afterEach(async () => {
   while (servers.length > 0) {
     const server = servers.pop() as Server;
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    // Closing can transiently fail while the machine is saturated; retry
+    // lock errors briefly. An already-closed server is not an error.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          server.close((error: unknown) => {
+            if (error instanceof Error) reject(error);
+            else resolve();
+          });
+        });
+        break;
+      } catch (error: unknown) {
+        const code = (error as { code?: string }).code;
+        if (code === "ERR_SERVER_NOT_RUNNING") break;
+        if ((code === "EPERM" || code === "EBUSY") && attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          continue;
+        }
+        throw error;
+      }
+    }
   }
 });
 
@@ -43,21 +63,23 @@ function makeTempRoot(): string {
 afterEach(async () => {
   while (tempRoots.length > 0) {
     const dir = tempRoots.pop() as string;
-    for (let attempt = 0; attempt < 10; attempt += 1) {
+    // Windows lock errors persist longer under parallel suites: retry with
+    // a generous budget before giving up.
+    for (let attempt = 0; attempt < 60; attempt += 1) {
       try {
         rmSync(dir, { recursive: true, force: true });
         break;
       } catch (error: unknown) {
         const code = (error as { code?: string }).code;
-        if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 9) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
+        if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
           continue;
         }
         throw error;
       }
     }
   }
-});
+}, 120_000);
 
 function listen(server: Server): Promise<number> {
   servers.push(server);
@@ -1017,7 +1039,7 @@ setInterval(() => {}, 1000);
     expect(existsSync(paths.webPortFile)).toBe(false);
     expect(existsSync(paths.webPidFile)).toBe(false);
     expect(existsSync(paths.identityFile)).toBe(false);
-  }, 60_000);
+  }, 180_000);
 
   it("gates the run on sidecar route-ready instead of starting blind", async () => {
     const { runDevCommand } = await import("../src/composer.js");
@@ -1060,7 +1082,7 @@ http.createServer((req, res) => {
       handlers.get("SIGINT")?.();
       await expect(runPromise).resolves.toBe(0);
     }
-  }, 60_000);
+  }, 180_000);
 
   it("times out with exit 4, the tail, and no owned state when the sidecar never listens", async () => {
     const { runDevCommand } = await import("../src/composer.js");
@@ -1087,7 +1109,7 @@ http.createServer((req, res) => {
     expect(existsSync(paths.serverPidFile)).toBe(false);
     expect(existsSync(paths.webPidFile)).toBe(false);
     expect(existsSync(paths.identityFile)).toBe(false);
-  }, 60_000);
+  }, 180_000);
 
   it("stops the server with exit 1 when the sidecar crashes", async () => {
     const { runDevCommand } = await import("../src/composer.js");
@@ -1112,7 +1134,7 @@ http.createServer((req, res) => {
     await expectRefused(`http://127.0.0.1:${serverPort}/healthz`);
     expect(existsSync(paths.webPortFile)).toBe(false);
     expect(existsSync(paths.identityFile)).toBe(false);
-  }, 60_000);
+  }, 180_000);
 
   it("stops the sidecar with exit 1 when the server crashes", async () => {
     const { runDevCommand } = await import("../src/composer.js");
@@ -1138,5 +1160,5 @@ http.createServer((req, res) => {
     await expectRefused(`http://127.0.0.1:${webPort}/`);
     expect(existsSync(paths.serverPortFile)).toBe(false);
     expect(existsSync(paths.webPortFile)).toBe(false);
-  }, 60_000);
+  }, 180_000);
 });

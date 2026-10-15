@@ -97,6 +97,10 @@ function defaultSpawnFn(
     env: options.env as NodeJS.ProcessEnv | undefined,
     stdio: "pipe",
     detached: options.detached,
+    // No console window for supervised children when the orchestrator itself
+    // was launched without one (Windows GUI shells); all output is piped to
+    // the per-service log tee, so nothing is lost by hiding it.
+    windowsHide: true,
   });
   const forward = options.output;
   if (forward !== undefined) {

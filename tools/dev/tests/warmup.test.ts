@@ -15,7 +15,7 @@ import {
   formatReadyLine,
   verifyWarmup,
 } from "../src/warmup.js";
-import type { RouteProbe, UiProbeResult, WarmupGateTiming } from "../src/warmup.js";
+import type { RouteProbe, UiProbeResult, WarmupGateTiming, WarmupResult } from "../src/warmup.js";
 
 /**
  * Ticket 07 RED suite (written before implementation).
@@ -263,21 +263,23 @@ describe("ticket 07: composer warmup wiring (log contract)", () => {
   afterEach(async () => {
     while (tempRoots.length > 0) {
       const dir = tempRoots.pop() as string;
-      for (let attempt = 0; attempt < 10; attempt += 1) {
+      // Windows lock errors persist longer under parallel suites: retry with
+      // a generous budget before giving up.
+      for (let attempt = 0; attempt < 60; attempt += 1) {
         try {
           rmSync(dir, { recursive: true, force: true });
           break;
         } catch (error: unknown) {
           const code = (error as { code?: string }).code;
-          if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 9) {
-            await new Promise((resolve) => setTimeout(resolve, 100));
+          if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
+            await new Promise((resolve) => setTimeout(resolve, 250));
             continue;
           }
           throw error;
         }
       }
     }
-  });
+  }, 120_000);
 
   const HEALTHY_SCRIPT = `
 const http = require("http");
@@ -350,6 +352,33 @@ http.createServer((req, res) => {
       expect(ready[0]).toContain("routeReadyMs=");
       expect(ready[0]).not.toContain("uiReadyMs");
       expect(uiProbeCalls).toHaveLength(0);
+    } finally {
+      await handle.shutdown();
+    }
+  }, 30_000);
+
+  it("route mode: reports the verified warmup result through the onWarmup hook", async () => {
+    const root = makeTempRoot();
+    const { logLine } = captureLogs();
+    const seen: { result: WarmupResult | null } = { result: null };
+    const handle = await startBackendPhase(
+      { root, argv: ["--namespace", "warmup-hook-ns"], env: {} },
+      {
+        logLine,
+        runBuild: () => undefined,
+        createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", HEALTHY_SCRIPT] }),
+        startWebPhase: (ctx) => startWebFixture(ctx, root),
+        probeWeb: () => Promise.resolve(true),
+        onWarmup: (result) => {
+          seen.result = result;
+        },
+        warmupDeadlineMs: 5000,
+        pollIntervalMs: 25,
+      }
+    );
+    try {
+      expect(seen.result?.level).toBe("route");
+      expect(seen.result?.timings.map((t) => t.name)).toEqual(["route-ready"]);
     } finally {
       await handle.shutdown();
     }

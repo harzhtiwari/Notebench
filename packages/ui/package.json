@@ -19,7 +19,8 @@
       "import": "./dist/index.js"
     },
     "./tokens.css": "./tokens.css",
-    "./tokens.media.css": "./tokens.media.css"
+    "./tokens.media.css": "./tokens.media.css",
+    "./tailwind.preset.cjs": "./tailwind.preset.cjs"
   },
   "sideEffects": false,
   "scripts": {

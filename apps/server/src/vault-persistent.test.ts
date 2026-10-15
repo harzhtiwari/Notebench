@@ -12,24 +12,48 @@ import {
   VAULT_CONSTANTS,
 } from "@notebook/infra-vault";
 
-const TEST_DIR = resolve(".tmp/test-server-vault");
+const TEST_DIR = resolve(`.tmp/test/test-server-vault-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
+
+/**
+ * Windows holds file locks briefly after sqlite handles close, longer under
+ * parallel suites: retry transient lock errors with a generous budget.
+ */
+async function removeDirWithRetry(dir: string): Promise<void> {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch (error: unknown) {
+      const code = (error as { code?: string }).code;
+      if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        continue;
+      }
+      throw error;
+    }
+  }
+}
 const MASTER_HEX =
   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const SAMPLE_KEY = "sk-proj-1234567890abcdef1234567890abcdef";
 
 describe("Ticket 03: persistent vault wiring (server composition, RED)", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     if (existsSync(TEST_DIR)) {
-      rmSync(TEST_DIR, { recursive: true, force: true });
+      await removeDirWithRetry(TEST_DIR);
     }
     mkdirSync(TEST_DIR, { recursive: true });
-  });
+  }, 120_000);
 
-  afterEach(() => {
+  afterEach(async () => {
     if (existsSync(TEST_DIR)) {
-      rmSync(TEST_DIR, { recursive: true, force: true });
+      try {
+        await removeDirWithRetry(TEST_DIR);
+      } catch {
+        // Non-fatal if OS locks are briefly transitioning
+      }
     }
-  });
+  }, 120_000);
 
   it("EncryptedVault over SQLite round-trips and deletes the ciphertext row", async () => {
     const dbPath = join(TEST_DIR, "vault-wired.sqlite");

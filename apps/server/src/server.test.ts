@@ -7,7 +7,7 @@ import { buildServer, resolveWebOutDir } from "./app.js";
 
 describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
   let app: FastifyInstance;
-  const mockWebOutDir = resolve(process.cwd(), ".tmp/test/web-out");
+  const mockWebOutDir = resolve(process.cwd(), `.tmp/test/web-out-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
 
   beforeAll(async () => {
     // Scaffold mock web export fixtures
@@ -64,21 +64,37 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
       expect(body).toEqual({ status: "ok" });
     });
 
-    it("GET /api/doctor returns 200 with diagnostic status", async () => {
+    it("GET /api/doctor aggregates top-level status from probes (error when probes fail)", async () => {
       const response = await app.inject({
         method: "GET",
         url: "/api/doctor",
       });
 
       expect(response.statusCode).toBe(200);
-      expect(response.headers["content-type"]).toContain("application/json");
       const body = JSON.parse(response.body);
-      expect(body.status).toBe("ok");
-      expect(body.version).toBe("0.1.0");
-      expect(body.timestamp).toBeDefined();
-      expect(body.uptime).toBeGreaterThanOrEqual(0);
-      expect(body.memory).toBeDefined();
-      expect(body.memory.rss).toBeGreaterThan(0);
+      expect(body.probes).toHaveLength(6);
+      expect(body.status).toBe("error");
+    });
+
+    it("GET /api/doctor wires a shared SQLite handle so WAL/vec probes query a real DB", async () => {
+      const wired = await buildServer({
+        staticDir: mockWebOutDir,
+        dbPath: ":memory:",
+        logger: false,
+      });
+      await wired.ready();
+      const response = await wired.inject({
+        method: "GET",
+        url: "/api/doctor",
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      const wal = body.probes.find((p: { id: string }) => p.id === "sqlite_wal");
+      const vec = body.probes.find((p: { id: string }) => p.id === "sqlite_vec");
+      expect(wal.message).not.toContain("not provided");
+      expect(vec.message).not.toContain("not provided");
+      await wired.close();
     });
 
     it("GET /api/doctor returns doc-worker probe results when pool is configured", async () => {
@@ -257,18 +273,47 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
   });
 
   describe("Web export directory resolution (prebuilt pack without next dev)", () => {
+    // Hermetic fixture workspaces (ticket 08): these tests must not depend
+    // on the real `apps/web/out` build artifact, which parallel suites may
+    // transiently remove. Each fixture carries its own workspace marker.
+    const worker = process.env["VITEST_WORKER_ID"] ?? "0";
+    let fixtureCounter = 0;
+    const fixtureRoots: string[] = [];
+    function makeWorkspace(withOut: boolean): string {
+      fixtureCounter += 1;
+      const root = join(tmpdir(), `nb-web-out-${worker}-${fixtureCounter}-${Date.now()}`);
+      mkdirSync(root, { recursive: true });
+      writeFileSync(join(root, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n", "utf-8");
+      if (withOut) {
+        mkdirSync(join(root, "apps", "web", "out"), { recursive: true });
+      }
+      fixtureRoots.push(root);
+      return root;
+    }
+    afterAll(() => {
+      while (fixtureRoots.length > 0) {
+        const dir = fixtureRoots.pop() as string;
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
     it("resolves apps/web/out from the workspace root", () => {
-      const resolved = resolveWebOutDir(resolve(process.cwd()));
-      expect(resolved).toBe(resolve(process.cwd(), "apps/web/out"));
+      const root = makeWorkspace(true);
+      expect(resolveWebOutDir(root)).toBe(join(root, "apps", "web", "out"));
     });
 
     it("resolves apps/web/out when starting from the server package dir", () => {
-      const resolved = resolveWebOutDir(resolve(process.cwd(), "apps/server"));
-      expect(resolved).toBe(resolve(process.cwd(), "apps/web/out"));
+      const root = makeWorkspace(true);
+      expect(resolveWebOutDir(join(root, "apps", "server"))).toBe(join(root, "apps", "web", "out"));
+    });
+
+    it("returns undefined when the export has not been built yet", () => {
+      const root = makeWorkspace(false);
+      expect(resolveWebOutDir(root)).toBeUndefined();
     });
 
     it("returns undefined outside any workspace", () => {
-      const outside = join(tmpdir(), "nb-no-workspace-probe");
+      const outside = join(tmpdir(), `nb-no-workspace-probe-${worker}`);
       expect(resolveWebOutDir(outside)).toBeUndefined();
     });
   });

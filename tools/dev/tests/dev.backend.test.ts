@@ -6,6 +6,7 @@ import getPort from "get-port";
 import { parseNamespace } from "../src/args.js";
 import { resolveRunPaths } from "../src/paths.js";
 import { spawnChild } from "../src/spawn.js";
+import type { SpawnFn } from "../src/spawn.js";
 import { readLogTail } from "../src/logs.js";
 import { writeIdentity } from "../src/identity.js";
 import type { RunIdentity } from "../src/identity.js";
@@ -54,22 +55,23 @@ afterEach(async () => {
   while (tempRoots.length > 0) {
     const dir = tempRoots.pop() as string;
     // Windows cannot remove a directory while a reaped child still holds it
-    // as cwd: retry transient lock errors briefly before giving up.
-    for (let attempt = 0; attempt < 10; attempt += 1) {
+    // as cwd, and parallel suites keep locks longer: retry transient lock
+    // errors with a generous budget before giving up.
+    for (let attempt = 0; attempt < 60; attempt += 1) {
       try {
         rmSync(dir, { recursive: true, force: true });
         break;
       } catch (error: unknown) {
         const code = (error as { code?: string }).code;
-        if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 9) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
+        if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
           continue;
         }
         throw error;
       }
     }
   }
-});
+}, 120_000);
 
 const HEALTHY_SCRIPT = `
 const http = require("http");
@@ -113,17 +115,25 @@ function silentLogs(): { lines: string[]; logLine: (line: string) => void } {
 
 describe("ticket 03: OS process start-time reader", () => {
   it("reports the current process start time within tolerance of clock-minus-uptime", async () => {
-    const reported = await getProcessStartTimeMs(process.pid);
+    // A single powershell read can transiently fail under parallel load;
+    // retry the way production liveness polling does before asserting.
+    let reported: number | null = null;
+    for (let attempt = 0; attempt < 3 && reported === null; attempt += 1) {
+      reported = await getProcessStartTimeMs(process.pid);
+      if (reported === null) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
     expect(reported).not.toBeNull();
     const approx = Date.now() - process.uptime() * 1000;
     expect(Math.abs((reported as number) - approx)).toBeLessThan(5000);
-  });
+  }, 30_000);
 
   it("returns null for a dead PID and for invalid PIDs (unverifiable means stale)", async () => {
     await expect(getProcessStartTimeMs(2_147_483_647)).resolves.toBeNull();
     await expect(getProcessStartTimeMs(-3)).resolves.toBeNull();
     await expect(getProcessStartTimeMs(Number.NaN)).resolves.toBeNull();
-  });
+  }, 30_000);
 
   it("builds an async liveness checker that treats unverifiable PIDs as stale", async () => {
     const isPidLive = createOsPidLivenessChecker();
@@ -132,7 +142,43 @@ describe("ticket 03: OS process start-time reader", () => {
     await expect(isPidLive(process.pid, startTimeMs as number)).resolves.toBe(true);
     await expect(isPidLive(process.pid, 1)).resolves.toBe(false);
     await expect(isPidLive(2_147_483_647, 1)).resolves.toBe(false);
-  });
+  }, 30_000);
+});
+
+describe("ticket 08: shutdown returns only after owned children are reaped", () => {
+  it("waits for the child exit promise instead of returning after signaling", async () => {
+    const root = makeTempRoot();
+    const { logLine } = silentLogs();
+    const exitListeners: Array<(...args: unknown[]) => void> = [];
+    const spawnFn: SpawnFn = (_executable, _argv, _options) => ({
+      pid: 4242,
+      on: (event: string, listener: (...args: unknown[]) => void) => {
+        if (event === "exit") exitListeners.push(listener);
+      },
+    });
+    const handle = await startBackendPhase(
+      { root, argv: ["--namespace", "shutdown-reap-ns"], env: {} },
+      {
+        logLine,
+        runBuild: () => undefined,
+        createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", ""] }),
+        spawnFn,
+        probeHealth: () => Promise.resolve(true),
+      }
+    );
+    let shutdownReturned = false;
+    const shutdownPromise = handle.shutdown().then((code) => {
+      shutdownReturned = true;
+      return code;
+    });
+    // Teardown with fakes settles in microtasks; the exit wait must hold
+    // shutdown open past this point until the child is reaped.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(shutdownReturned).toBe(false);
+    for (const listener of exitListeners) listener(0, null);
+    await expect(shutdownPromise).resolves.toBe(0);
+    expect(shutdownReturned).toBe(true);
+  }, 30_000);
 });
 
 describe("ticket 03: freshness gates for server-consumed compiled outputs", () => {
