@@ -37,6 +37,9 @@ import { teardownOwnedRun } from "./cleanup.js";
 import type { OwnedChild } from "./cleanup.js";
 import { ensureServerFreshness } from "./freshness.js";
 import type { CompiledDep } from "./freshness.js";
+import { formatReadyLine, verifyWarmup } from "./warmup.js";
+import type { UiProbe, UiProbeResult } from "./warmup.js";
+import { probeAppMounted } from "./warmup-browser.js";
 import { resolveGeneratedPathsForRun } from "./isolate.js";
 import {
   SERVER_ORIGIN_ENV,
@@ -173,6 +176,14 @@ export interface BackendPhaseDeps {
    * default sidecar starter.
    */
   startWebPhase?: ((ctx: ServerReadyContext) => Promise<WebStarted>) | undefined;
+  /**
+   * Browser probe for `--warmup ui`: observes the app-mounted marker plus a
+   * screen control at the web origin. Absent means the real headless probe;
+   * tests inject a fake. Invoked only in ui mode, never for route level.
+   */
+  probeUi?: UiProbe | undefined;
+  /** Deadline per warmup gate (default 35 s, spec section 8 sidecar wait). */
+  warmupDeadlineMs?: number | undefined;
 }
 
 function defaultLogLine(line: string): void {
@@ -234,6 +245,11 @@ async function defaultProbeWeb(url: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Real headless-browser probe for `--warmup ui` (lazy browser load). */
+function defaultProbeUi(webOrigin: string): Promise<UiProbeResult> {
+  return probeAppMounted(webOrigin);
 }
 
 function defaultCreateWebSpawn(ctx: WebSpawnContext): WebSpawnRequest {
@@ -683,8 +699,31 @@ export async function startBackendPhase(
         finish(1);
       });
       logLine(
-        `[dev] web ready namespace=${paths.namespace} webPort=${web.port} ` +
+        `[dev] web listening namespace=${paths.namespace} webPort=${web.port} ` +
           `serverPort=${allocated.serverPort}`
+      );
+      const serverOrigin = `http://${host}:${allocated.serverPort}`;
+      const webOrigin = `http://${host}:${web.port}`;
+      const probeWebRoute = deps?.probeWeb ?? defaultProbeWeb;
+      const warmup = await verifyWarmup(
+        {
+          mode: parsed.warmup,
+          serverOrigin,
+          webOrigin,
+          probeRoute: () => probeWebRoute(`${webOrigin}/`),
+          probeUi: deps?.probeUi ?? defaultProbeUi,
+          deadlineMs: deps?.warmupDeadlineMs ?? SIDECAR_DEADLINE_MS,
+          intervalMs: pollIntervalMs,
+        },
+        {
+          now,
+          sleep,
+          isChildExited: () => settled,
+          getLogTail: () => readFailureTail(paths.webLogFile, sleep),
+        }
+      );
+      logLine(
+        formatReadyLine({ namespace: paths.namespace, serverOrigin, webOrigin, result: warmup })
       );
     }
     onSignal("SIGINT", handleSigint);

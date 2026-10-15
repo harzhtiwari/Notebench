@@ -51,4 +51,26 @@ describe("persistent client root (ticket 06 slice 3)", () => {
       expect(container.querySelector('[data-testid="route-stub-home"]')).not.toBeNull();
     });
   });
+
+  it("exposes the app-mounted marker only after real mount", async () => {
+    const { container } = render(<AppRoot initialPath="/setup" />);
+    await screen.findByText("Complete Setup");
+    const shell = container.querySelector('[data-testid="app-shell"]');
+    expect(shell?.getAttribute("data-app-mounted")).toBe("true");
+  });
+
+  it("mounts the marker alongside a screen control on deep links", async () => {
+    const { container } = render(<AppRoot initialPath="/notebook/nb-123" />);
+    await screen.findByText("Route not found");
+    const shell = container.querySelector('[data-testid="app-shell"]');
+    expect(shell?.getAttribute("data-app-mounted")).toBe("true");
+    expect(container.querySelector('[data-testid="route-not-found"]')).not.toBeNull();
+  });
+
+  it("server-rendered HTML never claims the app mounted", async () => {
+    const { renderToString } = await import("react-dom/server");
+    const html = renderToString(<AppRoot initialPath="/setup" />);
+    expect(html).toContain('data-app-mounted="false"');
+    expect(html).not.toContain('data-app-mounted="true"');
+  });
 });

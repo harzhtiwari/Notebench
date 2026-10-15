@@ -28,6 +28,15 @@ function liveUrl(): string {
 export function AppRoot({ initialPath }: { initialPath: string }) {
   const router = useMemo(() => createMemoryRouter(initialPath), []);
   const [entry, setEntry] = useState(router.current);
+  // Stable app-mounted marker (warm-up probe): flipped only after real
+  // mount. Navigation-critical screens load eagerly (see lib/screens), so a
+  // mounted shell means their preload completed — the probe never mistakes
+  // server-rendered HTML for a live app.
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => router.subscribe(setEntry), [router]);
 
@@ -96,7 +105,11 @@ export function AppRoot({ initialPath }: { initialPath: string }) {
   };
 
   return (
-    <div data-testid="app-shell" onClickCapture={handleShellClick}>
+    <div
+      data-testid="app-shell"
+      data-app-mounted={mounted ? "true" : "false"}
+      onClickCapture={handleShellClick}
+    >
       <nav>
         <a href="/">Home</a>
         <a href="/dashboard">Dashboard</a>
