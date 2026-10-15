@@ -250,6 +250,9 @@ importers:
       '@notebook/infra-doc-worker':
         specifier: workspace:*
         version: link:../../packages/infra-doc-worker
+      '@notebook/infra-llm':
+        specifier: workspace:*
+        version: link:../../packages/infra-llm
       '@notebook/infra-vault':
         specifier: workspace:*
         version: link:../../packages/infra-vault
@@ -642,6 +645,24 @@ importers:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.4
+        version: 5.0.4(@types/node@26.6.5)(@vitest/coverage-v8@5.0.4)(happy-dom@21.0.1)(vite@7.3.7(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/infra-llm:
+    devDependencies:
+      '@notebook/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+      tsdown:
+        specifier: ^0.23.1
+        version: 0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

@@ -13,6 +13,7 @@ import { SetupScreen } from "../screens/setup-screen";
 import { LoginScreen } from "../screens/login-screen";
 import { HealthScreen } from "../screens/health-screen";
 import { TrashScreen } from "../screens/trash-screen";
+import { ModelsKeysScreen } from "../screens/models-keys-screen";
 import { NotFoundScreen } from "../screens/not-found-screen";
 import { DashboardContainer } from "../app/dashboard/dashboard-container";
 
@@ -106,6 +107,7 @@ export function AppRoot({ initialPath }: { initialPath: string }) {
     dashboard: <DashboardContainer navigate={(to) => router.navigate(to)} />,
     notebook: <DashboardContainer navigate={(to) => router.navigate(to)} />,
     trash: <TrashScreen navigate={(to) => router.navigate(to)} />,
+    models: <ModelsKeysScreen />,
     "not-found": <NotFoundScreen path={entry.path} />,
   };
 
@@ -121,6 +123,7 @@ export function AppRoot({ initialPath }: { initialPath: string }) {
         <a href="/health">Health</a>
         <a href="/dashboard">Dashboard</a>
         <a href="/trash">Trash</a>
+        <a href="/settings/models">Models</a>
       </nav>
       {screens[screen]}
     </div>

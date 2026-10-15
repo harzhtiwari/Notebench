@@ -1,4 +1,4 @@
-export type ScreenId = "setup" | "login" | "health" | "dashboard" | "notebook" | "trash" | "not-found";
+export type ScreenId = "setup" | "login" | "health" | "dashboard" | "notebook" | "trash" | "models" | "not-found";
 
 export interface ParsedRoute {
   screen: ScreenId;
@@ -41,6 +41,7 @@ const PATH_SCREENS: Record<string, ScreenId> = {
   "/dashboard": "dashboard",
   "/notebooks": "dashboard",
   "/trash": "trash",
+  "/settings/models": "models",
 };
 
 function matchNotebookRoute(pathname: string): ScreenId | null {

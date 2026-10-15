@@ -12,6 +12,7 @@ export const NotebookErrorCodeSchema = z.enum([
   "INVALID_CONTENT_TYPE",
   "DUPLICATE_SOURCE",
   "SETUP_ALREADY_COMPLETED",
+  "PROVIDER_ERROR",
 ]);
 
 export type NotebookErrorCode = z.infer<typeof NotebookErrorCodeSchema>;

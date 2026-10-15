@@ -22,6 +22,7 @@
     "@notebook/domain-ops": "workspace:*",
     "@notebook/infra-db": "workspace:*",
     "@notebook/infra-doc-worker": "workspace:*",
+    "@notebook/infra-llm": "workspace:*",
     "@notebook/infra-vault": "workspace:*",
     "@notebook/logger": "workspace:*",
     "fastify": "^5.2.1"

@@ -20,6 +20,7 @@ export const SCREEN_REGISTRY: Record<ScreenId, ScreenRegistration> = {
   dashboard: { eager: true, reason: "navigation-critical: notebook list, no first-visit wait" },
   notebook: { eager: true, reason: "navigation-critical: notebook detail, no first-visit wait" },
   trash: { eager: true, reason: "navigation-critical: 30-day trash retention, no first-visit wait" },
+  models: { eager: true, reason: "navigation-critical: provider keys and model selection, no first-visit wait" },
   "not-found": { eager: true, reason: "navigation-critical: deep-link shell must render instantly" },
 };
 

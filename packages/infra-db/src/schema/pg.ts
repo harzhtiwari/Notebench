@@ -188,3 +188,20 @@ export const providerKeys = pgTable("provider_keys", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 });
+
+/**
+ * PostgreSQL provider model selections table (Ticket 04, PRD D6/D7).
+ * One row per (user_id, kind): chat and embedding models persist independently.
+ * All records strictly require user_id.
+ */
+export const providerModelSelections = pgTable("provider_model_selections", {
+  id: uuid("id").primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  provider: text("provider").notNull(),
+  modelId: text("model_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});

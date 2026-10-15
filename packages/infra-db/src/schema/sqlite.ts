@@ -179,3 +179,21 @@ export const providerKeys = sqliteTable("provider_keys", {
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
+
+/**
+ * Provider model selections table (Ticket 04, PRD D6/D7).
+ * One row per (user_id, kind): chat and embedding models persist
+ * independently, including custom typed model IDs.
+ * All records strictly require user_id.
+ */
+export const providerModelSelections = sqliteTable("provider_model_selections", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  provider: text("provider").notNull(),
+  modelId: text("model_id").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});

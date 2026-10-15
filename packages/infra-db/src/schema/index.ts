@@ -15,6 +15,7 @@ export const USER_OWNED_TABLE_NAMES = [
   "deletionJobs",
   "memoryRules",
   "providerKeys",
+  "providerModelSelections",
 ] as const;
 
 export type UserOwnedTableName = (typeof USER_OWNED_TABLE_NAMES)[number];

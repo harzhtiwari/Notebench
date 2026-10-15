@@ -9,16 +9,22 @@ import type { NotebookErrorCode, DocWorkerProbe, NotebookRepositoryPort } from "
 import type { SqliteHealthProbeTarget } from "@notebook/domain-ops";
 import { OwnerSetupService, Argon2PasscodeHasher, SessionService } from "@notebook/domain-account";
 import { NotebookService } from "@notebook/domain-notebooks";
+import { EncryptedVault, resolveMasterKey } from "@notebook/infra-vault";
+import type { ProviderAdapter, ProviderId } from "@notebook/infra-llm";
 import {
   createSqliteDatabase,
   SqliteAccountRepository,
+  SqliteModelSelectionRepository,
   SqliteNotebookRepository,
   SqliteSessionRepository,
+  SqliteVaultKeyRepository,
   initializeSqliteSchema,
   type SqliteDatabaseInstance,
 } from "@notebook/infra-db";
 import { setupRoutes } from "./routes/setup.js";
 import { sessionRoutes } from "./routes/session.js";
+import { providersRoutes, type ModelSelectionStore } from "./routes/providers.js";
+import { SqliteVaultStorage } from "./vault-storage.js";
 import { createSessionGuard, registerSessionSupport } from "./plugins/session.js";
 import { notebooksRoutes } from "./routes/notebooks.js";
 import { registerDoctorRoutes } from "./routes/doctor.js";
@@ -41,6 +47,12 @@ export interface BuildServerOptions extends FastifyServerOptions {
   notebookRepo?: NotebookRepositoryPort | undefined;
   notebookService?: NotebookService | undefined;
   defaultUserId?: string | undefined;
+  /** Encrypted provider-key vault (Ticket 04). Defaults to SQLite-backed vault. */
+  vault?: EncryptedVault | undefined;
+  /** Chat/embedding model selection store (Ticket 04 D6). Defaults to SQLite. */
+  modelSelections?: ModelSelectionStore | undefined;
+  /** Provider adapter overrides (Ticket 04). Defaults to the full registry. */
+  providerAdapters?: Partial<Record<ProviderId, ProviderAdapter>> | undefined;
 }
 
 /**
@@ -96,7 +108,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   const doctorSqliteDb =
     options.sqliteDb ?? sharedSqliteInstance?.sqlite ?? ensureSharedSqlite().sqlite;
 
-  const defaultUserId = customUserId ?? "11111111-1111-4111-8111-111111111111";
+  const defaultUserId = customUserId;
   const appLogger = customLogger ?? createLogger({ name: "server", level: "info" });
 
   const app = fastify({
@@ -200,21 +212,50 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   if (!notebookService && !notebookRepo) {
     const dbInstance = sharedSqliteInstance ?? ensureSharedSqlite();
     initializeSqliteSchema(dbInstance.sqlite);
-    const now = new Date().toISOString();
-    dbInstance.sqlite.exec(`
-      INSERT OR IGNORE INTO users (id, email, display_name, role, created_at, updated_at)
-      VALUES ('${defaultUserId}', 'owner@notebench.local', 'Owner', 'owner', '${now}', '${now}');
-    `);
     notebookRepo = new SqliteNotebookRepository(dbInstance.db, dbInstance.sqlite);
     notebookService = new NotebookService(notebookRepo);
   } else if (!notebookService && notebookRepo) {
     notebookService = new NotebookService(notebookRepo);
   }
 
+  const resolveOwnerId = async (): Promise<string | null> => {
+    const owner = await setupService.getOwner();
+    return owner?.id ?? null;
+  };
+
   await app.register(notebooksRoutes, {
     notebookService,
     notebookRepo,
     defaultUserId,
+    resolveOwnerId,
+  });
+
+  // Provider key test, model discovery, key storage and model selection
+  // (Ticket 04). Defaults compose the SQLite-backed vault and selections
+  // over the shared handle, mirroring the account/session wiring above.
+  let vault = options.vault;
+  if (!vault) {
+    const sqliteInstance = sharedSqliteInstance ?? ensureSharedSqlite();
+    const { masterKey } = resolveMasterKey({ vaultDir: options.vaultDir });
+    vault = new EncryptedVault(
+      masterKey,
+      new SqliteVaultStorage(new SqliteVaultKeyRepository(sqliteInstance.db, sqliteInstance.sqlite))
+    );
+  }
+  let modelSelections: ModelSelectionStore;
+  if (options.modelSelections) {
+    modelSelections = options.modelSelections;
+  } else {
+    const sqliteInstance = sharedSqliteInstance ?? ensureSharedSqlite();
+    modelSelections = new SqliteModelSelectionRepository(sqliteInstance.db, sqliteInstance.sqlite);
+  }
+
+  await app.register(providersRoutes, {
+    ...(options.providerAdapters ? { adapters: options.providerAdapters } : {}),
+    vault,
+    selections: modelSelections,
+    defaultUserId,
+    resolveOwnerId,
   });
 
   // Static SPA assets & HTML5 history fallback
