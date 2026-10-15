@@ -1,13 +1,12 @@
 import { AppRoot } from "../../shell/app-root";
 
 /**
- * Single catch-all entry (ticket 06). The previous separate page entries
- * (`/`, `/dashboard`, `/setup`) are merged here, not duplicated. The server
- * bakes only the path (static export cannot read the query); AppRoot adopts
- * the live query and hash on mount, so refresh preserves them client-side.
+ * Single catch-all entry. The removed stub screens (`/`, `/dashboard`) are
+ * not prerendered; only the functional setup screen is. Unknown paths fall
+ * through to the not-found shell at runtime.
  */
 export function generateStaticParams(): Array<{ slug: Array<string> }> {
-  return [{ slug: [] }, { slug: ["dashboard"] }, { slug: ["setup"] }];
+  return [{ slug: ["setup"] }];
 }
 
 export default async function CatchAllPage({

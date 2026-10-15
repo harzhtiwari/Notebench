@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Button, Input, Well, WellTitle, WellDescription } from "@notebook/ui";
+import { Button, Input, FormField, PasswordInput, FormError, FormSuccess, NotebookEmblem, Well, WellTitle, WellDescription } from "@notebook/ui";
 import { apiUrl } from "../lib/api";
 
 // Merged from apps/web/src/app/setup/page.tsx (ticket 06): setup screen body
@@ -127,46 +127,49 @@ export function SetupScreen({ navigate }: { navigate: (to: string) => void }) {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[var(--nb-surface)] p-6 text-[var(--nb-ink)]">
-      <div className="w-full max-w-lg rounded-xl border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-8 shadow-md">
-        {/* Early Release Notice (PRD L9) */}
-        <Well className="mb-6 border-[var(--nb-hairline)] bg-[var(--nb-surface)] p-3">
-          <WellTitle className="text-xs font-semibold text-[var(--nb-ink)]">
-            Early Release Notice
-          </WellTitle>
-          <WellDescription className="text-[11px] text-[var(--nb-ink-2)]">
-            Notebench 0.1 is an open-source Foundation release. While living artifacts and sources
-            are safeguarded, regular backups are strongly recommended before major updates.
-          </WellDescription>
-        </Well>
+      <div className="flex w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] shadow-md md:flex-row">
+        {/* Left 50%: branding + info */}
+        <div className="flex flex-1 flex-col justify-center gap-4 bg-[var(--nb-surface)] p-8 md:w-1/2">
+          <NotebookEmblem />
+          <h1 className="text-xl font-bold tracking-tight text-[var(--nb-ink)]">
+            Welcome to Notebench
+          </h1>
+          <p className="text-xs text-[var(--nb-ink-2)]">
+            Create your sovereign local owner account. A passcode is optional; if left blank,
+            Notebench opens in zero-auth local-first mode.
+          </p>
+          {/* Early Release Notice (PRD L9) */}
+          <Well className="border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-3">
+            <WellTitle className="text-xs font-semibold text-[var(--nb-ink)]">
+              Early Release Notice
+            </WellTitle>
+            <WellDescription className="text-[11px] text-[var(--nb-ink-2)]">
+              Notebench 0.1 is an open-source Foundation release. While living artifacts and sources
+              are safeguarded, regular backups are strongly recommended before major updates.
+            </WellDescription>
+          </Well>
+          <p className="text-[11px] text-[var(--nb-ink-2)]">
+            Per NIST SP 800-63B-4 single-factor guidelines: Minimum 15 characters, no composition
+            rules. Leave blank for zero-auth single-user mode.
+          </p>
+        </div>
 
-        <h1 className="text-xl font-bold tracking-tight text-[var(--nb-ink)]">
-          Welcome to Notebench
-        </h1>
-        <p className="mt-1 text-xs text-[var(--nb-ink-2)]">
-          Create your sovereign local owner account. A passcode is optional; if left blank,
-          Notebench opens in zero-auth local-first mode.
-        </p>
-
-        {errorMessage && (
-          <div className="mt-4 rounded-[var(--nb-radius-card)] border border-[var(--nb-danger)] bg-[var(--nb-danger-wash)] p-3 text-xs text-[var(--nb-danger)]">
+        {/* Right 50%: form only */}
+        <div className="flex flex-1 flex-col justify-center p-8 md:w-1/2">
+          {errorMessage && (
+          <FormError className="mt-4">
             {errorMessage}
-          </div>
+          </FormError>
         )}
 
         {success && (
-          <div className="mt-4 rounded-[var(--nb-radius-card)] border border-[var(--nb-ok)] bg-[var(--nb-ok-wash)] p-3 text-xs text-[var(--nb-ok)]">
+          <FormSuccess className="mt-4">
             Setup completed successfully! Redirecting to workspace...
-          </div>
+          </FormSuccess>
         )}
 
         <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
-          <div>
-            <label
-              htmlFor="displayName"
-              className="block text-xs font-medium text-[var(--nb-ink)]"
-            >
-              Display Name
-            </label>
+          <FormField label="Display Name">
             <Input
               id="displayName"
               name="displayName"
@@ -176,12 +179,9 @@ export function SetupScreen({ navigate }: { navigate: (to: string) => void }) {
               onChange={(e) => setDisplayName(e.target.value)}
               className="mt-1 h-9 text-xs"
             />
-          </div>
+          </FormField>
 
-          <div>
-            <label htmlFor="email" className="block text-xs font-medium text-[var(--nb-ink)]">
-              Email (Optional)
-            </label>
+          <FormField label="Email (Optional)">
             <Input
               id="email"
               name="email"
@@ -191,26 +191,21 @@ export function SetupScreen({ navigate }: { navigate: (to: string) => void }) {
               onChange={(e) => setEmail(e.target.value)}
               className="mt-1 h-9 text-xs"
             />
-          </div>
+          </FormField>
 
-          <div>
-            <label htmlFor="passcode" className="block text-xs font-medium text-[var(--nb-ink)]">
-              Session Passcode (Optional)
-            </label>
-            <Input
+          <FormField
+            label="Session Passcode (Optional)"
+            hint="Minimum 15 characters when set. Leave blank for zero-auth mode."
+          >
+            <PasswordInput
               id="passcode"
               name="passcode"
-              type="password"
               placeholder="Optional Argon2id protected passcode"
               value={passcode}
               onChange={(e) => setPasscode(e.target.value)}
               className="mt-1 h-9 text-xs"
             />
-            <p className="mt-1 text-[11px] text-[var(--nb-ink-2)]">
-              Per NIST SP 800-63B-4 single-factor guidelines: Minimum 15 characters, no composition
-              rules. Leave blank for zero-auth single-user mode.
-            </p>
-          </div>
+          </FormField>
 
           <div className="mt-4">
             <Button
@@ -222,6 +217,7 @@ export function SetupScreen({ navigate }: { navigate: (to: string) => void }) {
             </Button>
           </div>
         </form>
+        </div>
       </div>
     </main>
   );

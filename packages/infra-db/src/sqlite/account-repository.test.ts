@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { existsSync, rmSync, mkdirSync } from "node:fs";
+import { existsSync, rmSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { createSqliteDatabase } from "./connection.js";
 import { SqliteAccountRepository } from "./account-repository.js";
@@ -59,5 +59,23 @@ describe("SqliteAccountRepository & Users Table Migration", () => {
     } finally {
       close();
     }
+  });
+
+  it("never persists plaintext passcode bytes in the database file (Ticket 01)", async () => {
+    const dbPath = join(TEST_DIR, "test-no-plaintext.sqlite");
+    const { db, sqlite, close } = createSqliteDatabase({ dbPath });
+    const plaintext = "correct-plaintext-passphrase-xyz-12345";
+    const phc = "$argon2id$v=19$m=65536,t=3,p=1$c2FsdHNhbHQ$ZmFrZXBoY3Zvci1maWxlLXNjYW4";
+
+    try {
+      const repo = new SqliteAccountRepository(db, sqlite);
+      await repo.createOwner({ displayName: "Owner", passcodeHash: phc });
+    } finally {
+      close();
+    }
+
+    const raw = readFileSync(dbPath);
+    expect(raw.includes(Buffer.from(plaintext, "utf-8"))).toBe(false);
+    expect(raw.includes(Buffer.from(phc, "utf-8"))).toBe(true);
   });
 });

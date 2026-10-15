@@ -46,6 +46,8 @@ export * from "./components/progress-row.js";
 export * from "./components/ingest-modal.js";
 export * from "./components/checkbox-row.js";
 export * from "./components/icon-rail.js";
+export * from "./components/status-card.js";
+export * from "./components/alert-banner.js";
 export * from "./components/citation-tooltip.js";
 export * from "./components/viewer-modal.js";
 export * from "./components/open-in-viewer-row.js";

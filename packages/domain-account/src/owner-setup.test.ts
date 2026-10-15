@@ -40,6 +40,18 @@ class InMemoryAccountRepository implements AccountRepositoryPort {
     this.owner = record;
     return record;
   }
+
+  async updatePasscodeHash(userId: string, passcodeHash: string): Promise<UserRecord | null> {
+    if (!this.owner || this.owner.id !== userId) {
+      return null;
+    }
+    this.owner = {
+      ...this.owner,
+      passcodeHash,
+      updatedAt: new Date().toISOString(),
+    };
+    return this.owner;
+  }
 }
 
 describe("Owner Setup & Passcode (Ticket 01 - RED Phase)", () => {

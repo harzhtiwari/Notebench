@@ -44,6 +44,7 @@ export interface CreateOwnerInput {
 export interface AccountRepositoryPort {
   findOwner(): Promise<UserRecord | null>;
   createOwner(input: CreateOwnerInput): Promise<UserRecord>;
+  updatePasscodeHash(userId: string, passcodeHash: string): Promise<UserRecord | null>;
 }
 
 /**
@@ -82,3 +83,78 @@ export const AppStateResultSchema = z.object({
   message: z.string().optional(),
 });
 export type AppStateResult = z.infer<typeof AppStateResultSchema>;
+
+/**
+ * Canonical session record representation in storage.
+ * The raw token is never stored; only its SHA-256 hex digest (tokenHash).
+ */
+export interface SessionRecord {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  lastActiveAt: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+/**
+ * Input for creating a session row. Token hashing happens in domain-account;
+ * repositories receive only the digest.
+ */
+export interface CreateSessionRecordInput {
+  userId: string;
+  tokenHash: string;
+  userAgent?: string | null | undefined;
+  ipAddress?: string | null | undefined;
+  expiresAt: string;
+}
+
+/**
+ * Session Repository Port Interface.
+ * Abstract data gateway implemented by infra-db (SQLite / PostgreSQL).
+ */
+export interface SessionRepositoryPort {
+  createSession(input: CreateSessionRecordInput): Promise<SessionRecord>;
+  findByTokenHash(tokenHash: string): Promise<SessionRecord | null>;
+  touchSession(
+    id: string,
+    input: { lastActiveAt: string; expiresAt: string }
+  ): Promise<SessionRecord | null>;
+  deleteSession(id: string): Promise<void>;
+  deleteOtherSessions(userId: string, currentSessionId: string): Promise<number>;
+  deleteAllSessions(userId: string): Promise<number>;
+  listSessions(userId: string): Promise<SessionRecord[]>;
+}
+
+/**
+ * Public session summary (token digests are never exposed).
+ */
+export const SessionSummarySchema = z.object({
+  id: z.string().uuid(),
+  userAgent: z.string().nullable(),
+  ipAddress: z.string().nullable(),
+  lastActiveAt: z.string(),
+  expiresAt: z.string(),
+  createdAt: z.string(),
+  current: z.boolean(),
+});
+export type SessionSummary = z.infer<typeof SessionSummarySchema>;
+
+/**
+ * Schema and DTO for passcode login.
+ */
+export const LoginInputSchema = z.object({
+  passcode: z.string().min(1),
+});
+export type LoginInput = z.infer<typeof LoginInputSchema>;
+
+/**
+ * Schema and DTO for passcode change (revokes every other session).
+ */
+export const ChangePasscodeInputSchema = z.object({
+  currentPasscode: z.string().min(1),
+  newPasscode: z.string().min(1),
+});
+export type ChangePasscodeInput = z.infer<typeof ChangePasscodeInputSchema>;

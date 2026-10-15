@@ -9,26 +9,30 @@ afterEach(() => {
   window.history.replaceState(null, "", "/");
 });
 
-describe("persistent client root (ticket 06 slice 3)", () => {
+describe("persistent client root (setup-only, stubs removed)", () => {
   it("renders the setup screen on direct deep-link refresh", async () => {
     const { container } = render(<AppRoot initialPath="/setup" />);
     await screen.findByText("Complete Setup");
     expect(container.querySelector("form")).not.toBeNull();
   });
 
-  it("switches screens without reload, updates the URL, and keeps shell state alive", () => {
+  it("renders not-found for removed stub routes", async () => {
     const { container } = render(<AppRoot initialPath="/" />);
-    expect(container.querySelector('[data-testid="route-stub-home"]')).not.toBeNull();
+    await screen.findByText("Route not found");
+    expect(container.querySelector('[data-testid="route-not-found"]')).not.toBeNull();
+  });
+
+  it("switches screens without reload, updates the URL, and keeps shell state alive", async () => {
+    const { container } = render(<AppRoot initialPath="/setup" />);
+    await screen.findByText("Complete Setup");
 
     const shell = container.querySelector('[data-testid="app-shell"]');
     expect(shell).not.toBeNull();
 
-    fireEvent.click(screen.getByText("Dashboard"));
+    fireEvent.click(screen.getByText("Setup"));
 
-    expect(window.location.pathname).toBe("/dashboard");
-    expect(container.querySelector('[data-testid="route-stub-dashboard"]')).not.toBeNull();
+    expect(window.location.pathname).toBe("/setup");
     expect(container.querySelector('[data-testid="app-shell"]')).toBe(shell);
-    expect(screen.getByText("Dashboard")).not.toBeNull();
   });
 
   it("adopts the live deep link when the fallback serves the root shell", async () => {
@@ -39,16 +43,18 @@ describe("persistent client root (ticket 06 slice 3)", () => {
   });
 
   it("follows native back/forward through the owned router", async () => {
-    const { container } = render(<AppRoot initialPath="/" />);
-    fireEvent.click(screen.getByText("Dashboard"));
-    expect(window.location.pathname).toBe("/dashboard");
+    window.history.replaceState(null, "", "/notebook/nb-123");
+    const { container } = render(<AppRoot initialPath="/notebook/nb-123" />);
+    await screen.findByText("Route not found");
+    fireEvent.click(screen.getByText("Setup"));
+    expect(window.location.pathname).toBe("/setup");
 
     window.history.back();
     await waitFor(() => {
-      expect(window.location.pathname).toBe("/");
+      expect(window.location.pathname).toBe("/notebook/nb-123");
     });
     await waitFor(() => {
-      expect(container.querySelector('[data-testid="route-stub-home"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="route-not-found"]')).not.toBeNull();
     });
   });
 

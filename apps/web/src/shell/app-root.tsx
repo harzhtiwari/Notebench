@@ -9,9 +9,8 @@ import {
   type ScreenId,
 } from "../lib/router";
 import { resolveScreen } from "../lib/screens";
-import { HomeScreen } from "../screens/home-screen";
-import { DashboardScreen } from "../screens/dashboard-screen";
 import { SetupScreen } from "../screens/setup-screen";
+import { LoginScreen } from "../screens/login-screen";
 import { NotFoundScreen } from "../screens/not-found-screen";
 
 function liveUrl(): string {
@@ -98,9 +97,8 @@ export function AppRoot({ initialPath }: { initialPath: string }) {
 
   const screen = resolveScreen(`${entry.path}${entry.search}${entry.hash}`);
   const screens: Record<ScreenId, React.JSX.Element> = {
-    home: <HomeScreen />,
-    dashboard: <DashboardScreen />,
     setup: <SetupScreen navigate={(to) => router.navigate(to)} />,
+    login: <LoginScreen navigate={(to) => router.navigate(to)} />,
     "not-found": <NotFoundScreen path={entry.path} />,
   };
 
@@ -111,9 +109,8 @@ export function AppRoot({ initialPath }: { initialPath: string }) {
       onClickCapture={handleShellClick}
     >
       <nav>
-        <a href="/">Home</a>
-        <a href="/dashboard">Dashboard</a>
         <a href="/setup">Setup</a>
+        <a href="/login">Login</a>
       </nav>
       {screens[screen]}
     </div>

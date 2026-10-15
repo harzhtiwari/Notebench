@@ -151,7 +151,8 @@ Do not skim, do not improvise its workflow.
 - **Issue Tracker (local markdown)**: [`docs/agents/issue-tracker.md`](./docs/agents/issue-tracker.md),
   [`docs/agents/triage-labels.md`](./docs/agents/triage-labels.md),
   [`docs/agents/domain.md`](./docs/agents/domain.md). Issues live as files under `.scratch/`.
-- **Research Notes**: [`docs/research/`](./docs/research/) for technical baseline investigations.
+- **Research Notes**: [`docs/agents/research.md`](./docs/agents/research.md),
+  [`docs/research/`](./docs/research/) for technical baseline investigations.
 
 <!-- BEGIN:turborepo-agent-rules -->
 

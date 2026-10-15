@@ -1,4 +1,4 @@
-export type ScreenId = "home" | "dashboard" | "setup" | "not-found";
+export type ScreenId = "setup" | "login" | "not-found";
 
 export interface ParsedRoute {
   screen: ScreenId;
@@ -35,9 +35,8 @@ function normalizePathname(path: string): string {
 }
 
 const PATH_SCREENS: Record<string, ScreenId> = {
-  "/": "home",
-  "/dashboard": "dashboard",
   "/setup": "setup",
+  "/login": "login",
 };
 
 export function parseRoute(input: string): ParsedRoute {

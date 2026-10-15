@@ -85,4 +85,26 @@ export class SqliteAccountRepository implements AccountRepositoryPort {
       updatedAt: newRecord.updatedAt,
     };
   }
+
+  async updatePasscodeHash(userId: string, passcodeHash: string): Promise<UserRecord | null> {
+    const now = new Date().toISOString();
+    const updated = this.db
+      .update(users)
+      .set({ passcodeHash, updatedAt: now })
+      .where(eq(users.id, userId))
+      .returning()
+      .get();
+    if (!updated) {
+      return null;
+    }
+    return {
+      id: updated.id,
+      email: updated.email,
+      displayName: updated.displayName,
+      passcodeHash: updated.passcodeHash,
+      role: updated.role === "member" ? "member" : "owner",
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    };
+  }
 }

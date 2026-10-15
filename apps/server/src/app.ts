@@ -6,16 +6,19 @@ import { dirname, join, resolve } from "node:path";
 import { createLogger, type Logger } from "@notebook/logger";
 import type { NotebookErrorCode, DocWorkerProbe, NotebookRepositoryPort } from "@notebook/contracts";
 import type { SqliteHealthProbeTarget } from "@notebook/domain-ops";
-import { OwnerSetupService, Argon2PasscodeHasher } from "@notebook/domain-account";
+import { OwnerSetupService, Argon2PasscodeHasher, SessionService } from "@notebook/domain-account";
 import { NotebookService } from "@notebook/domain-notebooks";
 import {
   createSqliteDatabase,
   SqliteAccountRepository,
   SqliteNotebookRepository,
+  SqliteSessionRepository,
   initializeSqliteSchema,
   type SqliteDatabaseInstance,
 } from "@notebook/infra-db";
 import { setupRoutes } from "./routes/setup.js";
+import { sessionRoutes } from "./routes/session.js";
+import { createSessionGuard, registerSessionSupport } from "./plugins/session.js";
 import { notebooksRoutes } from "./routes/notebooks.js";
 import { registerDoctorRoutes } from "./routes/doctor.js";
 
@@ -27,6 +30,9 @@ export interface BuildServerOptions extends FastifyServerOptions {
   serverHost?: string | undefined;
   hasOwnerPasscode?: boolean | undefined;
   ownerSetupService?: OwnerSetupService | undefined;
+  sessionService?: SessionService | undefined;
+  cookieSecret?: string | undefined;
+  vaultDir?: string | undefined;
   dbPath?: string | undefined;
   /** Alias for sqliteInstance, accepted for test ergonomics */
   db?: SqliteDatabaseInstance | undefined;
@@ -124,6 +130,35 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   await app.register(setupRoutes, {
     ownerSetupService: setupService,
   });
+
+  // Session login/logout routes and global session guard (Ticket 02)
+  let sessionService = options.sessionService;
+  if (!sessionService) {
+    const sqliteInstance = resolvedSqliteInstance ?? createSqliteDatabase({
+      dbPath: options.dbPath,
+    });
+    const accountRepo = new SqliteAccountRepository(sqliteInstance.db, sqliteInstance.sqlite);
+    const sessionRepo = new SqliteSessionRepository(sqliteInstance.db, sqliteInstance.sqlite);
+    sessionService = new SessionService({
+      accountRepository: accountRepo,
+      sessionRepository: sessionRepo,
+      hasher: new Argon2PasscodeHasher(),
+    });
+  }
+
+  await registerSessionSupport(app, {
+    sessionService,
+    cookieSecret: options.cookieSecret,
+    vaultDir: options.vaultDir,
+  });
+  await app.register(sessionRoutes, { sessionService });
+  app.addHook(
+    "preHandler",
+    createSessionGuard({
+      sessionService,
+      isPasscodeRequired: async () => (await setupService.getAppState()).requiresPasscode,
+    })
+  );
 
   // Notebooks domain routes (Ticket 05)
   let notebookRepo = customNotebookRepo;
