@@ -3,6 +3,8 @@ pre-commit:
   commands:
     guard:
       run: pnpm guard
+    boundaries:
+      run: pnpm lint:boundaries
     typecheck:
       run: pnpm typecheck
     lint:

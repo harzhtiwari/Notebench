@@ -145,6 +145,8 @@ Do not skim, do not improvise its workflow.
 - **System Architecture**: [`docs/Project/ARCHITECTURE.md`](./docs/Project/ARCHITECTURE.md) for topology,
   worker lifecycles, and storage design. Product surface: [`docs/Project/PROJECT.md`](./docs/Project/PROJECT.md),
   [`docs/Project/FEATURES.md`](./docs/Project/FEATURES.md).
+- **Package Layout & Boundaries**: [`packages/README.md`](./packages/README.md) when adding a package,
+  importing across `packages/*`, or editing `.dependency-cruiser.cjs` (`pnpm lint:boundaries`).
 - **Domain Terminology**: [`GLOSSARY.md`](./GLOSSARY.md) when naming entities, AST nodes, or DTOs.
 - **Architectural Decisions**: [`docs/adr/`](./docs/adr/) when modifying storage (ADR 0004), composition
   root (ADR 0001), or PDF parsing (ADR 0003).

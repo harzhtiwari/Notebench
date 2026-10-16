@@ -46,6 +46,8 @@ jobs:
         run: pnpm lint:licenses
       - name: Architectural Guardrails
         run: pnpm guard
+      - name: Dependency Boundaries (dependency-cruiser)
+        run: pnpm lint:boundaries
       - name: Dead Code Audit
         run: pnpm knip
       - name: Production Build
