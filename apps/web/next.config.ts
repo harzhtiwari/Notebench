@@ -54,7 +54,7 @@ function assertLoopbackOrigin(origin: string): void {
     );
   }
   const hostname = url.hostname.toLowerCase();
-  if (hostname !== "127.0.0.1" && hostname !== "localhost" && hostname !== "::1" && hostname !== "[::1]") {
+  if (hostname !== "127.0.0.1" && hostname !== "localhost" && hostname !== "[::1]") {
     throw new Error(
       `Refusing non-loopback sidecar server origin "${origin}": rewrites target the local server only.`
     );

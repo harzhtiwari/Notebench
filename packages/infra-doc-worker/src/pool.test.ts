@@ -2,14 +2,30 @@ import { describe, it, expect, afterEach } from "vitest";
 import { DocWorkerPool } from "./pool.js";
 import { resolve } from "node:path";
 
-describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {
-  let pool: DocWorkerPool | null = null;
+describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {  let pool: DocWorkerPool | null = null;
 
   afterEach(async () => {
     if (pool) {
       await pool.stop();
       pool = null;
     }
+  });
+
+  it("resolves the direct venv python for steady-state workers (no uv hop)", async () => {
+    const { resolveWorkerSpawn } = await import("./worker-process.js");
+    const plan = resolveWorkerSpawn(resolve("tools/doc-tools"));
+    expect(plan.command.endsWith(process.platform === "win32" ? "python.exe" : "python")).toBe(
+      true
+    );
+    expect(plan.argv).toEqual(["-m", "doc_tools.worker"]);
+    expect(plan.env?.["VIRTUAL_ENV"]?.endsWith(".venv")).toBe(true);
+  });
+
+  it("falls back to uv run when the venv python is missing", async () => {
+    const { resolveWorkerSpawn } = await import("./worker-process.js");
+    const plan = resolveWorkerSpawn(resolve(".tmp/no-such-venv-parent"));
+    expect(plan.command).toBe("uv");
+    expect(plan.argv).toContain("doc_tools.worker");
   });
 
   it("initializes a bounded worker pool and responds to ping within 50ms on warm probe", async () => {

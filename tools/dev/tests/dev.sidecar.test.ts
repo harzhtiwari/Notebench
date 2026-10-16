@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
+import net from "node:net";
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -180,6 +181,25 @@ describe("ticket 04: web config carries an explicit sidecar branch", () => {
     }
   });
 
+  it("accepts IPv6 loopback http://[::1] (Node keeps brackets in hostname)", async () => {
+    process.env[DIST_DIR_ENV] = "/tmp/build/ns/web-dist";
+    process.env["NOTEBENCH_SERVER_ORIGIN"] = "http://[::1]:57570";
+    try {
+      const config = await loadWebConfig();
+      expect(typeof config["rewrites"]).toBe("function");
+      const rules = (await (config["rewrites"] as () => Promise<unknown[]>)()) as Array<{
+        destination: string;
+      }>;
+      expect(rules.length).toBeGreaterThan(0);
+      for (const rule of rules) {
+        expect(rule.destination.startsWith("http://[::1]:57570")).toBe(true);
+      }
+    } finally {
+      delete process.env[DIST_DIR_ENV];
+      delete process.env["NOTEBENCH_SERVER_ORIGIN"];
+    }
+  });
+
   it("exposes no rewrites on the production export branch", async () => {
     delete process.env[DIST_DIR_ENV];
     delete process.env[DIST_DIR_ENV_ALIAS];
@@ -216,7 +236,26 @@ describe("ticket 04: web child runs the real Next.js CLI", () => {
 
   it("serves pages from the CLI and rewrites /api to the backend (turbopack)", async () => {
     const { resolveNextBin } = await import("../src/composer.js");
+    const backendHits: string[] = [];
     const backend = createServer((req, res) => {
+      backendHits.push(req.url ?? "");
+      if (req.url === "/api/sse") {
+        res.writeHead(200, {
+          "content-type": "text/event-stream",
+          "cache-control": "no-cache",
+          connection: "keep-alive",
+        });
+        let n = 0;
+        const timer = setInterval(() => {
+          n += 1;
+          res.write(`data: chunk${n}\n\n`);
+          if (n >= 3) {
+            clearInterval(timer);
+            res.end();
+          }
+        }, 300);
+        return;
+      }
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ marker: "backend-v1", url: req.url }));
     });
@@ -230,6 +269,7 @@ describe("ticket 04: web child runs the real Next.js CLI", () => {
     const distDir = join(distNsDir, "web-dist");
     const nextDirBefore = existsSync(join(webDir, ".next"));
     const webPort = await getPort({ host: "127.0.0.1" });
+    const bootT0 = Date.now();
     const child = spawn(
       process.execPath,
       [resolveNextBin(webDir), "dev", webDir, "-H", "127.0.0.1", "-p", String(webPort), "--turbopack"],
@@ -285,6 +325,108 @@ describe("ticket 04: web child runs the real Next.js CLI", () => {
       }
       expect(pageOk).toBe(true);
       expect(apiOk).toBe(true);
+      console.log(
+        `[cli-e2e] turbopack route-ready in ${String(Date.now() - bootT0)}ms`
+      );
+
+      // Boundary (spec 5.9): /apix is never rewritten to the backend.
+      backendHits.length = 0;
+      const apix = await fetch(`http://127.0.0.1:${webPort}/apix`);
+      const apixBody = await apix.text();
+      expect(backendHits.some((hit) => hit === "/apix")).toBe(false);
+      expect(apixBody.includes("backend-v1")).toBe(false);
+
+      // SSE (spec 5.9): the rewrite streams chunks incrementally. Identity
+      // encoding: undici gunzips whole bodies before yielding, which would
+      // mask proxy streaming; browsers gunzip incrementally instead.
+      const sseStart = Date.now();
+      const sseRes = await fetch(`http://127.0.0.1:${webPort}/api/sse`, {
+        headers: { "accept-encoding": "identity" },
+      });
+      expect(sseRes.status).toBe(200);
+      expect(sseRes.headers.get("content-type") ?? "").toContain("text/event-stream");
+      const sseBody = sseRes.body;
+      if (sseBody === null) throw new Error("SSE response has no body");
+      const reader = sseBody.getReader();
+      const decoder = new TextDecoder();
+      let sseText = "";
+      let chunks = 0;
+      let firstChunkMs = -1;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (value !== undefined) {
+          chunks += 1;
+          if (firstChunkMs < 0) firstChunkMs = Date.now() - sseStart;
+          sseText += decoder.decode(value, { stream: true });
+        }
+        if (done) break;
+      }
+      const sseTotalMs = Date.now() - sseStart;
+      console.log(
+        `[cli-e2e] sse: status=${String(sseRes.status)} ` +
+          `enc=${sseRes.headers.get("content-encoding") ?? "-"} ` +
+          `chunks=${String(chunks)} firstChunkMs=${String(firstChunkMs)} totalMs=${String(sseTotalMs)}`
+      );
+      expect(chunks).toBeGreaterThanOrEqual(2);
+      expect(firstChunkMs).toBeGreaterThanOrEqual(0);
+      expect(firstChunkMs).toBeLessThan(sseTotalMs);
+      expect(sseText).toContain("chunk1");
+      expect(sseText).toContain("chunk3");
+
+      // Upgrades: HMR transport flows through the CLI root; API upgrades
+      // never come back 101 (the backend has no socket handler, so a 101
+      // here would mean the CLI upgraded an API path itself).
+      async function probeUpgrade(path: string): Promise<string> {
+        return new Promise((resolve) => {
+          const sock = net.connect(webPort, "127.0.0.1", () => {
+            sock.write(
+              `GET ${path} HTTP/1.1\r\nHost: 127.0.0.1:${webPort}\r\n` +
+                `Connection: Upgrade\r\nUpgrade: websocket\r\n` +
+                `Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n` +
+                `Sec-WebSocket-Version: 13\r\n\r\n`
+            );
+          });
+          let data = "";
+          const timer = setTimeout(() => {
+            sock.destroy();
+            resolve(`timeout:${data.slice(0, 80)}`);
+          }, 8000);
+          sock.on("data", (chunk: Buffer) => {
+            data += chunk.toString("utf-8");
+            if (data.includes("\r\n\r\n")) {
+              clearTimeout(timer);
+              const statusLine = data.split("\r\n")[0] ?? "";
+              sock.destroy();
+              resolve(statusLine);
+            }
+          });
+          sock.on("close", () => {
+            clearTimeout(timer);
+            if (data === "") resolve("destroyed-no-response");
+          });
+          sock.on("error", (error: Error) => {
+            clearTimeout(timer);
+            resolve(`error:${error.message}`);
+          });
+        });
+      }
+      // HMR lives at `<prefix>/_next/hmr` (router-server.js); API upgrades
+      // are proxied to the backend (httpxy ws:true) instead of refused —
+      // the backend drops them, so never 101.
+      expect(await probeUpgrade("/_next/hmr")).toContain("101");
+      expect(await probeUpgrade("/api/smoke")).not.toContain("101");
+
+      // Backend down (spec story 8): outage is a 5xx, never an HTML page.
+      await new Promise<void>((resolve) => backend.close(() => resolve()));
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const down = await fetch(`http://127.0.0.1:${webPort}/api/smoke`);
+      const downBody = await down.text();
+      console.log(
+        `[cli-e2e] backend-down: status=${String(down.status)} ` +
+          `ctype=${down.headers.get("content-type") ?? ""} body=${downBody.slice(0, 200)}`
+      );
+      expect(down.status).toBeGreaterThanOrEqual(500);
+      expect(down.headers.get("content-type") ?? "").not.toContain("text/html");
       // Compiler output stays namespaced (spec 5.5): the run's distDir
       // receives files, and no fresh `.next` appears in the web package
       // (guarded: a stale pre-existing dir is the environment's, not ours).

@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
+import { existsSync } from "node:fs";
+import { delimiter, join } from "node:path";
 import { createLogger, type Logger } from "@notebook/logger";
 import {
   createJsonRpcRequest,
@@ -14,6 +16,51 @@ export interface WorkerProcessOptions {
   logger?: Logger | undefined;
 }
 
+
+export interface WorkerSpawnPlan {
+  command: string;
+  argv: string[];
+  /**
+   * Full env for a direct venv spawn (VIRTUAL_ENV + venv-first PATH, the
+   * pieces `uv run` would set). Undefined means inherit (uv fallback keeps
+   * today's exact behavior).
+   */
+  env?: NodeJS.ProcessEnv | undefined;
+}
+
+/**
+ * Steady-state worker spawn (research
+ * docs/research/2026-10-15/windows-console-flash.md §6 Fix 3): run the
+ * venv interpreter directly instead of `uv run`, removing the
+ * uv → shim → cpython double hop. A leaf python worker (stdio JSON-RPC,
+ * spawns nothing) takes CREATE_NO_WINDOW cleanly. Falls back to `uv run`
+ * when the venv interpreter is absent (e.g. before the first `uv sync`).
+ * `uv sync` stays the env-setup step in pool startup.
+ */
+export function resolveWorkerSpawn(projectDir: string): WorkerSpawnPlan {
+  const venvDir = join(projectDir, ".venv");
+  const scriptsDir =
+    process.platform === "win32" ? join(venvDir, "Scripts") : join(venvDir, "bin");
+  const pythonExe = join(
+    scriptsDir,
+    process.platform === "win32" ? "python.exe" : "python"
+  );
+  if (existsSync(pythonExe)) {
+    return {
+      command: pythonExe,
+      argv: ["-m", "doc_tools.worker"],
+      env: {
+        ...process.env,
+        VIRTUAL_ENV: venvDir,
+        PATH: `${scriptsDir}${delimiter}${process.env["PATH"] ?? ""}`,
+      },
+    };
+  }
+  return {
+    command: "uv",
+    argv: ["run", "--project", projectDir, "python", "-m", "doc_tools.worker"],
+  };
+}
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
@@ -56,14 +103,14 @@ export class DocWorkerProcess extends EventEmitter {
   public async start(): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       try {
-        const child = spawn(
-          "uv",
-          ["run", "--project", this.projectDir, "python", "-m", "doc_tools.worker"],
-          {
-            stdio: ["pipe", "pipe", "pipe"],
-            windowsHide: true,
-          }
-        );
+        const plan = resolveWorkerSpawn(this.projectDir);
+        const child = spawn(plan.command, plan.argv, {
+          stdio: ["pipe", "pipe", "pipe"],
+          // Leaf worker: spawns nothing further, so hiding is safe (unlike
+          // mid-tree supervisors). Keeps console-less launches popup-free.
+          windowsHide: true,
+          ...(plan.env === undefined ? {} : { env: plan.env }),
+        });
 
         this.child = child;
         this.processPid = child.pid ?? 0;

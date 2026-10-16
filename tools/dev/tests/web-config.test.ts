@@ -36,7 +36,7 @@ describe("ticket 05: web config carries the generated tsconfig branch", () => {
     expect(typescript?.["tsconfigPath"]).toBeUndefined();
   });
 
-  it("selects the namespaced tsconfig path under sidecar env with webpack default", async () => {
+  it("selects the namespaced tsconfig path under sidecar env", async () => {
     process.env[DIST_DIR_ENV] = "/tmp/build/ns/web-dist";
     process.env[TSCONFIG_ENV] = "/tmp/build/ns/tsconfig.sidecar.json";
     try {

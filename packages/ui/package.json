@@ -9,7 +9,8 @@
     "dist/**",
     "tokens.css",
     "tokens.media.css",
-    "tailwind.preset.cjs"
+    "tailwind.preset.cjs",
+    "tokens.json"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -20,13 +21,15 @@
     },
     "./tokens.css": "./tokens.css",
     "./tokens.media.css": "./tokens.media.css",
-    "./tailwind.preset.cjs": "./tailwind.preset.cjs"
+    "./tailwind.preset.cjs": "./tailwind.preset.cjs",
+    "./tokens.json": "./tokens.json"
   },
   "sideEffects": false,
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "audit:tokens": "python audit_tokens.py"
   },
   "dependencies": {
     "@notebook/contracts": "workspace:*",

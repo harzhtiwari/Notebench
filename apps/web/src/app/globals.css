@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../../node_modules/@notebook/ui/src";
 @import "@notebook/ui/tokens.css";
 
 *, *::before, *::after {

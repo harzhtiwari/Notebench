@@ -12,7 +12,7 @@ import { resolveWebCompilerEnv } from "../src/config-duality.js";
  * Vocabulary: orchestrator, server, web sidecar, namespace (spec section 1).
  */
 describe("ticket 05: web compiler duality resolver", () => {
-  it("resolves absolute distDir with webpack default and derived tsconfig under the build dir", () => {
+  it("resolves absolute distDir with turbopack default and derived tsconfig under the build dir", () => {
     expect(
       resolveWebCompilerEnv(
         {
@@ -23,7 +23,7 @@ describe("ticket 05: web compiler duality resolver", () => {
     ).toEqual({
       distDir: "/repo/.tmp/build/ns/web-dist",
       tsconfigPath: join("/repo/.tmp/build/ns", "tsconfig.dev.json"),
-      bundler: "webpack",
+      bundler: "turbopack",
     });
   });
 

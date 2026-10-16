@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { join } from "node:path";
-import { buildNextDevArgv, resolveNextBin } from "../src/composer.js";
+import { buildNextDevArgv, resolveNextBin, resolveWebBundler } from "../src/composer.js";
 
 /**
  * CLI cutover (open-design parity): the web child runs the real
@@ -15,7 +15,7 @@ describe("web child runs the real Next.js CLI", () => {
     );
   });
 
-  it("builds an explicit webpack argv (default)", () => {
+  it("builds an explicit webpack argv (opt-in legacy)", () => {
     expect(
       buildNextDevArgv({
         nextBin: "/repo/apps/web/node_modules/next/dist/bin/next",
@@ -47,5 +47,13 @@ describe("web child runs the real Next.js CLI", () => {
     expect(argv).toContain("--turbopack");
     expect(argv).not.toContain("--webpack");
     expect(argv).toContain("3000");
+  });
+
+  it("defaults to turbopack when no bundler env is set (webpack pages 500 under out-of-tree distDir)", () => {
+    expect(resolveWebBundler({})).toBe("turbopack");
+    expect(
+      resolveWebBundler({ NOTEBENCH_WEB_DEV_BUNDLER: "webpack" })
+    ).toBe("webpack");
+    expect(resolveWebBundler({ NB_WEB_DEV_BUNDLER: "webpack" })).toBe("webpack");
   });
 });

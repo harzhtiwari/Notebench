@@ -5,7 +5,9 @@ import { isAbsolute, join, relative, sep } from "node:path";
  * Web compiler duality resolver (ticket 05, spec 5.10 + 7.2).
  *
  * Explicit sidecar branch: namespaced compiler output directory and
- * generated config with the webpack default. The production export branch
+ * generated config with the turbopack default (webpack is the opt-in
+ * legacy: its pages 500 under an out-of-tree distDir because the compiled
+ * output cannot resolve react through the pnpm layout). The production export branch
  * stays out of this module: without the sidecar marker the web config is
  * exactly today's export contract (`output: "export"`, `distDir: "out"`).
  *
@@ -66,7 +68,7 @@ export function resolveWebCompilerEnv(
   if (!isAbsolute(tsconfigRaw)) {
     throw new Error(`Web compiler tsconfig path "${tsconfigRaw}" must be an absolute path.`);
   }
-  const bundlerRaw = pick(env, WEB_DEV_BUNDLER_ENV, WEB_DEV_BUNDLER_ENV_ALIAS) ?? "webpack";
+  const bundlerRaw = pick(env, WEB_DEV_BUNDLER_ENV, WEB_DEV_BUNDLER_ENV_ALIAS) ?? "turbopack";
   if (bundlerRaw !== "webpack" && bundlerRaw !== "turbopack") {
     throw new Error(
       `Unknown web compiler bundler "${bundlerRaw}": expected "webpack" or "turbopack".`

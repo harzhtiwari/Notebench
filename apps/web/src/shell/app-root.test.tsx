@@ -9,6 +9,17 @@ afterEach(() => {
   window.history.replaceState(null, "", "/");
 });
 
+// Drives the shell's owned-router link interception without depending on
+// any visible nav chrome (the debug nav was removed from the shell).
+function clickShellLink(shell: Element | null, href: string): void {
+  const anchor = document.createElement("a");
+  anchor.setAttribute("href", href);
+  anchor.textContent = "test-link";
+  shell?.appendChild(anchor);
+  fireEvent.click(anchor);
+  anchor.remove();
+}
+
 describe("persistent client root (setup-only, stubs removed)", () => {
   it("renders the setup screen on direct deep-link refresh", async () => {
     const { container } = render(<AppRoot initialPath="/setup" />);
@@ -29,9 +40,10 @@ describe("persistent client root (setup-only, stubs removed)", () => {
     const shell = container.querySelector('[data-testid="app-shell"]');
     expect(shell).not.toBeNull();
 
-    fireEvent.click(screen.getByText("Setup"));
+    clickShellLink(shell, "/notebook/nb-123");
 
-    expect(window.location.pathname).toBe("/setup");
+    expect(window.location.pathname).toBe("/notebook/nb-123");
+    await screen.findByText("Route not found");
     expect(container.querySelector('[data-testid="app-shell"]')).toBe(shell);
   });
 
@@ -46,7 +58,7 @@ describe("persistent client root (setup-only, stubs removed)", () => {
     window.history.replaceState(null, "", "/notebook/nb-123");
     const { container } = render(<AppRoot initialPath="/notebook/nb-123" />);
     await screen.findByText("Route not found");
-    fireEvent.click(screen.getByText("Setup"));
+    clickShellLink(container.querySelector('[data-testid="app-shell"]'), "/setup");
     expect(window.location.pathname).toBe("/setup");
 
     window.history.back();

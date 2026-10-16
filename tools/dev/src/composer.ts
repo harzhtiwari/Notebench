@@ -307,9 +307,9 @@ function defaultCreateWebSpawn(ctx: WebSpawnContext): WebSpawnRequest {
   };
 }
 
-function resolveWebBundler(env: Record<string, string | undefined>): WebDevBundler {
+export function resolveWebBundler(env: Record<string, string | undefined>): WebDevBundler {
   const raw =
-    env[WEB_DEV_BUNDLER_ENV] ?? env[WEB_DEV_BUNDLER_ENV_ALIAS] ?? "webpack";
+    env[WEB_DEV_BUNDLER_ENV] ?? env[WEB_DEV_BUNDLER_ENV_ALIAS] ?? "turbopack";
   if (raw !== "webpack" && raw !== "turbopack") {
     throw new OrchestratorError(
       `Unknown sidecar bundler "${raw}": expected "webpack" or "turbopack".`,

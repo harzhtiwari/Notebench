@@ -7,7 +7,7 @@ import { AppRoot } from "../../shell/app-root";
  * the live URL on mount). `/setup` keeps its baked first paint.
  */
 export function generateStaticParams(): Array<{ slug: Array<string> }> {
-  return [{ slug: [] }, { slug: ["setup"] }];
+  return [{ slug: [] }, { slug: ["setup"] }, { slug: ["ui-preview"] }];
 }
 
 export default async function CatchAllPage({

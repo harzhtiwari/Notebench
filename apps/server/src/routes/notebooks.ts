@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import {
   CreateNotebookInputSchema,
   UpdateNotebookInputSchema,
@@ -14,14 +14,14 @@ export interface NotebooksRoutesOptions {
   notebookService?: NotebookService | undefined;
   notebookRepo?: NotebookRepositoryPort | undefined;
   defaultUserId?: string | undefined;
+  resolveOwnerId?: (() => Promise<string | null>) | undefined;
 }
 
 export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async (
   app,
   options
 ) => {
-  const defaultUserId =
-    options.defaultUserId ?? "11111111-1111-4111-8111-111111111111";
+  const explicitDefaultUserId = options.defaultUserId;
 
   const getService = (): NotebookService => {
     if (options.notebookService) {
@@ -33,17 +33,40 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
     throw new Error("NotebooksRoutes requires either notebookService or notebookRepo");
   };
 
-  const resolveUserId = (headerVal: unknown): string => {
+  const resolveUserId = async (headerVal: unknown): Promise<string | null> => {
     if (typeof headerVal === "string" && headerVal.trim().length > 0) {
       return headerVal.trim();
     }
-    return defaultUserId;
+    if (explicitDefaultUserId) {
+      return explicitDefaultUserId;
+    }
+    if (options.resolveOwnerId) {
+      return options.resolveOwnerId();
+    }
+    return null;
+  };
+
+  const requireUserId = async (request: FastifyRequest, reply: FastifyReply): Promise<string | null> => {
+    const userId = await resolveUserId(request.headers["x-user-id"]);
+    if (!userId) {
+      await reply.status(409).send({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Setup required: create owner first.",
+        },
+      });
+      return null;
+    }
+    return userId;
   };
 
   // Metrics endpoint (must be defined before /:id)
   app.get("/api/notebooks/metrics", async (request, reply) => {
     try {
-      const userId = resolveUserId(request.headers["x-user-id"]);
+      const userId = await requireUserId(request, reply);
+      if (!userId) {
+        return;
+      }
       const service = getService();
       const metrics = await service.getMetrics(userId);
       return reply.status(200).send({ metrics });
@@ -60,7 +83,10 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
   // List notebooks
   app.get("/api/notebooks", async (request, reply) => {
     try {
-      const userId = resolveUserId(request.headers["x-user-id"]);
+      const userId = await requireUserId(request, reply);
+      if (!userId) {
+        return;
+      }
       const query = request.query as {
         filter?: string;
         sort?: DashboardSortKey;
@@ -88,7 +114,10 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
   // Create notebook
   app.post("/api/notebooks", async (request, reply) => {
     try {
-      const userId = resolveUserId(request.headers["x-user-id"]);
+      const userId = await requireUserId(request, reply);
+      if (!userId) {
+        return;
+      }
       const bodyResult = CreateNotebookInputSchema.safeParse(request.body);
       if (!bodyResult.success) {
         return reply.status(400).send({
@@ -120,7 +149,10 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
   // Get single notebook
   app.get("/api/notebooks/:id", async (request, reply) => {
     try {
-      const userId = resolveUserId(request.headers["x-user-id"]);
+      const userId = await requireUserId(request, reply);
+      if (!userId) {
+        return;
+      }
       const { id } = request.params as { id: string };
       const service = getService();
       const notebook = await service.getNotebook(id, userId);
@@ -148,7 +180,10 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
   // Rename or update notebook
   app.patch("/api/notebooks/:id", async (request, reply) => {
     try {
-      const userId = resolveUserId(request.headers["x-user-id"]);
+      const userId = await requireUserId(request, reply);
+      if (!userId) {
+        return;
+      }
       const { id } = request.params as { id: string };
       const bodyResult = UpdateNotebookInputSchema.safeParse(request.body);
       if (!bodyResult.success) {
@@ -196,7 +231,10 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
   // Duplicate notebook (B4)
   app.post("/api/notebooks/:id/duplicate", async (request, reply) => {
     try {
-      const userId = resolveUserId(request.headers["x-user-id"]);
+      const userId = await requireUserId(request, reply);
+      if (!userId) {
+        return;
+      }
       const { id } = request.params as { id: string };
       const bodyResult = DuplicateNotebookInputSchema.safeParse(request.body ?? {});
       if (!bodyResult.success) {
@@ -233,7 +271,10 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
   // Delete notebook
   app.delete("/api/notebooks/:id", async (request, reply) => {
     try {
-      const userId = resolveUserId(request.headers["x-user-id"]);
+      const userId = await requireUserId(request, reply);
+      if (!userId) {
+        return;
+      }
       const { id } = request.params as { id: string };
       const service = getService();
       await service.deleteNotebook(id, userId);

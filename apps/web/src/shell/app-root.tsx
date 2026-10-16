@@ -15,6 +15,7 @@ import { HealthScreen } from "../screens/health-screen";
 import { TrashScreen } from "../screens/trash-screen";
 import { ModelsKeysScreen } from "../screens/models-keys-screen";
 import { NotFoundScreen } from "../screens/not-found-screen";
+import { UiPreviewScreen } from "../screens/ui-preview-screen";
 import { DashboardContainer } from "../app/dashboard/dashboard-container";
 
 function liveUrl(): string {
@@ -108,6 +109,7 @@ export function AppRoot({ initialPath }: { initialPath: string }) {
     notebook: <DashboardContainer navigate={(to) => router.navigate(to)} />,
     trash: <TrashScreen navigate={(to) => router.navigate(to)} />,
     models: <ModelsKeysScreen />,
+    "ui-preview": <UiPreviewScreen />,
     "not-found": <NotFoundScreen path={entry.path} />,
   };
 
@@ -117,14 +119,6 @@ export function AppRoot({ initialPath }: { initialPath: string }) {
       data-app-mounted={mounted ? "true" : "false"}
       onClickCapture={handleShellClick}
     >
-      <nav>
-        <a href="/setup">Setup</a>
-        <a href="/login">Login</a>
-        <a href="/health">Health</a>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/trash">Trash</a>
-        <a href="/settings/models">Models</a>
-      </nav>
       {screens[screen]}
     </div>
   );
