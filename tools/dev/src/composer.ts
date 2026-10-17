@@ -30,6 +30,7 @@ import {
   TEARDOWN_GRACE_MS,
   waitForReadiness,
 } from "./readiness.js";
+import type { ReadinessResult } from "./readiness.js";
 import {
   createOsPidLivenessChecker,
   createOsPidOwnershipChecker,
@@ -115,6 +116,12 @@ interface WebStarted {
   logFile: string;
   port: number;
   flush?: (() => Promise<void>) | undefined;
+  /**
+   * Listener-gate observation (P2): the timing of the route's first real
+   * response through the sidecar (the cold compile). Real runs hand this to
+   * warmup so the now-warm route is never re-probed.
+   */
+  routeTiming?: ReadinessResult | undefined;
 }
 
 export interface ServerReadyTimings {
@@ -181,6 +188,12 @@ export interface BackendPhaseDeps {
   onServerReady?: ((ctx: ServerReadyContext) => Promise<void> | void) | undefined;
   randomRunId?: (() => string) | undefined;
   logLine?: ((line: string) => void) | undefined;
+  /**
+   * Preparation hook invoked once the namespace claim is exclusively ours,
+   * before the freshness builds (P15): the benchmark's cold reset runs here
+   * so a busy namespace's build dir is never deleted.
+   */
+  prep?: (() => Promise<void> | void) | undefined;
   runBuild?: ((dep: CompiledDep) => Promise<void> | void) | undefined;
   statMtimeMs?: ((path: string) => Promise<number | null>) | undefined;
   listFilesRecursive?: ((dir: string) => Promise<string[]>) | undefined;
@@ -410,8 +423,9 @@ export async function startDefaultWebPhase(
   });
 
   const webUrl = `http://${ctx.host}:${port}/`;
+  let gate: ReadinessResult;
   try {
-    await waitForReadiness(
+    gate = await waitForReadiness(
       {
         service: "web",
         deadlineMs: webDeadlineMs,
@@ -443,6 +457,7 @@ export async function startDefaultWebPhase(
     logFile: ctx.paths.webLogFile,
     port,
     flush: tee.flush,
+    routeTiming: gate,
   };
 }
 
@@ -614,6 +629,11 @@ export async function startBackendPhase(
     deps?.isRunOwnerLive ?? deps?.isPidLive ?? createOsPidOwnershipChecker();
 
   let childExited = false;
+  // Per-service exit flags (P13): warm-up aborts on the first service that
+  // actually dies instead of waiting for the crash handler's flush + tail
+  // read + teardown to settle the run.
+  let webChildExited = false;
+  let deadService: "server" | "web" | null = null;
   let shuttingDown = false;
   let settled = false;
   let settledCode = 0;
@@ -640,39 +660,60 @@ export async function startBackendPhase(
   const exitPromises: Array<Promise<ChildExit>> = [];
   let flushOutput: () => Promise<void> = () => Promise.resolve();
 
-  const runTeardown = async (children: OwnedChild[]): Promise<TeardownResult> => {
-    const result = await teardownOwnedRun(paths, children, { isPidLive, runId });
-    reportUnverified(result.unverified, logLine);
-    return result;
+  // Teardown passes are serialized (P20): overlapping triggers (crash, catch,
+  // shutdown) queue behind the in-flight pass instead of racing it. The same
+  // `owned` list is passed each time, so a queued pass still sees children
+  // appended after it was queued.
+  let teardownQueue: Promise<unknown> = Promise.resolve();
+  const runTeardown = (children: OwnedChild[]): Promise<TeardownResult> => {
+    const pass = teardownQueue.then(() =>
+      teardownOwnedRun(paths, children, { isPidLive, runId })
+    );
+    teardownQueue = pass.then(
+      () => undefined,
+      () => undefined
+    );
+    return pass.then((result) => {
+      reportUnverified(result.unverified, logLine);
+      return result;
+    });
   };
 
-  const shutdown = async (): Promise<number> => {
-    if (settled) return settledCode;
-    shuttingDown = true;
-    removeSignal("SIGINT", handleSigint);
-    removeSignal("SIGTERM", handleSigterm);
-    await runTeardown(owned);
-    if (owned.length === 0) {
-      // Claimed but nothing spawned yet: release this run's own record.
-      await releaseRunClaim(paths, runId);
-    }
-    await flushOutput();
-    let settleTimer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      const reaped = await Promise.race([
-        Promise.allSettled(exitPromises).then(() => true),
-        new Promise<false>((resolve) => {
-          settleTimer = setTimeout(() => resolve(false), TEARDOWN_GRACE_MS);
-        }),
-      ]);
-      if (!reaped) {
-        logLine(`[dev] shutdown proceeding with owned children still attached after ${String(TEARDOWN_GRACE_MS)}ms`);
+  let shutdownPromise: Promise<number> | null = null;
+  const shutdown = (): Promise<number> => {
+    if (shutdownPromise !== null) return shutdownPromise;
+    shutdownPromise = (async (): Promise<number> => {
+      // Removal is idempotent and every exit path runs it (P20): a settled
+      // run must never leave live handlers behind, and concurrent triggers
+      // must not start a second teardown.
+      removeSignal("SIGINT", handleSigint);
+      removeSignal("SIGTERM", handleSigterm);
+      if (settled) return settledCode;
+      shuttingDown = true;
+      await runTeardown(owned);
+      if (owned.length === 0) {
+        // Claimed but nothing spawned yet: release this run's own record.
+        await releaseRunClaim(paths, runId);
       }
-    } finally {
-      if (settleTimer !== undefined) clearTimeout(settleTimer);
-    }
-    finish(0);
-    return settledCode;
+      await flushOutput();
+      let settleTimer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const reaped = await Promise.race([
+          Promise.allSettled(exitPromises).then(() => true),
+          new Promise<false>((resolve) => {
+            settleTimer = setTimeout(() => resolve(false), TEARDOWN_GRACE_MS);
+          }),
+        ]);
+        if (!reaped) {
+          logLine(`[dev] shutdown proceeding with owned children still attached after ${String(TEARDOWN_GRACE_MS)}ms`);
+        }
+      } finally {
+        if (settleTimer !== undefined) clearTimeout(settleTimer);
+      }
+      finish(0);
+      return settledCode;
+    })();
+    return shutdownPromise;
   };
 
   function handleSigint(): void {
@@ -715,6 +756,9 @@ export async function startBackendPhase(
     serverChild: SpawnedChild;
   }> => {
     try {
+      // P15: preparation (benchmark's cold reset) runs only now — the claim
+      // above is exclusively ours, so a busy namespace can never reach it.
+      await deps?.prep?.();
       await ensureServerFreshness(root, {
         runBuild: deps?.runBuild,
         statMtimeMs: deps?.statMtimeMs,
@@ -821,20 +865,26 @@ export async function startBackendPhase(
     await writeIdentity(paths.identityFile, identityRecord);
     await fsWriteFile(paths.serverPidFile, `${serverChild.pid}\n`, "utf-8");
   } catch (error: unknown) {
+    removeSignal("SIGINT", handleSigint);
+    removeSignal("SIGTERM", handleSigterm);
     await runTeardown(owned);
     finish(1);
     throw error;
   }
 
-  void serverChild.exited.then(async () => {
+  void serverChild.exited.then(async (record) => {
     childExited = true;
+    if (deadService === null) deadService = "server";
     if (shuttingDown || settled) return;
     await flushOutput();
     const tail = await readFailureTail(paths.serverLogFile, sleep);
     const tailText = tailToText(tail);
-    logLine(`[server] exited unexpectedly. Log tail:\n${tailText}`);
+    const reason = record.error === undefined ? "" : ` (${record.error})`;
+    logLine(`[server] exited unexpectedly${reason}. Log tail:\n${tailText}`);
     await runTeardown(owned);
     finish(1);
+    removeSignal("SIGINT", handleSigint);
+    removeSignal("SIGTERM", handleSigterm);
   });
 
   const healthUrl = `http://${host}:${allocated.serverPort}${healthPath}`;
@@ -851,6 +901,15 @@ export async function startBackendPhase(
       { now, sleep }
     );
     await flushOutput();
+    // P19: the gate can pass at the instant the server dies; never print
+    // ready (or start the web phase) for a backend that already exited.
+    if (childExited || settled) {
+      const tail = await readFailureTail(paths.serverLogFile, sleep);
+      throw new OrchestratorError(
+        `server exited before the backend ready line. Log tail:\n${tailToText(tail)}`,
+        1
+      );
+    }
     await fsWriteFile(paths.serverPortFile, `${allocated.serverPort}\n`, "utf-8");
 
     const hook = deps?.onServerReady;
@@ -893,14 +952,19 @@ export async function startBackendPhase(
       await fsWriteFile(paths.webPidFile, `${web.pid}\n`, "utf-8");
       identityRecord.children["web"] = { pid: web.pid, startTimeMs: web.startTimeMs };
       await writeIdentity(paths.identityFile, identityRecord);
-      void web.exited.then(async () => {
+      void web.exited.then(async (record) => {
+        webChildExited = true;
+        if (deadService === null) deadService = "web";
         if (shuttingDown || settled) return;
         if (web.flush !== undefined) await web.flush();
         const tail = await readFailureTail(web.logFile, sleep);
         const tailText = tailToText(tail);
-        logLine(`[web] exited unexpectedly. Log tail:\n${tailText}`);
+        const reason = record.error === undefined ? "" : ` (${record.error})`;
+        logLine(`[web] exited unexpectedly${reason}. Log tail:\n${tailText}`);
         await runTeardown(owned);
         finish(1);
+        removeSignal("SIGINT", handleSigint);
+        removeSignal("SIGTERM", handleSigterm);
       });
       logLine(
         `[dev] web listening namespace=${paths.namespace} webPort=${web.port} ` +
@@ -915,6 +979,7 @@ export async function startBackendPhase(
           serverOrigin,
           webOrigin,
           probeRoute: () => probeWebRoute(`${webOrigin}/`),
+          routeTiming: web.routeTiming,
           probeUi: deps?.probeUi ?? defaultProbeUi,
           deadlineMs: deps?.warmupDeadlineMs ?? SIDECAR_DEADLINE_MS,
           uiDeadlineMs: deps?.warmupUiDeadlineMs ?? UI_WARMUP_DEADLINE_MS,
@@ -923,8 +988,12 @@ export async function startBackendPhase(
         {
           now,
           sleep,
-          isChildExited: () => settled,
-          getLogTail: () => readFailureTail(paths.webLogFile, sleep),
+          isChildExited: () => childExited || webChildExited || shuttingDown || settled,
+          firstDeadService: () => deadService,
+          getLogTail: () =>
+            deadService === "server"
+              ? readFailureTail(paths.serverLogFile, sleep)
+              : readFailureTail(paths.webLogFile, sleep),
         }
       );
       logLine(
@@ -936,6 +1005,10 @@ export async function startBackendPhase(
       }
     }
   } catch (error: unknown) {
+    // P20: every exit path drops the signal handlers; the teardown below
+    // joins the same serialized pass as any in-flight crash teardown.
+    removeSignal("SIGINT", handleSigint);
+    removeSignal("SIGTERM", handleSigterm);
     await flushOutput();
     await runTeardown(owned);
     if (shuttingDown) {

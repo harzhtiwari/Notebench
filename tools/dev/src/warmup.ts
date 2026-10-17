@@ -1,6 +1,7 @@
 import { POLL_INTERVAL_MS, tailToText, waitForReadiness } from "./readiness.js";
+import type { ReadinessResult } from "./readiness.js";
 import { OrchestratorError } from "./types.js";
-import type { WarmupMode } from "./types.js";
+import type { ServiceName, WarmupMode } from "./types.js";
 
 /**
  * Warm-up readiness levels for the dev orchestrator (ticket 07, spec 5.11).
@@ -58,6 +59,13 @@ export interface VerifyWarmupOptions {
   serverOrigin: string;
   webOrigin: string;
   probeRoute: RouteProbe;
+  /**
+   * Precomputed route-gate observation, e.g. the sidecar listener gate's
+   * result from the composer. When given, the route is not re-probed (P2):
+   * a re-probe would only measure the now-warm cache (~66 ms) while the real
+   * first response took seconds.
+   */
+  routeTiming?: ReadinessResult | undefined;
   probeUi?: UiProbe | undefined;
   deadlineMs: number;
   /** Budget for the ui gate; defaults to deadlineMs (the route/sidecar wait). */
@@ -69,6 +77,12 @@ export interface VerifyWarmupDeps {
   now?: (() => number) | undefined;
   sleep?: ((ms: number) => Promise<void>) | undefined;
   isChildExited?: (() => boolean) | undefined;
+  /**
+   * Names the first supervised service that actually exited, or null while
+   * all are live (P13): the abort message then names that service instead of
+   * always blaming the web sidecar, and the caller's log tail targets it.
+   */
+  firstDeadService?: (() => ServiceName | null) | undefined;
   getLogTail?: (() => Promise<string[]> | string[]) | undefined;
 }
 
@@ -131,21 +145,46 @@ export async function verifyWarmup(
   const sleep = deps?.sleep;
   const intervalMs = options.intervalMs ?? POLL_INTERVAL_MS;
   const isChildExited = deps?.isChildExited ?? (() => false);
+  const firstDeadService = deps?.firstDeadService ?? (() => null);
   const getLogTail = deps?.getLogTail ?? (async () => [] as string[]);
   const sleepOpts = sleep === undefined ? {} : { sleep };
 
   const start = now();
-  const route = await waitForReadiness(
-    {
-      service: "web",
-      deadlineMs: options.deadlineMs,
-      intervalMs,
-      probe: options.probeRoute,
-      isChildExited,
-      getLogTail,
-    },
-    { now, ...sleepOpts }
-  );
+  let route: ReadinessResult;
+  if (options.routeTiming !== undefined) {
+    route = options.routeTiming;
+  } else {
+    try {
+      route = await waitForReadiness(
+        {
+          service: "web",
+          deadlineMs: options.deadlineMs,
+          intervalMs,
+          probe: options.probeRoute,
+          isChildExited,
+          getLogTail,
+        },
+        { now, ...sleepOpts }
+      );
+    } catch (error: unknown) {
+      // The readiness gate names its polling target ("web"); when the server
+      // actually died first, rename the abort and carry its tail instead
+      // (P13). A timeout keeps its own service/exit code untouched.
+      const dead = firstDeadService();
+      if (
+        dead !== null &&
+        dead !== "web" &&
+        error instanceof OrchestratorError &&
+        error.exitCode === 1
+      ) {
+        throw new OrchestratorError(
+          `${dead} exited while waiting for readiness. Log tail:\n${tailToText(await getLogTail())}`,
+          1
+        );
+      }
+      throw error;
+    }
+  }
   const timings: WarmupGateTiming[] = [
     { name: "route-ready", elapsedMs: route.elapsedMs, attempts: route.attempts },
   ];
@@ -193,7 +232,8 @@ export async function verifyWarmup(
       const tail = await getLogTail();
       const tailText = tailToText(tail);
       throw new OrchestratorError(
-        `web exited while waiting for UI warm-up (attempt ${attempts}). Log tail:\n${tailText}`,
+        `${firstDeadService() ?? "web"} exited while waiting for UI warm-up ` +
+          `(attempt ${attempts}). Log tail:\n${tailText}`,
         1
       );
     }

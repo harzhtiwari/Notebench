@@ -181,9 +181,6 @@ export async function runOnce(
   deps?: { backend?: BackendPhaseDeps | undefined } | undefined
 ): Promise<RunTrace> {
   const paths = resolveRunPaths(root, namespace);
-  if (mode === "cold") {
-    await fsRm(paths.buildDir, { recursive: true, force: true });
-  }
   let healthMs = 0;
   let healthAttempts = 0;
   let warmupResult: WarmupResult | null = null;
@@ -195,6 +192,12 @@ export async function runOnce(
     { root, argv: ["--namespace", namespace, "--warmup", warmup], env: process.env },
     {
       ...deps?.backend,
+      // P15: the cold reset is a prep hook run inside the backend phase
+      // (after the exclusive claim), never before it.
+      prep:
+        mode === "cold"
+          ? () => fsRm(paths.buildDir, { recursive: true, force: true })
+          : deps?.backend?.prep,
       startWebPhase: (ctx: ServerReadyContext) =>
         startDefaultWebPhase(ctx, { ...deps?.backend, logLine }, process.env),
       onServerReady: (ctx: ServerReadyContext) => {

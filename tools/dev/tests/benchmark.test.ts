@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   benchmarkFailureExitCode,
   parseBenchmarkArgs,
@@ -7,6 +9,7 @@ import {
   summarizeBenchmarkRuns,
 } from "../src/benchmark.js";
 import type { SpawnFn } from "../src/spawn.js";
+import { resolveRunPaths } from "../src/paths.js";
 import { OrchestratorError } from "../src/types.js";
 import { makeTempRoot, removeTempRoots } from "./temp-dir.js";
 /**
@@ -170,6 +173,51 @@ describe("ticket 08: benchmark run wiring", () => {
       expect(devReady.some((line) => line.startsWith(tag))).toBe(true);
     } finally {
       logSpy.mockRestore();
+      await removeTempRoots(roots);
+    }
+  }, 30_000);
+});
+
+describe("ticket 08: cold reset runs after the namespace claim (P15)", () => {
+  it("passes the cold reset as the backend prep hook instead of rm-ing before startBackendPhase", async () => {
+    const roots: string[] = [];
+    const root = makeTempRoot(roots, "bench-prep-");
+    const paths = resolveRunPaths(root, "prep-bench");
+    mkdirSync(paths.buildDir, { recursive: true });
+    const sentinel = join(paths.buildDir, "sentinel.txt");
+    writeFileSync(sentinel, "live", "utf-8");
+    let dirPresentAtPhaseEntry = false;
+    let dirPresentAfterPrep = true;
+    vi.resetModules();
+    vi.doMock("../src/composer.js", () => ({
+      startBackendPhase: async (
+        options: { root?: string | undefined } | undefined,
+        deps: { prep?: (() => Promise<void> | void) | undefined } | undefined
+      ) => {
+        // The phase is entered first; only then does the prep hook run (the
+        // real phase invokes it after the exclusive namespace claim).
+        const phasePaths = resolveRunPaths(options?.root ?? process.cwd(), "prep-bench");
+        dirPresentAtPhaseEntry = existsSync(join(phasePaths.buildDir, "sentinel.txt"));
+        await deps?.prep?.();
+        dirPresentAfterPrep = existsSync(join(phasePaths.buildDir, "sentinel.txt"));
+        return { shutdown: async () => 0 };
+      },
+      startDefaultWebPhase: async () => {
+        throw new Error("the web phase is not expected in this test");
+      },
+    }));
+    try {
+      const bench = await import("../src/benchmark.js");
+      const trace = await bench.runOnce(root, "prep-bench", "route", "cold", 1);
+      expect(trace.mode).toBe("cold");
+      // The build dir was untouched when the phase began (a busy namespace
+      // still owns it) and the cold reset ran inside the prep hook.
+      expect(dirPresentAtPhaseEntry).toBe(true);
+      expect(dirPresentAfterPrep).toBe(false);
+      expect(existsSync(sentinel)).toBe(false);
+    } finally {
+      vi.doUnmock("../src/composer.js");
+      vi.resetModules();
       await removeTempRoots(roots);
     }
   }, 30_000);

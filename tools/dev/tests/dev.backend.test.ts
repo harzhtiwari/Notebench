@@ -7,7 +7,7 @@ import getPort from "get-port";
 import { parseNamespace } from "../src/args.js";
 import { resolveRunPaths } from "../src/paths.js";
 import { spawnChild } from "../src/spawn.js";
-import type { SpawnFn } from "../src/spawn.js";
+import type { SpawnFn, SpawnedChild } from "../src/spawn.js";
 import { readLogTail } from "../src/logs.js";
 import { defaultPidExists, readIdentity, writeIdentity } from "../src/identity.js";
 import type { RunIdentity } from "../src/identity.js";
@@ -18,7 +18,7 @@ import {
 } from "../src/process-start-time.js";
 import { serverCompiledDeps, ensureServerFreshness } from "../src/freshness.js";
 import { resolveE2EBaseUrl, resolveE2EWebPort } from "../src/e2e-ports.js";
-import { startBackendPhase, runBackendCommand } from "../src/composer.js";
+import { startBackendPhase, runBackendCommand, startDefaultWebPhase } from "../src/composer.js";
 import {
   DEV_RUN_ID_ENV,
   ORCHESTRATOR_HOST,
@@ -28,12 +28,14 @@ import {
   nestedServerPortResidue,
 } from "../src/composer.js";
 import type {
+  BackendPhaseDeps,
   ServerReadyContext,
   ServerReadyTimings,
   ServerSpawnContext,
   ServerSpawnRequest,
 } from "../src/composer.js";
 import { PROCESS_START_TIME_TOLERANCE_MS } from "../src/process-start-time.js";
+import { OrchestratorError } from "../src/types.js";
 import { makeTempRoot as createTempRoot, removeTempRoots, silentLogs } from "./temp-dir.js";
 
 /**
@@ -200,6 +202,394 @@ describe("ticket 08: shutdown returns only after owned children are reaped", () 
   }, 60_000);
 });
 
+// RED (P2 headline bug): the listener gate probes the real first request
+// (the cold compile) and the result was discarded; the later warmup re-probed
+// the now-warm route and reported ~66 ms. The gate result must be captured
+// and flow through warmup to the ready line.
+describe("ticket 03: truthful listener-gate timing (P2)", () => {
+  it("captures the listener gate's attempts/elapsed into the WebStarted record", async () => {
+    const root = makeTempRoot();
+    const { logLine } = silentLogs();
+    const paths = resolveRunPaths(root, "gate-timing-ns");
+    let t = 1_000_000;
+    const now = (): number => t;
+    const sleep = async (ms: number): Promise<void> => {
+      t += ms;
+    };
+    let probes = 0;
+    const serverChild: SpawnedChild = {
+      pid: 999,
+      startTimeMs: 1,
+      service: "server",
+      namespace: "gate-timing-ns",
+      runId: "run-gate",
+      logFile: paths.serverLogFile,
+      executable: process.execPath,
+      argv: ["-e", ""],
+      exited: new Promise<never>(() => undefined),
+    };
+    const started = await startDefaultWebPhase(
+      {
+        root,
+        namespace: "gate-timing-ns",
+        runId: "run-gate",
+        host: ORCHESTRATOR_HOST,
+        serverPort: 41_001,
+        reservedWebPort: 41_002,
+        paths,
+        serverChild,
+        timings: { healthAttempts: 1, healthElapsedMs: 5 },
+        isRunOver: () => false,
+      },
+      {
+        logLine,
+        spawnFn: () => ({ pid: 4242, on: () => undefined }),
+        probeWeb: async () => {
+          probes += 1;
+          return probes >= 3;
+        },
+        now,
+        sleep,
+        pollIntervalMs: 150,
+      },
+      {}
+    );
+    expect(started.routeTiming).toEqual({ attempts: 3, elapsedMs: 300 });
+  }, 30_000);
+
+  it("feeds the listener-gate timing into warmup so the route is never re-probed", async () => {
+    const root = makeTempRoot();
+    const { lines, logLine } = silentLogs();
+    const gateProbes: string[] = [];
+    const warmupProbes: string[] = [];
+    const webDeps: BackendPhaseDeps = {
+      logLine,
+      createWebSpawn: () => ({
+        executable: process.execPath,
+        argv: ["-e", NEVER_LISTENING_SCRIPT],
+      }),
+      probeWeb: (url: string) => {
+        gateProbes.push(url);
+        return Promise.resolve(true);
+      },
+      pollIntervalMs: 25,
+    };
+    const handle = await startBackendPhase(
+      { root, argv: ["--namespace", "truthy-timing-ns"], env: {} },
+      {
+        logLine,
+        runBuild: () => undefined,
+        createServerSpawn: healthySpawn,
+        probeWeb: (url: string) => {
+          warmupProbes.push(url);
+          return Promise.resolve(true);
+        },
+        startWebPhase: (ctx: ServerReadyContext) => startDefaultWebPhase(ctx, webDeps, {}),
+        warmupDeadlineMs: 5000,
+        pollIntervalMs: 25,
+      }
+    );
+    try {
+      // The gate probed the route exactly once; warmup reused that observation
+      // instead of re-probing the now-warm URL.
+      expect(gateProbes).toHaveLength(1);
+      expect(warmupProbes).toEqual([]);
+      const ready = lines.filter((line) => line.includes("level=route"));
+      expect(ready).toHaveLength(1);
+      expect(ready[0]).toContain("routeReadyMs=");
+    } finally {
+      await handle.shutdown();
+    }
+  }, 30_000);
+});
+
+// RED (P13): a server crash during warm-up must abort as soon as the
+// service actually dies and name that service with its tail — not wait for
+// the crash teardown to settle and then blame the web sidecar.
+describe("ticket 03: warm-up abort names the first dead service (P13)", () => {
+  it("reports a mid-warm-up server crash as a server exit with the server tail", async () => {
+    const root = makeTempRoot();
+    const { lines, logLine } = silentLogs();
+    let serverPid = 0;
+    let webChildPid = 0;
+    const startedAt = Date.now();
+    const runPromise = startBackendPhase(
+      { root, argv: ["--namespace", "p13-ns"], env: {} },
+      {
+        logLine,
+        runBuild: () => undefined,
+        createServerSpawn: healthySpawn,
+        onServerReady: (ctx: ServerReadyContext) => {
+          serverPid = ctx.serverChild.pid;
+        },
+        startWebPhase: (ctx: ServerReadyContext) => {
+          const child = spawnChild({
+            executable: process.execPath,
+            argv: ["-e", NEVER_LISTENING_SCRIPT],
+            service: "web",
+            namespace: ctx.namespace,
+            runId: ctx.runId,
+            logFile: join(root, "p13-web-fixture.log"),
+            cwd: root,
+          });
+          webChildPid = child.pid;
+          return Promise.resolve({
+            pid: child.pid,
+            startTimeMs: child.startTimeMs,
+            exited: child.exited,
+            logFile: join(root, "p13-web-fixture.log"),
+            port: ctx.reservedWebPort,
+          });
+        },
+        probeWeb: () => Promise.resolve(false),
+        warmupDeadlineMs: 60_000,
+        pollIntervalMs: 25,
+      }
+    );
+    try {
+      const deadline = Date.now() + 20_000;
+      while (
+        !lines.some((line) => line.includes("[dev] web listening")) &&
+        Date.now() < deadline
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      expect(serverPid).toBeGreaterThan(0);
+      process.kill(serverPid);
+      const failure = await runPromise.then(
+        () => null,
+        (error: unknown) => error
+      );
+      expect(failure).not.toBeNull();
+      expect(failure).toBeInstanceOf(OrchestratorError);
+      expect((failure as OrchestratorError).exitCode).toBe(1);
+      const message = (failure as Error).message;
+      // The abort names the server (not the web sidecar) and carries the
+      // server's log tail; it must not run out the warm-up deadline.
+      expect(message).toContain("server exited while waiting for readiness");
+      expect(message).toContain("fixture listening on");
+      expect(message).not.toContain("web exited");
+      expect(Date.now() - startedAt).toBeLessThan(30_000);
+    } finally {
+      if (webChildPid > 0) {
+        try {
+          process.kill(webChildPid);
+        } catch {
+          // Already reaped by the crash teardown.
+        }
+      }
+      await runPromise.catch(() => null);
+    }
+  }, 60_000);
+});
+
+// RED (P19): the health gate can pass at the instant the server dies.
+// Never print the backend ready line or start the web phase for a backend
+// that already exited.
+describe("ticket 03: post-gate exit re-check (P19)", () => {
+  it("never prints backend ready or starts the web phase for an exited server", async () => {
+    const root = makeTempRoot();
+    const { lines, logLine } = silentLogs();
+    const paths = resolveRunPaths(root, "p19-ns");
+    const exitListeners: Array<(...args: unknown[]) => void> = [];
+    const spawnFn: SpawnFn = () => ({
+      pid: 2_147_483_500,
+      on: (event: string, listener: (...args: unknown[]) => void) => {
+        if (event === "exit") exitListeners.push(listener);
+      },
+    });
+    let webPhaseStarted = false;
+    let hookCalled = false;
+    const code = await runBackendCommand(
+      { root, argv: ["--namespace", "p19-ns"], env: {} },
+      {
+        logLine,
+        runBuild: () => undefined,
+        createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", ""] }),
+        spawnFn,
+        isPidLive: () => false,
+        probeHealth: async () => {
+          // The child exit lands exactly as the gate passes.
+          for (const listener of exitListeners) listener(1, null);
+          return true;
+        },
+        onServerReady: () => {
+          hookCalled = true;
+        },
+        startWebPhase: () => {
+          webPhaseStarted = true;
+          return Promise.resolve({
+            pid: 2_147_483_501,
+            startTimeMs: 1,
+            exited: new Promise<never>(() => undefined),
+            logFile: paths.webLogFile,
+            port: 41_003,
+          });
+        },
+      }
+    );
+    expect(code).toBe(1);
+    expect(webPhaseStarted).toBe(false);
+    expect(hookCalled).toBe(false);
+    expect(lines.some((line) => line.includes("[dev] backend ready"))).toBe(false);
+    expect(lines.join("\n")).toContain("server exited before the backend ready line");
+    expect(existsSync(paths.identityFile)).toBe(false);
+  }, 30_000);
+});
+
+// RED (P20): signal handlers must be removed on every exit path (crash,
+// shutdown, catch) and shutdown must be re-entrancy guarded so concurrent
+// triggers share one teardown.
+describe("round-2 P20: shutdown/signal lifecycle", () => {
+  function lifecycleDeps(
+    handlers: Map<string, () => void>,
+    removed: string[],
+    exitListeners: Array<(...args: unknown[]) => void>
+  ): BackendPhaseDeps {
+    return {
+      runBuild: () => undefined,
+      createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", ""] }),
+      spawnFn: () => ({
+        pid: 2_147_483_500,
+        on: (event: string, listener: (...args: unknown[]) => void) => {
+          if (event === "exit") exitListeners.push(listener);
+        },
+      }),
+      probeHealth: () => Promise.resolve(true),
+      onSignal: (signal: string, handler: () => void) => {
+        handlers.set(signal, handler);
+      },
+      removeSignal: (signal: string) => {
+        removed.push(signal);
+      },
+    };
+  }
+
+  it("removes signal handlers when a crash settles the run", async () => {
+    const root = makeTempRoot();
+    const { logLine } = silentLogs();
+    const handlers = new Map<string, () => void>();
+    const removed: string[] = [];
+    const exitListeners: Array<(...args: unknown[]) => void> = [];
+    const handle = await startBackendPhase(
+      { root, argv: ["--namespace", "p20-crash-ns"], env: {} },
+      {
+        ...lifecycleDeps(handlers, removed, exitListeners),
+        logLine,
+        isPidLive: () => false,
+      }
+    );
+    for (const listener of exitListeners) listener(1, null);
+    await expect(handle.waitForExit()).resolves.toBe(1);
+    expect(removed).toContain("SIGINT");
+    expect(removed).toContain("SIGTERM");
+  }, 30_000);
+
+  it("memoizes shutdown so concurrent triggers run one teardown pass", async () => {
+    const root = makeTempRoot();
+    const { logLine } = silentLogs();
+    const handlers = new Map<string, () => void>();
+    const removed: string[] = [];
+    const exitListeners: Array<(...args: unknown[]) => void> = [];
+    let reaped = false;
+    const handle = await startBackendPhase(
+      { root, argv: ["--namespace", "p20-shutdown-ns"], env: {} },
+      {
+        ...lifecycleDeps(handlers, removed, exitListeners),
+        logLine,
+        // Resolve the fake child's exit during the first liveness check so
+        // shutdown reaps promptly without signaling a fake PID.
+        isPidLive: () => {
+          if (!reaped) {
+            reaped = true;
+            for (const listener of exitListeners) listener(0, null);
+          }
+          return false;
+        },
+      }
+    );
+    const [first, second] = await Promise.all([handle.shutdown(), handle.shutdown()]);
+    expect(first).toBe(0);
+    expect(second).toBe(0);
+    expect(removed.filter((signal) => signal === "SIGINT")).toHaveLength(1);
+    expect(removed.filter((signal) => signal === "SIGTERM")).toHaveLength(1);
+  }, 30_000);
+});
+
+// RED (P15): benchmark's cold reset is a prep hook that must run only after
+// the exclusive namespace claim and before the freshness builds.
+describe("round-2 P15: backend prep hook ordering", () => {
+  it("runs prep after the claim and before the freshness builds", async () => {
+    const root = makeTempRoot();
+    const { logLine } = silentLogs();
+    const paths = resolveRunPaths(root, "prep-order-ns");
+    const order: string[] = [];
+    const exitListeners: Array<(...args: unknown[]) => void> = [];
+    const spawnFn: SpawnFn = () => ({
+      pid: 2_147_483_500,
+      on: (event: string, listener: (...args: unknown[]) => void) => {
+        if (event === "exit") exitListeners.push(listener);
+      },
+    });
+    const handle = await startBackendPhase(
+      { root, argv: ["--namespace", "prep-order-ns"], env: {} },
+      {
+        logLine,
+        prep: () => {
+          // The claim exists by the time prep runs: prep may safely touch
+          // namespace-owned state (the benchmark's cold reset does).
+          expect(existsSync(paths.identityFile)).toBe(true);
+          order.push("prep");
+        },
+        runBuild: () => {
+          order.push("build");
+        },
+        createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", ""] }),
+        spawnFn,
+        probeHealth: () => Promise.resolve(true),
+      }
+    );
+    const shutdownPromise = handle.shutdown();
+    for (const listener of exitListeners) listener(0, null);
+    await shutdownPromise;
+    expect(order[0]).toBe("prep");
+    expect(order).toContain("build");
+  }, 30_000);
+
+  it("never runs prep for a busy namespace", async () => {
+    const root = makeTempRoot();
+    const { logLine } = silentLogs();
+    const paths = resolveRunPaths(root, "prep-busy-ns");
+    const ownStart = Date.now() - process.uptime() * 1000;
+    const live: RunIdentity = {
+      runId: "run-live",
+      namespace: "prep-busy-ns",
+      orchestratorPid: process.pid,
+      orchestratorStartTimeMs: ownStart,
+      children: {},
+      createdAt: new Date().toISOString(),
+    };
+    await writeIdentity(paths.identityFile, live);
+    let prepRan = false;
+    const failure = await startBackendPhase(
+      { root, argv: ["--namespace", "prep-busy-ns"], env: {} },
+      {
+        logLine,
+        prep: () => {
+          prepRan = true;
+        },
+        runBuild: () => undefined,
+        createServerSpawn: () => healthySpawn(),
+      }
+    ).then(
+      () => null,
+      (error: unknown) => error
+    );
+    expect(failure).not.toBeNull();
+    expect(prepRan).toBe(false);
+  }, 30_000);
+});
+
 describe("ticket 03: freshness gates for server-consumed compiled outputs", () => {
   it("inventories exactly the workspace deps the server consumes as compiled output", () => {
     const root = makeTempRoot();
@@ -313,12 +703,49 @@ describe("ticket 03: namespace-aware end-to-end port reader", () => {
     expect(viaAlias).toBe(3222);
   });
 
+  // RED (P26): an invalid namespace must fail loudly at config load instead
+  // of silently reading the `default` namespace's records.
+  it("fails loudly on an invalid namespace env value instead of reading the default", () => {
+    expect(() =>
+      resolveE2EWebPort("/repo", { NOTEBENCH_NAMESPACE: "Bad Name" }, {
+        exists: () => false,
+        readFile: () => "",
+      })
+    ).toThrow(/Bad Name/);
+    expect(() =>
+      resolveE2EWebPort("/repo", { NB_NAMESPACE: "trailing." }, {
+        exists: () => false,
+        readFile: () => "",
+      })
+    ).toThrow(/trailing\./);
+  });
+
+  // RED (P26): flat `web.port` precedes the pre-orchestrator residue, per
+  // spec 7.3 (a stale e2e-web.port must not shadow a live flat file).
+  it("prefers the flat web.port over the pre-orchestrator e2e-web.port residue", () => {
+    const port = resolveE2EWebPort("/repo", {}, {
+      exists: (p: string) =>
+        p === join("/repo", ".tmp", "ports", "e2e-web.port") ||
+        p === join("/repo", ".tmp", "ports", "web.port"),
+      readFile: (p: string) => (p.endsWith("e2e-web.port") ? "3111" : "3222"),
+    });
+    expect(port).toBe(3222);
+  });
+
   it("keeps explicit PLAYWRIGHT base URLs first and builds from the resolved port otherwise", () => {
     const explicit = resolveE2EBaseUrl("/repo", { PLAYWRIGHT_TEST_BASE_URL: "http://example.invalid:9999" }, {
       exists: () => false,
       readFile: () => "",
     });
     expect(explicit).toBe("http://example.invalid:9999");
+    // An explicit URL wins without namespace resolution, so a bad namespace
+    // env value cannot break a run that pins its base URL.
+    const explicitWithBadNamespace = resolveE2EBaseUrl(
+      "/repo",
+      { PLAYWRIGHT_TEST_BASE_URL: "http://example.invalid:9999", NOTEBENCH_NAMESPACE: "Bad Name" },
+      { exists: () => false, readFile: () => "" }
+    );
+    expect(explicitWithBadNamespace).toBe("http://example.invalid:9999");
     const derived = resolveE2EBaseUrl("/repo", {}, {
       exists: (p: string) => p === join("/repo", ".tmp", "ports", "default", "web.port"),
       readFile: () => "3233",

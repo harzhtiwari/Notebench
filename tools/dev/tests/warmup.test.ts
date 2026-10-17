@@ -192,6 +192,66 @@ describe("ticket 07: route readiness level", () => {
     expect(result.totalElapsedMs).toBeGreaterThanOrEqual(300);
   });
 
+  // RED (P2): real runs hand warmup the listener gate's observation, so the
+  // now-warm route is never re-probed and routeReadyMs reports the real
+  // first-response time (21 s cold, not the re-probed ~66 ms).
+  it("uses a precomputed listener-gate timing instead of re-probing the route (P2)", async () => {
+    const { now, sleep } = controllableTime();
+    let routeProbes = 0;
+    const result = await verifyWarmup(
+      {
+        mode: "route",
+        serverOrigin: "http://127.0.0.1:41001",
+        webOrigin: "http://127.0.0.1:41002",
+        probeRoute: () => {
+          routeProbes += 1;
+          return true;
+        },
+        routeTiming: { attempts: 7, elapsedMs: 21_403 },
+        deadlineMs: 35_000,
+        intervalMs: 150,
+      },
+      { now, sleep }
+    );
+    expect(routeProbes).toBe(0);
+    expect(result.level).toBe("route");
+    expect(result.timings).toEqual([
+      { name: "route-ready", elapsedMs: 21_403, attempts: 7 },
+    ]);
+  });
+
+  // RED (P13): a server crash during warm-up must abort naming the server
+  // (with its own log tail), not the web sidecar.
+  it("names the first dead service on the route-gate abort (P13)", async () => {
+    const { now, sleep } = controllableTime();
+    const error = await verifyWarmup(
+      {
+        mode: "route",
+        serverOrigin: "http://127.0.0.1:41001",
+        webOrigin: "http://127.0.0.1:41002",
+        probeRoute: () => false,
+        deadlineMs: 35_000,
+        intervalMs: 150,
+      },
+      {
+        now,
+        sleep,
+        isChildExited: () => true,
+        firstDeadService: () => "server",
+        getLogTail: () => ["server-fatal-boot-error"],
+      }
+    ).then(
+      () => null,
+      (e: unknown) => e
+    );
+    expect(error).toBeInstanceOf(OrchestratorError);
+    expect((error as OrchestratorError).exitCode).toBe(1);
+    const message = (error as Error).message;
+    expect(message).toContain("server exited while waiting for readiness");
+    expect(message).toContain("server-fatal-boot-error");
+    expect(message).not.toContain("web exited");
+  });
+
   it("route gate timeout fails with the sidecar-preparation exit code", async () => {
     const { now, sleep } = controllableTime();
     const error = await verifyWarmup(
@@ -381,6 +441,44 @@ describe("ticket 07: ui readiness level", () => {
     expect(message).toContain("ready in 1200ms");
   });
 
+  // RED (P13): the ui gate abort must name the service that actually died.
+  it("names the first dead service on the UI-gate abort (P13)", async () => {
+    const { now, sleep } = controllableTime();
+    // The route gate passes while both services are alive; the server dies
+    // right after it, so the ui loop is the gate that observes the death.
+    let dead: "server" | null = null;
+    const error = await verifyWarmup(
+      {
+        mode: "ui",
+        serverOrigin: "http://127.0.0.1:41001",
+        webOrigin: "http://127.0.0.1:41002",
+        probeRoute: () => {
+          dead = "server";
+          return true;
+        },
+        probeUi: async () => ({ mounted: false, screenControl: null }),
+        deadlineMs: 35_000,
+        intervalMs: 150,
+      },
+      {
+        now,
+        sleep,
+        isChildExited: () => dead !== null,
+        firstDeadService: () => dead,
+        getLogTail: () => ["server-fatal-boot-error"],
+      }
+    ).then(
+      () => null,
+      (e: unknown) => e
+    );
+    expect(error).toBeInstanceOf(OrchestratorError);
+    expect((error as OrchestratorError).exitCode).toBe(1);
+    const message = (error as Error).message;
+    expect(message).toContain("server exited while waiting for UI warm-up");
+    expect(message).toContain("server-fatal-boot-error");
+    expect(message).not.toContain("web exited");
+  });
+
   it("ui mode without a browser probe fails fast instead of hanging", async () => {
     const { now, sleep } = controllableTime();
     const error = await verifyWarmup(
@@ -419,6 +517,21 @@ describe("ticket 07: ready line states what was verified", () => {
     expect(line).toContain("webOrigin=http://127.0.0.1:41002");
     expect(line).toContain("routeReadyMs=812");
     expect(line).not.toContain("uiReadyMs");
+  });
+
+  it("reports the real first-response time as routeReadyMs (P2)", () => {
+    const line = formatReadyLine({
+      namespace: "default",
+      serverOrigin: "http://127.0.0.1:41001",
+      webOrigin: "http://127.0.0.1:41002",
+      result: {
+        level: "route",
+        timings: [{ name: "route-ready", elapsedMs: 21_403, attempts: 7 }],
+        totalElapsedMs: 21_403,
+      },
+    });
+    expect(line).toContain("routeReadyMs=21403");
+    expect(line).not.toContain("routeReadyMs=66");
   });
 
   it("ui-level line carries both gate timings without conflating them", () => {

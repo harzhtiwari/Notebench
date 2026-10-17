@@ -7,10 +7,13 @@ import { defaultReadFileSync } from "./defaults.js";
  * Namespace-aware end-to-end port reader (ticket 03, spec 7.3).
  *
  * Resolution order: namespaced `ports/<ns>/web.port`, then the legacy flat
- * paths (`.tmp/ports/e2e-web.port`, `.tmp/ports/web.port`), then `PORT` env,
- * then the `3100` default. Explicit Playwright base URLs always win at the
- * base-URL level. Unreadable or malformed port files fall through to the
- * next source instead of throwing, so a half-written run never breaks E2E.
+ * `ports/web.port`, then the pre-orchestrator `ports/e2e-web.port` residue,
+ * then `PORT` env, then the `3100` default. An invalid namespace env value
+ * throws (this module is loaded at playwright.config.ts load time, so the
+ * run fails as a config error instead of silently reading `default`).
+ * Explicit Playwright base URLs always win at the base-URL level. Unreadable
+ * or malformed port files fall through to the next source instead of
+ * throwing, so a half-written run never breaks E2E.
  */
 
 export interface E2EPortReaderDeps {
@@ -47,12 +50,9 @@ function readPortFile(
 }
 
 function resolveNamespace(env: Record<string, string | undefined>): string {
-  const raw = env["NOTEBENCH_NAMESPACE"] ?? env["NB_NAMESPACE"] ?? "default";
-  try {
-    return parseNamespace(raw);
-  } catch {
-    return "default";
-  }
+  // P26: an invalid namespace is a hard failure (config-load time), never a
+  // silent fallback to `default`.
+  return parseNamespace(env["NOTEBENCH_NAMESPACE"] ?? env["NB_NAMESPACE"] ?? "default");
 }
 
 function parseEnvPort(value: string | undefined): number | undefined {
@@ -62,7 +62,9 @@ function parseEnvPort(value: string | undefined): number | undefined {
 
 /**
  * Resolve the live web port for E2E: namespaced record first, legacy flat
- * records second, `PORT` env third, `3100` default last.
+ * `web.port` next (before the `e2e-web.port` residue, per spec 7.3), `PORT`
+ * env after that, `3100` default last. An invalid namespace env value throws
+ * instead of silently reading `default`.
  */
 export function resolveE2EWebPort(
   root: string,
@@ -74,10 +76,10 @@ export function resolveE2EWebPort(
   const namespace = resolveNamespace(env);
   const namespaced = readPortFile(join(root, ".tmp", "ports", namespace, "web.port"), exists, readFile);
   if (namespaced !== undefined) return namespaced;
-  const legacyE2E = readPortFile(join(root, ".tmp", "ports", "e2e-web.port"), exists, readFile);
-  if (legacyE2E !== undefined) return legacyE2E;
   const legacyFlat = readPortFile(join(root, ".tmp", "ports", "web.port"), exists, readFile);
   if (legacyFlat !== undefined) return legacyFlat;
+  const legacyE2E = readPortFile(join(root, ".tmp", "ports", "e2e-web.port"), exists, readFile);
+  if (legacyE2E !== undefined) return legacyE2E;
   return parseEnvPort(env["PORT"]) ?? 3100;
 }
 
