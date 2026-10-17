@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "../primitives/dialog.js";
 import { Button } from "../primitives/button.js";
-import { AlertBanner } from "../primitives/alert-banner.js";
+import { AlertBanner } from "../primitives/banners.js";
 import { FileText } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 import type { StudioToolItem } from "./tool-tile.js";

@@ -1,7 +1,8 @@
 import * as React from "react";
+
+import { Banner } from "../primitives/banners.js";
 import { Button } from "../primitives/button.js";
-import { Download, Warning, CheckCircle } from "../primitives/icons.js";
-import { cn } from "../../lib/utils.js";
+import { Download } from "../primitives/icons.js";
 
 export interface GateNoticeProps {
   /** Whether the export has completed in this session. When false, deletion is locked. */
@@ -29,6 +30,7 @@ export interface GateNoticeProps {
 /**
  * GateNotice (Issue 22 / Ticket 23): Export-first gating banner (PRD K9, Decision 7.7).
  * Locks destructive actions until a backup has been exported or acknowledged.
+ * Composed on the unified Banner primitive.
  * Invariant: Never color-alone — pairs status colors with explicit icons and descriptive text.
  * Invariant: Elevation shadow invariant — zero float shadows on in-page banners.
  */
@@ -46,106 +48,70 @@ export function GateNotice({
 }: GateNoticeProps): React.JSX.Element {
   if (exported) {
     return (
-      <div
-        role="status"
-        aria-live="polite"
-        className={cn(
-          "banner banner--ok flex flex-col gap-[var(--nb-space-3)] rounded-[var(--nb-radius-card)] border border-[var(--nb-ok)] bg-[var(--nb-ok-wash)] p-[var(--nb-space-4)] text-[var(--nb-ink)]",
-          className
-        )}
+      <Banner
+        tone="ok"
+        title={title ?? "Export completed"}
+        message={
+          description ??
+          "Workspace backup is complete. Deletion controls are unlocked."
+        }
+        className={className}
       >
-        <div className="flex items-start justify-between gap-[var(--nb-space-3)]">
-          <div className="flex items-start gap-[var(--nb-space-3)]">
-            <CheckCircle
-              size={20}
-              className="mt-[var(--nb-space-0-5)] shrink-0 text-[var(--nb-ok)]"
-              aria-hidden="true"
-            />
-            <div className="space-y-[var(--nb-space-1)]">
-              <h4 className="font-semibold text-[var(--nb-text-sm)]">
-                {title ?? "Export completed"}
-              </h4>
-              <p className="text-[var(--nb-ink-2)] text-[var(--nb-text-xs)]">
-                {description ??
-                  "Workspace backup is complete. Deletion controls are unlocked."}
-              </p>
-            </div>
-          </div>
-          {onExport && (
+        {onExport ? (
+          <div className="flex flex-wrap items-center gap-[var(--nb-space-2)]">
             <Button
               type="button"
-              variant="outline"
-              size="sm"
+              variant="nb_btn_secondary"
+              size="nb_btn_sm"
               onClick={onExport}
               disabled={isExporting}
-              className="shrink-0 gap-[var(--nb-space-2)]"
+              leadingIcon={Download}
             >
-              <Download size={16} aria-hidden="true" />
               {isExporting ? "Exporting..." : "Re-export Backup"}
             </Button>
-          )}
-        </div>
+          </div>
+        ) : null}
         {children}
-      </div>
+      </Banner>
     );
   }
 
   return (
-    <div
-      role="alert"
-      className={cn(
-        "banner banner--warn flex flex-col gap-[var(--nb-space-3)] rounded-[var(--nb-radius-card)] border border-[var(--nb-warn)] bg-[var(--nb-warn-wash)] p-[var(--nb-space-4)] text-[var(--nb-ink)]",
-        className
-      )}
+    <Banner
+      tone="warn"
+      title={title ?? "Export required before deletion"}
+      message={
+        description ??
+        "All destructive deletion actions are locked until a full workspace export has completed in this session."
+      }
+      className={className}
     >
-      <div className="flex flex-col justify-between gap-[var(--nb-space-3)] sm:flex-row sm:items-center">
-        <div className="flex items-start gap-[var(--nb-space-3)]">
-          <Warning
-            size={20}
-            className="mt-[var(--nb-space-0-5)] shrink-0 text-[var(--nb-warn)]"
-            aria-hidden="true"
-          />
-          <div className="space-y-[var(--nb-space-1)]">
-            <h4 className="font-semibold text-[var(--nb-text-sm)]">
-              {title ?? "Export required before deletion"}
-            </h4>
-            <p className="text-[var(--nb-ink-2)] text-[var(--nb-text-xs)]">
-              {description ??
-                "All destructive deletion actions are locked until a full workspace export has completed in this session."}
-            </p>
-          </div>
-        </div>
-        {onExport && (
+      {onExport ? (
+        <div className="flex flex-wrap items-center gap-[var(--nb-space-2)]">
           <Button
             type="button"
-            variant="secondary"
+            variant="nb_btn_secondary"
+            size="nb_btn_sm"
             onClick={onExport}
             disabled={isExporting}
-            className="shrink-0 gap-[var(--nb-space-2)]"
+            leadingIcon={Download}
           >
-            <Download size={16} aria-hidden="true" />
             {isExporting ? "Exporting..." : exportButtonLabel}
           </Button>
-        )}
-      </div>
-
-      {onAcknowledgeChange && (
-        <div className="pt-[var(--nb-space-1)]">
-          <label className="flex cursor-pointer items-center gap-[var(--nb-space-2)] text-[var(--nb-ink-2)] text-[var(--nb-text-xs)]">
-            <input
-              type="checkbox"
-              checked={acknowledged}
-              onChange={(e) => onAcknowledgeChange(e.target.checked)}
-              className="rounded-[var(--nb-radius-xs)] border-[var(--nb-hairline)]"
-            />
-            <span>
-              I have already backed up this data or do not require an export
-            </span>
-          </label>
         </div>
-      )}
-
+      ) : null}
+      {onAcknowledgeChange ? (
+        <label className="flex cursor-pointer items-center gap-[var(--nb-space-2)] text-[length:var(--nb-text-xs)] text-[var(--nb-ink-2)]">
+          <input
+            type="checkbox"
+            checked={acknowledged}
+            onChange={(event) => onAcknowledgeChange(event.target.checked)}
+            className="rounded-[var(--nb-radius-xs)] border-[length:var(--nb-border-1)] border-[var(--nb-hairline)]"
+          />
+          <span>I have already backed up this data or do not require an export</span>
+        </label>
+      ) : null}
       {children}
-    </div>
+    </Banner>
   );
 }
