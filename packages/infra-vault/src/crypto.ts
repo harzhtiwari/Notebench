@@ -71,9 +71,11 @@ export function encryptSecret(
   masterKey: Buffer,
   aad: AadPayload
 ): VaultEnvelope {
-  const subkey = deriveSubkey(masterKey);
   const iv = crypto.randomBytes(VAULT_CONSTANTS.IV_BYTE_LENGTH);
+  // AAD validation runs before the subkey exists so a serializeAad throw cannot
+  // skip the subkey zeroing in the finally block below.
   const serializedAad = serializeAad(aad);
+  const subkey = deriveSubkey(masterKey);
 
   const plaintextBuf = Buffer.isBuffer(secret) ? secret : Buffer.from(secret, "utf8");
 
@@ -101,6 +103,10 @@ export function encryptSecret(
     };
   } finally {
     subkey.fill(0);
+    if (plaintextBuf !== secret) {
+      // Zero our own string→Buffer copy; caller-owned buffers are not ours to wipe.
+      plaintextBuf.fill(0);
+    }
   }
 }
 
@@ -154,19 +160,19 @@ export function decryptSecret(
     intermediateChunks.push(decipher.final());
 
     const fullPlaintext = Buffer.concat(intermediateChunks);
-    return new VaultSecret(fullPlaintext);
-  } catch (err: unknown) {
-    // Zero all intermediate plaintext buffers immediately upon verification failure
-    for (const chunk of intermediateChunks) {
-      chunk.fill(0);
+    try {
+      return new VaultSecret(fullPlaintext);
+    } finally {
+      // VaultSecret owns its own copy; wipe the concat buffer immediately.
+      fullPlaintext.fill(0);
     }
-
+  } catch (err: unknown) {
     if (err instanceof VaultError) {
       throw err;
     }
 
     throw new VaultError(
-      "Ciphertext integrity verification failed (tampered ciphertext, invalid tag, or incorrect key)",
+      "Ciphertext integrity verification failed (tampered ciphertext, wrong AAD context, invalid tag, or incorrect key)",
       "TAMPERED_CIPHERTEXT",
       {
         provider: envelope.provider,
@@ -175,6 +181,10 @@ export function decryptSecret(
       }
     );
   } finally {
+    // Zero every intermediate plaintext buffer on both success and failure paths.
+    for (const chunk of intermediateChunks) {
+      chunk.fill(0);
+    }
     subkey.fill(0);
   }
 }

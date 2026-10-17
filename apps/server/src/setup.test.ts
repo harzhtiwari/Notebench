@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, rmSync, mkdirSync, readFileSync } from "node:fs";
+import { Writable } from "node:stream";
 import { resolve, join } from "node:path";
 import type { FastifyInstance } from "fastify";
 import { createLogger } from "@notebook/logger";
 import { createSqliteDatabase, SqliteAccountRepository } from "@notebook/infra-db";
+import { SetupAlreadyCompletedError, type PasscodeHasher } from "@notebook/contracts";
 import {
   OwnerSetupService,
   Argon2PasscodeHasher,
@@ -34,10 +36,36 @@ async function removeDirWithRetry(dir: string): Promise<void> {
   }
 }
 
+/**
+ * Test-only hasher that holds every racing setup call at the hashing step
+ * until two calls have arrived. This forces both calls to pass the
+ * findOwner() pre-check before either reaches createOwner(), making the
+ * single-owner race deterministic (Ticket 01 review D1).
+ */
+class BarrierGatePasscodeHasher implements PasscodeHasher {
+  private arrivals = 0;
+  private releaseGate: (() => void) | undefined;
+  private readonly gate = new Promise<void>((resolveGate) => {
+    this.releaseGate = resolveGate;
+  });
+
+  async hash(passcode: string): Promise<string> {
+    this.arrivals += 1;
+    if (this.arrivals >= 2) {
+      this.releaseGate?.();
+    }
+    await this.gate;
+    return `barrier-test-hash:${passcode}`;
+  }
+
+  async verify(_phcHash: string, _passcode: string): Promise<boolean> {
+    return false;
+  }
+}
+
 describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
   let app: FastifyInstance;
   let testDbPath: string;
-  let capturedLogs: string[];
 
   beforeEach(async () => {
     if (existsSync(TEST_DIR)) {
@@ -46,7 +74,6 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
     mkdirSync(TEST_DIR, { recursive: true });
 
     testDbPath = join(TEST_DIR, `setup-test-${Date.now()}.sqlite`);
-    capturedLogs = [];
   }, 120_000);
 
   afterEach(async () => {
@@ -124,6 +151,49 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
     sqliteInstance.close();
   });
 
+  it("concurrent setup calls create exactly one owner and reject the loser (TOCTOU regression, D1)", async () => {
+    const sqliteInstance = createSqliteDatabase({ dbPath: testDbPath });
+
+    try {
+      const repo = new SqliteAccountRepository(sqliteInstance.db, sqliteInstance.sqlite);
+      const ownerSetupService = new OwnerSetupService({
+        repository: repo,
+        hasher: new BarrierGatePasscodeHasher(),
+      });
+
+      const results = await Promise.allSettled([
+        ownerSetupService.setupOwner({
+          displayName: "Concurrent First",
+          passcode: "first-valid-race-passphrase-here",
+        }),
+        ownerSetupService.setupOwner({
+          displayName: "Concurrent Second",
+          passcode: "second-valid-race-passphrase-here",
+        }),
+      ]);
+
+      const fulfilled = results.filter((result) => result.status === "fulfilled");
+      const rejected = results.filter((result) => result.status === "rejected");
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+
+      const loser = rejected[0];
+      if (loser === undefined || loser.status !== "rejected") {
+        throw new Error("expected exactly one rejected concurrent setup call");
+      }
+      expect(loser.reason).toBeInstanceOf(SetupAlreadyCompletedError);
+      expect(loser.reason).toHaveProperty("code", "SETUP_ALREADY_COMPLETED");
+      expect(loser.reason).toHaveProperty("statusCode", 409);
+
+      const ownerRows = sqliteInstance.sqlite
+        .prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'owner'")
+        .get() as { count: number };
+      expect(ownerRows.count).toBe(1);
+    } finally {
+      sqliteInstance.close();
+    }
+  });
+
   it("stored value is a valid PHC string that verifies the correct passcode and rejects wrong one", async () => {
     const sqliteInstance = createSqliteDatabase({ dbPath: testDbPath });
     const repo = new SqliteAccountRepository(sqliteInstance.db, sqliteInstance.sqlite);
@@ -167,13 +237,23 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
     sqliteInstance.close();
   });
 
-  it("enforces scan invariant: plaintext passcode is ABSENT from database file and log output", async () => {
+  it("enforces scan invariant: plaintext passcode is ABSENT from database file and captured log output", async () => {
     const canaryPlaintext = "SUPER-SECRET-CANARY-PASSCODE-SCAN-999888";
 
-    // Setup custom logger capturing output
+    // Real capture: the application logger and Fastify request logging both
+    // write into this stream, so the scan below has live log output to scan.
+    const capturedLines: string[] = [];
+    const captureStream = new Writable({
+      write(chunk, _encoding, callback) {
+        capturedLines.push(chunk.toString());
+        callback();
+      },
+    });
+
     const customLogger = createLogger({
       name: "test-scan-logger",
       level: "debug",
+      destination: captureStream,
     });
 
     const sqliteInstance = createSqliteDatabase({ dbPath: testDbPath });
@@ -184,7 +264,7 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
     app = await buildServer({
       ownerSetupService,
       customLogger,
-      logger: false,
+      logger: { level: "debug", stream: captureStream },
     });
     await app.ready();
 
@@ -215,10 +295,12 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
       expect(walContent.includes(canaryPlaintext)).toBe(false);
     }
 
-    // 2. Scan log lines for plaintext leakage
-    for (const logLine of capturedLogs) {
-      expect(logLine.includes(canaryPlaintext)).toBe(false);
-    }
+    // 2. Scan captured log lines for plaintext leakage. The non-empty
+    //    assertion proves the capture pipeline is live; otherwise this scan
+    //    would be vacuous (Ticket 01 review D2).
+    expect(capturedLines.length).toBeGreaterThan(0);
+    const capturedOutput = capturedLines.join("\n");
+    expect(capturedOutput.includes(canaryPlaintext)).toBe(false);
   });
 
   it("with no passcode configured, the app-state endpoint reports 'no sign-in required'", async () => {

@@ -174,4 +174,72 @@ describe("RFC 8785 (JCS) SHA-256 Cryptographic Sibling Invariance (Decision 4.2,
       expect(card1.front).toBe("F2");
     }
   });
+
+  it("enforces expectedPreHash: rejects a stale target digest, accepts a matching one", () => {
+    const currentDoc: DocumentContent = {
+      schemaVersion: 1,
+      blocks: [
+        { id: VALID_UUID_1, kind: "heading", level: 1, text: "Heading 1" },
+        { id: VALID_UUID_2, kind: "paragraph", text: "Paragraph original", citations: [] },
+      ],
+    };
+    const target = currentDoc.blocks[1];
+    if (!target) throw new Error("fixture missing target block");
+
+    const replacement = {
+      id: VALID_UUID_2,
+      kind: "paragraph",
+      text: "Paragraph updated",
+      citations: [],
+    };
+
+    expect(() =>
+      applySurgicalPatch(currentDoc, {
+        targetId: VALID_UUID_2,
+        replacement,
+        expectedPreHash: "0".repeat(64),
+      })
+    ).toThrowError(InvarianceViolationError);
+
+    const patched = applySurgicalPatch(currentDoc, {
+      targetId: VALID_UUID_2,
+      replacement,
+      expectedPreHash: computeNodeDigest(target),
+    });
+    expect(patched.blocks[1]).toMatchObject({ text: "Paragraph updated" });
+  });
+
+  it("enforces expectedSiblingHashes: rejects a stale sibling digest, accepts matching ones", () => {
+    const currentDoc: DocumentContent = {
+      schemaVersion: 1,
+      blocks: [
+        { id: VALID_UUID_1, kind: "heading", level: 1, text: "Heading 1" },
+        { id: VALID_UUID_2, kind: "paragraph", text: "Paragraph original", citations: [] },
+      ],
+    };
+    const sibling = currentDoc.blocks[0];
+    if (!sibling) throw new Error("fixture missing sibling block");
+
+    const replacement = {
+      id: VALID_UUID_2,
+      kind: "paragraph",
+      text: "Paragraph updated",
+      citations: [],
+    };
+
+    expect(() =>
+      applySurgicalPatch(currentDoc, {
+        targetId: VALID_UUID_2,
+        replacement,
+        expectedSiblingHashes: { [VALID_UUID_1]: "f".repeat(64) },
+      })
+    ).toThrowError(InvarianceViolationError);
+
+    const patched = applySurgicalPatch(currentDoc, {
+      targetId: VALID_UUID_2,
+      replacement,
+      expectedSiblingHashes: { [VALID_UUID_1]: computeNodeDigest(sibling) },
+    });
+    expect(patched.blocks[1]).toMatchObject({ text: "Paragraph updated" });
+  });
 });

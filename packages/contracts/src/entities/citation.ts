@@ -11,7 +11,7 @@ export type CitationLocator = z.infer<typeof CitationLocatorSchema>;
 
 export const CitationRefSchema = z.object({
   sourceId: z.string().uuid(),
-  chunkId: z.string().uuid().optional(),
+  chunkId: z.string().uuid(),
   snippet: z.string().optional(),
   locator: CitationLocatorSchema.default({}),
 });

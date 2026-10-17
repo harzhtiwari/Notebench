@@ -43,19 +43,6 @@ export function getContentItems(
 }
 
 /**
- * Computes a map of id -> SHA-256 JCS digests for a list of identifiable nodes.
- */
-export function computeSiblingDigests(
-  items: Array<{ id: string }>
-): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const item of items) {
-    map.set(item.id, computeNodeDigest(item));
-  }
-  return map;
-}
-
-/**
  * Asserts bit-for-bit sibling invariance between pre-patch and post-patch content trees (Decision 4.2, 4.6).
  * Untouched sibling nodes must remain bit-for-bit identical via RFC 8785 SHA-256 digests.
  *

@@ -1,6 +1,6 @@
 import "dotenv/config";
-import { writeFileSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { writeFileSync, unlinkSync, readFileSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
 import { execSync } from "node:child_process";
 import getPort, { portNumbers } from "get-port";
 
@@ -160,13 +160,47 @@ try {
 }
 
 // 7. Dynamic Port Pre-Flight Check (127.0.0.1)
+// Port resolution mirrors the daemon (Decision 8.7/6.9): explicit env first,
+// then the runtime port file the server writes (flat `.tmp/ports/server.port`,
+// or the `NOTEBENCH_SERVER_PORT_FILE` / `NB_SERVER_PORT_FILE` override the
+// orchestrator passes), then one explicit default. No ad-hoc hardcoded
+// fallback beyond that single default.
+const DEFAULT_WEB_PORT = 3000;
+const DEFAULT_SERVER_PORT = 3001;
+
+function parsePortValue(raw: string | undefined): number | undefined {
+  if (raw === undefined || raw.trim() === "") return undefined;
+  const port = Number(raw);
+  return Number.isInteger(port) && port >= 1 && port <= 65535 ? port : undefined;
+}
+
+function readPortFile(filePath: string): number | undefined {
+  try {
+    return parsePortValue(readFileSync(filePath, "utf-8"));
+  } catch {
+    return undefined;
+  }
+}
+
+function resolveServerPortFile(): string {
+  const override = process.env["NOTEBENCH_SERVER_PORT_FILE"] ?? process.env["NB_SERVER_PORT_FILE"];
+  if (override !== undefined && override !== "" && isAbsolute(override)) {
+    return override;
+  }
+  return join(root, ".tmp", "ports", "server.port");
+}
+
 async function checkPorts() {
-  const targetWeb = process.env["WEB_PORT"]
-    ? Number(process.env["WEB_PORT"])
-    : (process.env["PORT"] ? Number(process.env["PORT"]) : 3000);
-  const targetServer = process.env["SERVER_PORT"]
-    ? Number(process.env["SERVER_PORT"])
-    : 3001;
+  const targetWeb =
+    parsePortValue(process.env["WEB_PORT"]) ??
+    parsePortValue(process.env["PORT"]) ??
+    readPortFile(join(root, ".tmp", "ports", "web.port")) ??
+    DEFAULT_WEB_PORT;
+  const targetServer =
+    parsePortValue(process.env["SERVER_PORT"]) ??
+    parsePortValue(process.env["PORT"]) ??
+    readPortFile(resolveServerPortFile()) ??
+    DEFAULT_SERVER_PORT;
 
   const freeWeb = await getPort({
     port: portNumbers(targetWeb, targetWeb + 100),

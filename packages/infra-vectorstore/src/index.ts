@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import * as sqliteVec from "sqlite-vec";
+export * from "./pgvector.js";
 import type {
   VectorRecord,
   VectorSearchResult,

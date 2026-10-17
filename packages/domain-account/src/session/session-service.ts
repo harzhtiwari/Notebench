@@ -155,8 +155,9 @@ export class SessionService {
   }
 
   /**
-   * Changes the owner passcode and revokes every other session in the same
-   * flow while the current session stays active (NOTEBENCH 6.6, PRD A4).
+   * Changes the owner passcode and revokes every other session inside one
+   * transaction while the current session stays active (NOTEBENCH 6.6,
+   * PRD A4).
    */
   async changePasscode(input: {
     currentSessionId: string;
@@ -185,17 +186,17 @@ export class SessionService {
 
     const validated = validatePasscode(input.newPasscode);
     const newHash = await this.hasher.hash(validated);
-    const updated = await this.accountRepository.updatePasscodeHash(owner.id, newHash);
-    if (!updated) {
+    const outcome = await this.accountRepository.updatePasscodeAndRevokeOtherSessions(
+      owner.id,
+      newHash,
+      input.currentSessionId
+    );
+    if (!outcome) {
       throw new ValidationError("Owner account no longer exists.", {
         reason: "owner_missing",
       });
     }
-    const revokedSessions = await this.sessionRepository.deleteOtherSessions(
-      owner.id,
-      input.currentSessionId
-    );
-    return { revokedSessions };
+    return { revokedSessions: outcome.revokedSessions };
   }
 
   private assertNotLocked(nowMs: number): void {

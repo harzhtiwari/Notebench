@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import { and, eq, ne } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { randomUUID } from "node:crypto";
 import type {
@@ -106,14 +106,6 @@ export class SqliteSessionRepository implements SessionRepositoryPort {
 
   async deleteSession(id: string): Promise<void> {
     this.db.delete(sessions).where(eq(sessions.id, id)).run();
-  }
-
-  async deleteOtherSessions(userId: string, currentSessionId: string): Promise<number> {
-    const result = this.db
-      .delete(sessions)
-      .where(and(eq(sessions.userId, userId), ne(sessions.id, currentSessionId)))
-      .run();
-    return Number(result.changes);
   }
 
   async deleteAllSessions(userId: string): Promise<number> {

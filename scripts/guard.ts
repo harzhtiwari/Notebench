@@ -627,19 +627,46 @@ if (docsUiSeen) {
 // in a component is a bug"). Zero-dependency scan: stripComments, then match
 // #rgb/#rrggbb/#rrggbbaa inside string/template literal bodies with the shared
 // lineOf mapping. stripStrings is deliberately NOT applied first — it blanks
-// the very literals under test. No ts-morph / TS compiler API (TS 7 ships no
-// stable JS API; see file header + research 02-storage-health-release §29).
+// the very literals under test. CSS files are scanned directly because their
+// hex colours sit bare in declarations (`color: #fff`), not inside quotes.
+// The allow-list is derived from check 28's generated token pairs: the CSS
+// outputs verified byte-identical to their docs/ui sources are exempt.
+// No ts-morph / TS compiler API (TS 7 ships no stable JS API; see file header
+// + research 02-storage-health-release §29).
+//
+// False-positive trade-off (ticket 29 review F2): the regex is intentionally
+// literal-shaped and context-unaware, so hex-shaped text such as "#123" issue
+// refs, href="#feed" anchors, or CSS id selectors (#abc) can flag. Triage on
+// sight; no context-aware parsing by design.
+const generatedTokenCss = tokenPairs
+  .filter(([, dstRel]) => dstRel.endsWith(".css"))
+  .map(([, dstRel]) => join(ROOT, dstRel));
 const hexColourConfig = [
-  { dir: join(ROOT, "apps", "web"), allowHexIn: [] as string[] },
-  { dir: join(ROOT, "packages", "ui"), allowHexIn: [join(ROOT, "packages", "ui", "tokens.css")] },
+  { dir: join(ROOT, "apps", "web"), allowHexIn: generatedTokenCss },
+  { dir: join(ROOT, "packages", "ui"), allowHexIn: generatedTokenCss },
 ];
 const hexLiteralRe = /#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b/g;
 const stringLiteralRe = /'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`/g;
 for (const { dir, allowHexIn } of hexColourConfig) {
   const hexAllowed = new Set(allowHexIn);
-  for (const file of getAllFiles(dir)) {
+  for (const file of getAllFiles(dir, [".ts", ".tsx", ".css"])) {
     if (hexAllowed.has(file)) continue;
     const codeNoComments = stripComments(readFileSync(file, "utf-8"));
+    if (file.endsWith(".css")) {
+      // Stylesheets: match the stripped text directly; the string-literal
+      // pass below never sees unquoted declaration values.
+      hexLiteralRe.lastIndex = 0;
+      let hx: RegExpExecArray | null;
+      while ((hx = hexLiteralRe.exec(codeNoComments)) !== null) {
+        addViolation(
+          36,
+          "Design Token Discipline",
+          file,
+          `Hex colour literal '${hx[0]}' at line ${lineOf(codeNoComments, hx.index)}. Use a var(--nb-*) token; hex is allowed only in the generated token CSS files (check 28).`
+        );
+      }
+      continue;
+    }
     stringLiteralRe.lastIndex = 0;
     let lit: RegExpExecArray | null;
     while ((lit = stringLiteralRe.exec(codeNoComments)) !== null) {
@@ -650,7 +677,7 @@ for (const { dir, allowHexIn } of hexColourConfig) {
           36,
           "Design Token Discipline",
           file,
-          `Hex colour literal '${hx[0]}' at line ${lineOf(codeNoComments, lit.index + hx.index)}. Use a var(--nb-*) token; hex is allowed only in packages/ui/tokens.css.`
+          `Hex colour literal '${hx[0]}' at line ${lineOf(codeNoComments, lit.index + hx.index)}. Use a var(--nb-*) token; hex is allowed only in the generated token CSS files (check 28).`
         );
       }
     }

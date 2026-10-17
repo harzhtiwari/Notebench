@@ -71,7 +71,7 @@ export function initializeSqliteSchema(sqlite: Database.Database): void {
       created_by TEXT NOT NULL,
       model TEXT,
       instruction TEXT,
-      parent_version_id TEXT,
+      parent_version_id TEXT REFERENCES artifact_versions(id),
       content TEXT NOT NULL,
       content_digest TEXT,
       created_at TEXT NOT NULL
@@ -307,6 +307,35 @@ export class SqliteNotebookRepository implements NotebookRepositoryPort {
     return summaries;
   }
 
+  /**
+   * Single INSERT path for `sources` rows. duplicate() copies sources through
+   * this method (instead of open-coded SQL) so copied rows stay in lockstep
+   * with the table definition.
+   */
+  private async insertSourceRow(
+    row: typeof sqliteSchema.sources.$inferInsert
+  ): Promise<void> {
+    await this.db.insert(sqliteSchema.sources).values(row);
+  }
+
+  /**
+   * Single INSERT path for `artifacts` rows, used by duplicate().
+   */
+  private async insertArtifactRow(
+    row: typeof sqliteSchema.artifacts.$inferInsert
+  ): Promise<void> {
+    await this.db.insert(sqliteSchema.artifacts).values(row);
+  }
+
+  /**
+   * Single INSERT path for `artifact_versions` rows, used by duplicate().
+   */
+  private async insertArtifactVersionRow(
+    row: typeof sqliteSchema.artifactVersions.$inferInsert
+  ): Promise<void> {
+    await this.db.insert(sqliteSchema.artifactVersions).values(row);
+  }
+
   public async duplicate(
     sourceNotebookId: string,
     userId: string,
@@ -342,31 +371,22 @@ export class SqliteNotebookRepository implements NotebookRepositoryPort {
         }>;
 
       for (const src of sourceRows) {
-        const newSourceId = randomUUID();
-        this.sqlite
-          .prepare(`
-            INSERT INTO sources (
-              id, user_id, notebook_id, title, type, url, file_path, 
-              mime_type, byte_size, content_hash, token_count, summary, 
-              created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `)
-          .run(
-            newSourceId,
-            userId,
-            newNotebook.id,
-            src.title,
-            src.type,
-            src.url,
-            src.file_path,
-            src.mime_type,
-            src.byte_size,
-            src.content_hash,
-            src.token_count,
-            src.summary,
-            now,
-            now
-          );
+        await this.insertSourceRow({
+          id: randomUUID(),
+          userId,
+          notebookId: newNotebook.id,
+          title: src.title,
+          type: src.type,
+          url: src.url,
+          filePath: src.file_path,
+          mimeType: src.mime_type,
+          byteSize: src.byte_size,
+          contentHash: src.content_hash,
+          tokenCount: src.token_count,
+          summary: src.summary,
+          createdAt: now,
+          updatedAt: now,
+        });
       }
     }
 
@@ -384,9 +404,15 @@ export class SqliteNotebookRepository implements NotebookRepositoryPort {
       for (const art of artifactRows) {
         const newArtifactId = randomUUID();
 
-        // Find versions for original artifact
+        // Find versions for the original artifact. ORDER BY number keeps parent
+        // rows ahead of their children so the self-referencing FK on
+        // parent_version_id is satisfied while copying.
         const versionRows = this.sqlite
-          .prepare(`SELECT * FROM artifact_versions WHERE artifact_id = ? AND user_id = ?`)
+          .prepare(`
+            SELECT * FROM artifact_versions
+            WHERE artifact_id = ? AND user_id = ?
+            ORDER BY number ASC
+          `)
           .all(art.id, userId) as Array<{
             id: string;
             number: number;
@@ -410,54 +436,42 @@ export class SqliteNotebookRepository implements NotebookRepositoryPort {
           }
         }
 
-        // Insert artifact
-        this.sqlite
-          .prepare(`
-            INSERT INTO artifacts (
-              id, user_id, notebook_id, type, title, 
-              schema_version, current_version_id, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `)
-          .run(
-            newArtifactId,
-            userId,
-            newNotebook.id,
-            art.type,
-            art.title,
-            art.schema_version,
-            newCurrentVersionId,
-            now,
-            now
-          );
+        // Insert artifact through the repository insertion path
+        await this.insertArtifactRow({
+          id: newArtifactId,
+          userId,
+          notebookId: newNotebook.id,
+          type: art.type,
+          title: art.title,
+          schemaVersion: art.schema_version,
+          currentVersionId: newCurrentVersionId,
+          createdAt: now,
+          updatedAt: now,
+        });
 
-        // Insert versions
+        // Insert versions through the repository insertion path
         for (const ver of versionRows) {
-          const newVerId = versionIdMap.get(ver.id)!;
+          const newVerId = versionIdMap.get(ver.id);
+          if (newVerId === undefined) {
+            continue;
+          }
           const newParentId = ver.parent_version_id
             ? versionIdMap.get(ver.parent_version_id) ?? null
             : null;
 
-          this.sqlite
-            .prepare(`
-              INSERT INTO artifact_versions (
-                id, user_id, artifact_id, number, created_by, 
-                model, instruction, parent_version_id, content, 
-                content_digest, created_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `)
-            .run(
-              newVerId,
-              userId,
-              newArtifactId,
-              ver.number,
-              ver.created_by,
-              ver.model,
-              ver.instruction,
-              newParentId,
-              ver.content,
-              ver.content_digest,
-              now
-            );
+          await this.insertArtifactVersionRow({
+            id: newVerId,
+            userId,
+            artifactId: newArtifactId,
+            number: ver.number,
+            createdBy: ver.created_by,
+            model: ver.model,
+            instruction: ver.instruction,
+            parentVersionId: newParentId,
+            content: ver.content,
+            contentDigest: ver.content_digest,
+            createdAt: now,
+          });
         }
       }
     }

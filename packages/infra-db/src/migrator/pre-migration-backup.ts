@@ -1,7 +1,6 @@
 import {
   existsSync,
   mkdirSync,
-  readdirSync,
   unlinkSync,
   copyFileSync,
   readFileSync,
@@ -16,6 +15,7 @@ import {
   InvarianceViolationError,
 } from "@notebook/contracts";
 import type { Logger } from "@notebook/logger";
+import { pruneBackups } from "../backup.js";
 
 export interface BackupMetadata {
   backupId: string;
@@ -118,8 +118,14 @@ export async function createPreMigrationBackup(
       "Pre-migration SQLite backup completed successfully"
     );
 
-    // 2. Prune obsolete backups beyond retention threshold
-    pruneOldBackups(backupDir, maxRetainedBackups, logger);
+    // 2. Prune obsolete backups via the canonical spec 8.7 policy: the newest
+    // maxRetained OR every snapshot within 14 days, whichever keeps more;
+    // the newest snapshot is never pruned. Failures stay non-fatal.
+    try {
+      pruneBackups(backupDir, { maxRetained: maxRetainedBackups, logger });
+    } catch (err) {
+      logger?.warn({ err }, "Failed to prune older backups; non-fatal");
+    }
 
     return metadata;
   } catch (error) {
@@ -137,46 +143,6 @@ export async function createPreMigrationBackup(
     throw new ParserFailedError(
       `Pre-migration database backup failed: ${String(error)}`
     );
-  }
-}
-
-/**
- * Prunes historical backups beyond retention ceiling, keeping the newest records.
- */
-export function pruneOldBackups(
-  backupDir: string,
-  maxRetained: number,
-  logger?: Logger
-): void {
-  try {
-    const entries = readdirSync(backupDir, { withFileTypes: true });
-    const sqliteFiles = entries
-      .filter(
-        (e) =>
-          e.isFile() &&
-          e.name.endsWith(".sqlite") &&
-          e.name.startsWith("pre-migration-")
-      )
-      .map((e) => ({
-        name: e.name,
-        path: join(backupDir, e.name),
-        metaPath: join(backupDir, `${e.name}.meta.json`),
-      }))
-      .sort((a, b) => b.name.localeCompare(a.name)); // Newest first
-
-    if (sqliteFiles.length > maxRetained) {
-      const toDelete = sqliteFiles.slice(maxRetained);
-      for (const item of toDelete) {
-        logger?.info(
-          { file: item.name },
-          "Pruning historical pre-migration backup"
-        );
-        if (existsSync(item.path)) unlinkSync(item.path);
-        if (existsSync(item.metaPath)) unlinkSync(item.metaPath);
-      }
-    }
-  } catch (err) {
-    logger?.warn({ err }, "Failed to prune older backups; non-fatal");
   }
 }
 

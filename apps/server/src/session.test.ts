@@ -50,7 +50,12 @@ function parseSetCookies(
   });
 }
 
-describe("Session routes, cookies and lockout (Ticket 02 - RED Phase)", () => {
+// Bodies share the generous per-hook budgets above: under a saturated
+// full-suite run (110 workers on 12 cores) several timing-sensitive suites,
+// this one included, failed together with no reproducible assertion error.
+// A 5s default body budget starves Windows parallel runs; nothing here
+// relaxes an assertion.
+describe("Session routes, cookies and lockout (Ticket 02 - RED Phase)", { timeout: 60_000 }, () => {
   let app: FastifyInstance | undefined;
   let sqliteInstance: SqliteDatabaseInstance | undefined;
   let testDbPath: string;
@@ -294,6 +299,27 @@ describe("Session routes, cookies and lockout (Ticket 02 - RED Phase)", () => {
     expect(expired.statusCode).toBe(401);
   });
 
+  it("renews the sliding session cookie on session-management routes", async () => {
+    await boot();
+    const cookie = await loginCookie();
+
+    const res = await server().inject({
+      method: "GET",
+      url: "/api/session/list",
+      headers: { cookie },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const renewed = parseSetCookies(res.headers["set-cookie"]).find(
+      (c) => c.name === "notebench_session"
+    );
+    expect(renewed).toBeDefined();
+    // Renewal re-issues the same signed token with a fresh 30-day Max-Age, so
+    // asserting the value rules out an unrelated default cookie.
+    expect(renewed?.value).toBe(cookie.slice("notebench_session=".length));
+    expect(renewed?.attrs).toMatch(/max-age=2592000/i);
+  });
+
   it("logout ends the current session; change-passcode keeps current and revokes others", async () => {
     await boot();
     const first = await loginCookie();
@@ -305,6 +331,16 @@ describe("Session routes, cookies and lockout (Ticket 02 - RED Phase)", () => {
       headers: { cookie: first },
     });
     expect(logoutRes.statusCode).toBe(200);
+
+    // Both cookie names are cleared client-side; the __Host- clearing header
+    // must carry Secure or RFC 6265bis §5.7 browsers ignore it (Ticket 02).
+    const cleared = parseSetCookies(logoutRes.headers["set-cookie"]);
+    const clearedSecure = cleared.find((c) => c.name === "__Host-notebench_session");
+    expect(clearedSecure).toBeDefined();
+    expect(clearedSecure?.attrs.toLowerCase()).toContain("secure");
+    const clearedPlain = cleared.find((c) => c.name === "notebench_session");
+    expect(clearedPlain).toBeDefined();
+
     const stillDenied = await server().inject({
       method: "GET",
       url: "/api/notebooks",

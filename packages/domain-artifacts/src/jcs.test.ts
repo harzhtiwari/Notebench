@@ -81,6 +81,99 @@ describe("RFC 8785 hand-rolled JSON canonicalizer (JCS)", () => {
   });
 });
 
+describe("RFC 8785 official test vectors", () => {
+  it("matches the Section 3.2.2 end-to-end canonicalization sample", () => {
+    const sample = {
+      numbers: [333333333.33333329, 1e30, 4.5, 2e-3, 0.000000000000000000000000001],
+      string: "\u20ac$\u000f\nA'B\"\\\\\"/",
+      literals: [null, true, false],
+    };
+
+    expect(canonicalizeJson(sample)).toBe(
+      String.raw`{"literals":[null,true,false],"numbers":[333333333.3333333,1e+30,4.5,0.002,1e-27],"string":"€$\u000f\nA'B\"\\\\\"/"}`
+    );
+  });
+
+  it("sorts Section 3.2.3 mixed-Unicode property names in UTF-16 code-unit order", () => {
+    const input = {
+      "\u20ac": "Euro Sign",
+      "\r": "Carriage Return",
+      "\ufb33": "Hebrew Letter Dalet With Dagesh",
+      "1": "One",
+      "\ud83d\ude00": "Emoji: Grinning Face",
+      "\u0080": "Control",
+      "\u00f6": "Latin Small Letter O With Diaeresis",
+    };
+
+    // Expected order from RFC 8785 §3.2.3: U+000D, U+0031, U+0080, U+00F6,
+    // U+20AC, U+1F600 (surrogate pair), U+FB33. U+0080 and above are emitted
+    // as-is (not ASCII controls); U+000D is written as the "\r" escape.
+    const expected =
+      "{" +
+      '"\\r":"Carriage Return",' +
+      '"1":"One",' +
+      '"\u0080":"Control",' +
+      '"\u00f6":"Latin Small Letter O With Diaeresis",' +
+      '"\u20ac":"Euro Sign",' +
+      '"\ud83d\ude00":"Emoji: Grinning Face",' +
+      '"\ufb33":"Hebrew Letter Dalet With Dagesh"' +
+      "}";
+
+    expect(canonicalizeJson(input)).toBe(expected);
+  });
+
+  /** Interprets a 64-bit IEEE 754 hex word (RFC 8785 Appendix B) as a JS Number. */
+  function numberFromIeee754Hex(hex: string): number {
+    const view = new DataView(new ArrayBuffer(8));
+    view.setBigUint64(0, BigInt(`0x${hex}`), false);
+    return view.getFloat64(0, false);
+  }
+
+  // RFC 8785 Appendix B, Table 1. `null` marks values that MUST error (NaN/Infinity).
+  const APPENDIX_B_VECTORS: ReadonlyArray<readonly [string, string | null]> = [
+    ["0000000000000000", "0"], // Zero
+    ["8000000000000000", "0"], // Minus zero
+    ["0000000000000001", "5e-324"], // Min pos number
+    ["8000000000000001", "-5e-324"], // Min neg number
+    ["7fefffffffffffff", "1.7976931348623157e+308"], // Max pos number
+    ["ffefffffffffffff", "-1.7976931348623157e+308"], // Max neg number
+    ["4340000000000000", "9007199254740992"], // Max pos int
+    ["c340000000000000", "-9007199254740992"], // Max neg int
+    ["4430000000000000", "295147905179352830000"], // ~2**68
+    ["7fffffffffffffff", null], // NaN
+    ["7ff0000000000000", null], // Infinity
+    ["44b52d02c7e14af5", "9.999999999999997e+22"],
+    ["44b52d02c7e14af6", "1e+23"],
+    ["44b52d02c7e14af7", "1.0000000000000001e+23"],
+    ["444b1ae4d6e2ef4e", "999999999999999700000"],
+    ["444b1ae4d6e2ef4f", "999999999999999900000"],
+    ["444b1ae4d6e2ef50", "1e+21"],
+    ["3eb0c6f7a0b5ed8c", "9.999999999999997e-7"],
+    ["3eb0c6f7a0b5ed8d", "0.000001"],
+    ["41b3de4355555553", "333333333.3333332"],
+    ["41b3de4355555554", "333333333.33333325"],
+    ["41b3de4355555555", "333333333.3333333"],
+    ["41b3de4355555556", "333333333.3333334"],
+    ["41b3de4355555557", "333333333.33333343"],
+    ["becbf647612f3696", "-0.0000033333333333333333"],
+    ["43143ff3c1cb0959", "1424953923781206.2"], // Round to even
+  ];
+
+  it("matches every Appendix B number serialization sample", () => {
+    expect(APPENDIX_B_VECTORS).toHaveLength(26);
+    for (const [hex, expected] of APPENDIX_B_VECTORS) {
+      const value = numberFromIeee754Hex(hex);
+      if (expected === null) {
+        expect(() => canonicalizeJson(value), `hex ${hex} must be rejected`).toThrow(
+          TypeError
+        );
+      } else {
+        expect(canonicalizeJson(value), `hex ${hex}`).toBe(expected);
+      }
+    }
+  });
+});
+
 /** Deterministic PRNG (mulberry32) — no extra test dependencies. */
 function mulberry32(seed: number): () => number {
   let state = seed >>> 0;
@@ -135,7 +228,7 @@ function shuffleKeys(value: JsonTree, rand: () => number): JsonTree {
 }
 
 describe("JCS canonicalizer property-based random-tree checks", () => {
-  it("is stable under key reordering and distinguishes single-leaf mutations (200 trees)", () => {
+  it("is stable under key reordering and round-trips through JSON.parse (200 trees)", () => {
     const rand = mulberry32(0x12c0ff33);
     for (let i = 0; i < 200; i++) {
       const tree = randomTree(rand, 4);

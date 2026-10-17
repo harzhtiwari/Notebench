@@ -3,6 +3,8 @@ import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import type { FastifyInstance } from "fastify";
+import { createSqliteDatabase } from "@notebook/infra-db";
+import { runHealthProbes } from "@notebook/domain-ops";
 import { buildServer, resolveWebOutDir } from "./app.js";
 
 describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
@@ -95,6 +97,69 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
       expect(wal.message).not.toContain("not provided");
       expect(vec.message).not.toContain("not provided");
       await wired.close();
+    });
+
+    it("probe battery performs no writes: all probes against a real WAL handle with PRAGMA query_only=ON", async () => {
+      const worker = process.env["VITEST_WORKER_ID"] ?? "0";
+      const dbFile = join(tmpdir(), `nb-doctor-no-write-${worker}-${Date.now()}.sqlite`);
+      const instance = createSqliteDatabase({ dbPath: dbFile });
+      try {
+        const handle = instance.sqlite;
+        const countSchemaObjects = (): number => {
+          const row = handle.prepare("SELECT COUNT(*) AS n FROM sqlite_schema").get() as {
+            n: number | bigint;
+          };
+          return Number(row.n);
+        };
+        const schemaBefore = countSchemaObjects();
+
+        // Real no-write guard: SQLite rejects every subsequent write with
+        // SQLITE_READONLY, so a probe write attempt cannot pass silently.
+        handle.pragma("query_only = ON");
+
+        const results = await runHealthProbes({
+          nodeVersion: "22.13.1",
+          serverHost: "127.0.0.1",
+          sqliteDb: handle,
+          docWorkerPool: {
+            ping: async () => ({
+              pong: true,
+              timestamp: Date.now(),
+              pythonVersion: "3.12.2",
+              workerPid: 7,
+            }),
+          },
+          statfsFn: async () => ({ bsize: 4096, bavail: Math.floor((10 * 1024 * 1024 * 1024) / 4096) }),
+        });
+
+        expect(results).toHaveLength(6);
+
+        // WAL probe genuinely reads a real file-backed WAL database.
+        const wal = results.find((r) => r.id === "sqlite_wal");
+        expect(wal?.status).toBe("pass");
+
+        // Vec probe executed real SQL and failed only on the missing extension:
+        // proof the read path actually ran against the engine.
+        const vec = results.find((r) => r.id === "sqlite_vec");
+        expect(vec?.status).toBe("fail");
+        expect(vec?.message).toContain("vec_version");
+
+        // No schema objects created by the battery, and the guard is provably active.
+        expect(countSchemaObjects()).toBe(schemaBefore);
+        expect(() =>
+          handle.prepare("CREATE TABLE probe_no_write_guard (id INTEGER)").run()
+        ).toThrow(/readonly/i);
+      } finally {
+        try {
+          instance.sqlite.pragma("query_only = OFF");
+        } catch {
+          // best-effort guard release before closing
+        }
+        instance.close();
+        rmSync(dbFile, { force: true });
+        rmSync(`${dbFile}-wal`, { force: true });
+        rmSync(`${dbFile}-shm`, { force: true });
+      }
     });
 
     it("GET /api/doctor returns doc-worker probe results when pool is configured", async () => {

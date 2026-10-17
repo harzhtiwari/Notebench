@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import util from "node:util";
 import fs from "node:fs";
 import path from "node:path";
@@ -113,7 +113,7 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
       }
     });
 
-    it("wrong AAD (different provider or keyId) fails GHASH verification", () => {
+    it("wrong AAD (different provider or keyId) fails GHASH verification and is categorised as tampered ciphertext", () => {
       const aad: AadPayload = {
         schemaVersion: VAULT_CONSTANTS.SCHEMA_VERSION,
         provider: "google",
@@ -128,7 +128,19 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
         provider: "openai", // Context-confusion attack attempt
       };
 
-      expect(() => decryptSecret(spoofedEnvelope, masterKey)).toThrowError(VaultError);
+      try {
+        decryptSecret(spoofedEnvelope, masterKey);
+        expect.unreachable("Should have thrown VaultError");
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(VaultError);
+        const vaultErr = err as VaultError;
+        // AES-GCM authenticates the AAD jointly with the ciphertext, so a wrong
+        // AAD is indistinguishable from tampering and is deliberately surfaced
+        // as TAMPERED_CIPHERTEXT (there is no separate AAD mismatch category).
+        expect(vaultErr.category).toBe("TAMPERED_CIPHERTEXT");
+        expect(vaultErr.code).toBe("INVARIANCE_VIOLATION");
+        expect(vaultErr.statusCode).toBe(409);
+      }
 
       const spoofedKeyIdEnvelope: VaultEnvelope = {
         ...envelope,
@@ -163,6 +175,18 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
         expect(err).toBeInstanceOf(VaultError);
       }
       expect(callbackCalled).toBe(false);
+    });
+  });
+
+  describe("VaultError Taxonomy", () => {
+    it("maps STORAGE_ERROR to a 500-class internal error, not VALIDATION_ERROR/400", () => {
+      const err = new VaultError("Failed to write master key file", "STORAGE_ERROR");
+
+      expect(err).toBeInstanceOf(NotebookError);
+      expect(err).toBeInstanceOf(VaultError);
+      expect(err.category).toBe("STORAGE_ERROR");
+      expect(err.code).toBe("INVARIANCE_VIOLATION");
+      expect(err.statusCode).toBe(500);
     });
   });
 
@@ -226,6 +250,31 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
       }
     });
 
+    it("adopts the existing key when a concurrent boot wins the exclusive create race", () => {
+      const keyFile = path.join(tempDir, "master.key");
+      const concurrentKeyHex = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+      fs.writeFileSync(keyFile, concurrentKeyHex + "\n", { encoding: "utf8", mode: 0o600 });
+
+      // Simulate the TOCTOU window: the existence check observes the file as
+      // absent even though it exists when exclusive creation is attempted.
+      const existsSpy = vi.spyOn(fs, "existsSync").mockReturnValueOnce(false);
+      try {
+        const result = resolveMasterKey({
+          env: {},
+          vaultDir: tempDir,
+          keyFileName: "master.key",
+        });
+
+        expect(result.source).toBe("file");
+        expect(result.masterKey.toString("hex")).toBe(concurrentKeyHex);
+      } finally {
+        existsSpy.mockRestore();
+      }
+
+      // The concurrently-created key must not be clobbered by the loser.
+      expect(fs.readFileSync(keyFile, "utf8").trim()).toBe(concurrentKeyHex);
+    });
+
     it("rejects invalid hex or wrong length master keys", () => {
       expect(() =>
         resolveMasterKey({
@@ -262,6 +311,20 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
   });
 
   describe("VaultSecret Zero-Leak Container", () => {
+    it("rejects non-string and non-Buffer input with a categorised VaultError", () => {
+      try {
+        // @ts-expect-error runtime guard must reject numbers even though the
+        // public signature only accepts string | Buffer
+        new VaultSecret(42);
+        expect.unreachable("Should have thrown VaultError");
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(NotebookError);
+        expect(err).toBeInstanceOf(VaultError);
+        expect((err as VaultError).category).toBe("VALIDATION_ERROR");
+        expect((err as VaultError).statusCode).toBe(400);
+      }
+    });
+
     it("JSON.stringify, util.inspect and string concatenation never reveal the key", () => {
       const secret = new VaultSecret(sampleKey);
 
@@ -323,7 +386,7 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
   });
 
   describe("Key Masking and Scrubbing", () => {
-    it("derives fixed-length mask token never revealing variable character count", () => {
+    it("derives a fixed-length mask token no matter the secret length", () => {
       const shortKey = "sk-proj-1234abcd";
       const longKey = "sk-proj-1234567890abcdefghijklmnopqrstuvwxyz1234abcd";
 
@@ -333,9 +396,28 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
       expect(maskShort).toBe("sk-...abcd");
       expect(maskLong).toBe("sk-...abcd");
       expect(maskShort.length).toBe(maskLong.length);
+    });
 
-      const geminiKey = "AIzaSyAbcd1234567890Wxyz";
-      expect(deriveMaskedKey(geminiKey)).toBe("AIza...Wxyz");
+    it("produces the same mask length across all prefix styles and secret lengths", () => {
+      const inputs = [
+        "sk-proj-1234abcd",
+        "sk-proj-1234567890abcdefghijklmnopqrstuvwxyz1234abcd",
+        "AIzaSyAbcd1234567890Wxyz",
+        "AIza",
+        "gsk_1234567890abcdef",
+        "abcd",
+        "abc",
+        "a",
+        "",
+      ];
+
+      for (const input of inputs) {
+        expect(deriveMaskedKey(input).length).toBe(10);
+      }
+
+      expect(deriveMaskedKey("AIzaSyAbcd1234567890Wxyz")).toBe("AIz...Wxyz");
+      expect(deriveMaskedKey("gsk_1234567890abcdef")).toBe("key...cdef");
+      expect(deriveMaskedKey("abc")).toBe("***...****");
     });
 
     it("scrubs secrets from error messages and arbitrary text", () => {
@@ -397,9 +479,15 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
       const secret = new VaultSecret("temp-secret-val");
       secret.destroy();
 
-      expect(() => {
+      try {
         secret.withSecret(() => "fail");
-      }).toThrowError(/destroyed/i);
+        expect.unreachable("withSecret on a destroyed secret must throw");
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(NotebookError);
+        expect(err).toBeInstanceOf(VaultError);
+        expect((err as VaultError).category).toBe("VALIDATION_ERROR");
+        expect((err as VaultError).message).toMatch(/destroyed/i);
+      }
     });
   });
 });

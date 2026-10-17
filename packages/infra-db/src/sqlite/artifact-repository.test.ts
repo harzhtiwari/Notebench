@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createSqliteDatabase, type SqliteDatabaseInstance } from "./connection.js";
 import { SqliteArtifactVersionRepository } from "./artifact-repository.js";
+import { initializeSqliteSchema } from "./notebook-repository.js";
 import { sqliteSchema } from "../schema/index.js";
 
 const USER_ID = randomUUID();
@@ -16,53 +17,9 @@ describe("SqliteArtifactVersionRepository & Self-Referencing Foreign Key DAG", (
     dbInstance = createSqliteDatabase({ dbPath: ":memory:", foreignKeys: true });
     repo = new SqliteArtifactVersionRepository(dbInstance.db);
 
-    // Initialize required schema tables in SQLite in-memory
-    dbInstance.sqlite.exec(`
-      CREATE TABLE users (
-        id TEXT PRIMARY KEY,
-        email TEXT,
-        display_name TEXT,
-        passcode_hash TEXT,
-        role TEXT NOT NULL DEFAULT 'owner',
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-
-      CREATE TABLE notebooks (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        title TEXT NOT NULL,
-        trashed_at TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-
-      CREATE TABLE artifacts (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
-        type TEXT NOT NULL,
-        title TEXT NOT NULL,
-        schema_version INTEGER NOT NULL DEFAULT 1,
-        current_version_id TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-
-      CREATE TABLE artifact_versions (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        artifact_id TEXT NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE,
-        number INTEGER NOT NULL,
-        created_by TEXT NOT NULL,
-        model TEXT,
-        instruction TEXT,
-        parent_version_id TEXT REFERENCES artifact_versions(id),
-        content TEXT NOT NULL,
-        content_digest TEXT,
-        created_at TEXT NOT NULL
-      );
-    `);
+    // Bootstrap the SAME schema production creates (initializeSqliteSchema) so
+    // the self-FK under test is the one the runtime DDL actually declares.
+    initializeSqliteSchema(dbInstance.sqlite);
 
     const now = new Date().toISOString();
     // Seed prerequisite parent rows: user, notebook, artifact
@@ -100,22 +57,45 @@ describe("SqliteArtifactVersionRepository & Self-Referencing Foreign Key DAG", (
   });
 
   it("inserts initial version (v1) without parentVersionId", async () => {
+    const content = { schemaVersion: 1, blocks: [] };
+    // RFC 8785 canonical form of `content` above (keys sorted, no whitespace):
+    // {"blocks":[],"schemaVersion":1}. The digest must be the real SHA-256 of
+    // the stored content — never the digest of the empty string.
+    const expectedDigest = createHash("sha256")
+      .update('{"blocks":[],"schemaVersion":1}', "utf8")
+      .digest("hex");
+
     const v1 = await repo.createVersion({
       artifactId: ARTIFACT_ID,
       userId: USER_ID,
       number: 1,
       createdBy: "user",
-      content: { schemaVersion: 1, blocks: [] },
-      contentDigest: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      content,
+      contentDigest: expectedDigest,
     });
 
     expect(v1.number).toBe(1);
     expect(v1.parentVersionId).toBeUndefined();
+    expect(v1.contentDigest).toBe(expectedDigest);
 
     const fetched = await repo.getVersionById(v1.id);
     expect(fetched).not.toBeNull();
     expect(fetched?.id).toBe(v1.id);
     expect(fetched?.number).toBe(1);
+    expect(fetched?.contentDigest).toBe(expectedDigest);
+  });
+
+  it("declares the artifact_versions self-FK in the production bootstrap DDL", () => {
+    const foreignKeys = dbInstance.sqlite.pragma("foreign_key_list(artifact_versions)") as Array<{
+      table: string;
+      from: string;
+      to: string;
+    }>;
+    const selfFk = foreignKeys.find(
+      (fk) => fk.table === "artifact_versions" && fk.from === "parent_version_id"
+    );
+    expect(selfFk).toBeDefined();
+    expect(selfFk?.to).toBe("id");
   });
 
   it("inserts child version (v2) with valid parentVersionId pointing to v1", async () => {

@@ -1,7 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import type { FastifyInstance } from "fastify";
+import fastify, { type FastifyInstance } from "fastify";
 import { buildServer } from "../app.js";
-import { createSqliteDatabase, initializeSqliteSchema, type SqliteDatabaseInstance } from "@notebook/infra-db";
+import {
+  createSqliteDatabase,
+  initializeSqliteSchema,
+  SqliteNotebookRepository,
+  type SqliteDatabaseInstance,
+} from "@notebook/infra-db";
+import { NotebookService } from "@notebook/domain-notebooks";
+import { notebooksRoutes } from "./notebooks.js";
 
 describe("Notebooks Fastify Routes (Ticket 05)", () => {
   let app: FastifyInstance;
@@ -144,7 +151,7 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
     expect(typeof body.metrics.notebookCount).toBe("number");
   });
 
-  it("GET /api/notebooks?filter= matches titles and returns [] on zero matches", async () => {
+  it("GET /api/notebooks?filter= matches titles and ingested source filenames and returns [] on zero matches", async () => {
     await app.inject({
       method: "POST",
       url: "/api/notebooks",
@@ -164,6 +171,30 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
       )
     ).toBe(true);
 
+    // Decision 1.35: source filenames match too, even when the title does not
+    const sourceNotebookRes = await app.inject({
+      method: "POST",
+      url: "/api/notebooks",
+      payload: { title: "Ingestion Target Probe" },
+    });
+    const sourceNotebookId = JSON.parse(sourceNotebookRes.body).notebook.id;
+    const now = new Date().toISOString();
+    dbInstance.sqlite.exec(`
+      INSERT INTO sources (id, user_id, notebook_id, title, type, created_at, updated_at)
+      VALUES ('99999999-9999-4999-8999-999999999991', '${testUserId}', '${sourceNotebookId}', 'deep-research-notes.md', 'md', '${now}', '${now}');
+    `);
+
+    const sourceHit = await app.inject({
+      method: "GET",
+      url: "/api/notebooks?filter=deep-research",
+    });
+    expect(sourceHit.statusCode).toBe(200);
+    expect(
+      JSON.parse(sourceHit.body).notebooks.some(
+        (n: { id: string }) => n.id === sourceNotebookId
+      )
+    ).toBe(true);
+
     const miss = await app.inject({
       method: "GET",
       url: "/api/notebooks?filter=no-such-notebook-zzz",
@@ -172,17 +203,35 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
     expect(JSON.parse(miss.body).notebooks).toEqual([]);
   });
 
-  it("GET /api/notebooks?sort= orders by the requested key", async () => {
-    const res = await app.inject({
-      method: "GET",
-      url: "/api/notebooks?sort=title&dir=asc",
-    });
-    expect(res.statusCode).toBe(200);
-    const titles = JSON.parse(res.body).notebooks.map(
-      (n: { title: string }) => n.title
-    );
-    const ordered = [...titles].sort((a: string, b: string) => a.localeCompare(b));
-    expect(titles).toEqual(ordered);
+  it("GET /api/notebooks?sort= orders by all 4 keys (updated, created, title, size)", async () => {
+    const alphaId = "10000000-0000-4000-8000-000000000001";
+    const betaId = "10000000-0000-4000-8000-000000000002";
+    const gammaId = "10000000-0000-4000-8000-000000000003";
+    dbInstance.sqlite.exec(`
+      INSERT INTO notebooks (id, user_id, title, created_at, updated_at) VALUES
+        ('${alphaId}', '${testUserId}', 'AAA Sortable Probe', '2024-01-01T00:00:00.000Z', '2024-03-01T00:00:00.000Z'),
+        ('${betaId}', '${testUserId}', 'MMM Sortable Probe', '2024-02-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z'),
+        ('${gammaId}', '${testUserId}', 'ZZZ Sortable Probe', '2024-03-01T00:00:00.000Z', '2024-02-01T00:00:00.000Z');
+      INSERT INTO sources (id, user_id, notebook_id, title, type, byte_size, created_at, updated_at) VALUES
+        ('10000000-0000-4000-8000-000000000011', '${testUserId}', '${alphaId}', 'alpha.pdf', 'pdf', 300, '2024-01-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z'),
+        ('10000000-0000-4000-8000-000000000012', '${testUserId}', '${betaId}', 'beta.pdf', 'pdf', 100, '2024-01-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z'),
+        ('10000000-0000-4000-8000-000000000013', '${testUserId}', '${gammaId}', 'gamma.pdf', 'pdf', 200, '2024-01-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z');
+    `);
+
+    // Other tests' notebooks stay interleaved in the full list; only the
+    // relative order of these three seeded notebooks is asserted.
+    const seededIds = [alphaId, betaId, gammaId];
+    const seededOrder = async (query: string): Promise<string[]> => {
+      const res = await app.inject({ method: "GET", url: `/api/notebooks?${query}` });
+      expect(res.statusCode).toBe(200);
+      const notebooks = JSON.parse(res.body).notebooks as Array<{ id: string }>;
+      return notebooks.map((n) => n.id).filter((id) => seededIds.includes(id));
+    };
+
+    expect(await seededOrder("sort=updated&dir=asc")).toEqual([betaId, gammaId, alphaId]);
+    expect(await seededOrder("sort=created&dir=asc")).toEqual([alphaId, betaId, gammaId]);
+    expect(await seededOrder("sort=title&dir=asc")).toEqual([alphaId, betaId, gammaId]);
+    expect(await seededOrder("sort=size&dir=asc")).toEqual([betaId, gammaId, alphaId]);
   });
 
   it("PATCH /api/notebooks/:id rejects an empty title with 400", async () => {
@@ -218,5 +267,81 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
     const body = JSON.parse(dupRes.body);
     expect(body.notebook.id).not.toBe(origId);
     expect(body.notebook.title).toBe("Copy of Duplication Default Probe");
+  });
+
+  it("PATCH /api/notebooks/:id updates trashedAt (non-title path) and returns 200", async () => {
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/notebooks",
+      payload: { title: "Trash Path Probe" },
+    });
+    const id = JSON.parse(createRes.body).notebook.id;
+    const trashedAt = new Date().toISOString();
+
+    const patchRes = await app.inject({
+      method: "PATCH",
+      url: `/api/notebooks/${id}`,
+      payload: { trashedAt },
+    });
+    expect(patchRes.statusCode).toBe(200);
+    const body = JSON.parse(patchRes.body);
+    expect(body.notebook.trashedAt).toBe(trashedAt);
+
+    // Soft-trashed notebooks drop out of the dashboard list
+    const listRes = await app.inject({ method: "GET", url: "/api/notebooks" });
+    const listedIds = JSON.parse(listRes.body).notebooks.map((n: { id: string }) => n.id);
+    expect(listedIds).not.toContain(id);
+  });
+
+  it("DELETE /api/notebooks/:id removes the notebook and returns 204", async () => {
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/notebooks",
+      payload: { title: "Deletable Probe" },
+    });
+    const id = JSON.parse(createRes.body).notebook.id;
+
+    const deleteRes = await app.inject({
+      method: "DELETE",
+      url: `/api/notebooks/${id}`,
+    });
+    expect(deleteRes.statusCode).toBe(204);
+
+    const getRes = await app.inject({
+      method: "GET",
+      url: `/api/notebooks/${id}`,
+    });
+    expect(getRes.statusCode).toBe(404);
+  });
+
+  describe("dependency handling (notebookService without notebookRepo)", () => {
+    let serviceOnlyApp: FastifyInstance;
+
+    beforeAll(async () => {
+      const repo = new SqliteNotebookRepository(dbInstance.db, dbInstance.sqlite);
+      serviceOnlyApp = fastify({ logger: false });
+      await serviceOnlyApp.register(notebooksRoutes, {
+        notebookService: new NotebookService(repo),
+        defaultUserId: testUserId,
+      });
+      await serviceOnlyApp.ready();
+    });
+
+    afterAll(async () => {
+      await serviceOnlyApp.close();
+    });
+
+    it("returns a structured 500 instead of crashing on a non-title PATCH", async () => {
+      const res = await serviceOnlyApp.inject({
+        method: "PATCH",
+        url: "/api/notebooks/00000000-0000-4000-8000-000000000000",
+        payload: { trashedAt: new Date().toISOString() },
+      });
+
+      expect(res.statusCode).toBe(500);
+      const body = JSON.parse(res.body);
+      expect(body.error?.code).toBe("INVARIANCE_VIOLATION");
+      expect(String(body.error?.message ?? "")).not.toContain("Cannot read properties");
+    });
   });
 });

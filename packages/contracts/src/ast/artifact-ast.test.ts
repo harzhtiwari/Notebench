@@ -17,6 +17,7 @@ import {
   DeckSlideSchema,
   DeckContentSchema,
   CitationRefSchema,
+  ArtifactSchema,
 } from "../index.js";
 
 const VALID_UUID_1 = "11111111-1111-4111-8111-111111111111";
@@ -59,7 +60,7 @@ describe("Artifact AST Schemas & Invariants (Contracts Suite)", () => {
         MathBlockSchema.parse({
           id: "invalid-uuid",
           kind: "math",
-          expression: "E=mc^2",
+          latex: "E=mc^2",
         })
       ).toThrow();
 
@@ -320,6 +321,49 @@ describe("Artifact AST Schemas & Invariants (Contracts Suite)", () => {
     });
   });
 
+  describe("Requirement C.3.1: CitationRef chunkId is required", () => {
+    it("rejects a CitationRef without chunkId (PRD C.3.1 requires it)", () => {
+      expect(() =>
+        CitationRefSchema.parse({
+          sourceId: VALID_UUID_1,
+          locator: { page: 1 },
+        })
+      ).toThrow();
+    });
+
+    it("accepts a CitationRef with chunkId and keeps it intact", () => {
+      const ref = CitationRefSchema.parse({
+        sourceId: VALID_UUID_1,
+        chunkId: VALID_UUID_2,
+        locator: { page: 1 },
+      });
+      expect(ref.chunkId).toBe(VALID_UUID_2);
+    });
+  });
+
+  describe("Requirement 4.2: artifact container schemaVersion", () => {
+    const artifactBase = {
+      id: VALID_UUID_1,
+      userId: VALID_UUID_2,
+      notebookId: VALID_UUID_3,
+      type: "report" as const,
+      title: "Report",
+      currentVersionId: VALID_UUID_4,
+      createdAt: "2026-10-17T00:00:00.000Z",
+      updatedAt: "2026-10-17T00:00:00.000Z",
+    };
+
+    it("defaults schemaVersion to 1 on the artifact container", () => {
+      expect(ArtifactSchema.parse(artifactBase).schemaVersion).toBe(1);
+    });
+
+    it("rejects artifact container schemaVersion 2 (0.1 scope is literal 1)", () => {
+      expect(() =>
+        ArtifactSchema.parse({ ...artifactBase, schemaVersion: 2 })
+      ).toThrow();
+    });
+  });
+
   describe("Requirement 4.1 (strict): item ids must be UUIDv4, not merely UUID-like", () => {
     // Valid UUIDs that are NOT version 4: loose z.string().uuid() accepts them.
     const UUID_V1 = "6ec0bd7f-11c0-11d1-a80c-00c04fd430c8";
@@ -378,6 +422,57 @@ describe("Artifact AST Schemas & Invariants (Contracts Suite)", () => {
         ).toThrow();
         expect(() =>
           DeckSlideSchema.parse({ id: badId, layout: "title", blocks: [] })
+        ).toThrow();
+      }
+    });
+
+    it("rejects non-v4 UUIDs as block ids for every block kind and list item", () => {
+      for (const badId of [UUID_V1, UUID_V7, UUID_NIL]) {
+        expect(() =>
+          HeadingBlockSchema.parse({
+            id: badId,
+            kind: "heading",
+            level: 1,
+            text: "Heading",
+          })
+        ).toThrow();
+        expect(() =>
+          ParagraphBlockSchema.parse({
+            id: badId,
+            kind: "paragraph",
+            text: "Paragraph",
+          })
+        ).toThrow();
+        expect(() =>
+          ListBlockSchema.parse({
+            id: badId,
+            kind: "list",
+            ordered: false,
+            items: [],
+          })
+        ).toThrow();
+        expect(() =>
+          ListBlockSchema.parse({
+            id: VALID_UUID_1,
+            kind: "list",
+            ordered: false,
+            items: [{ id: badId, text: "item" }],
+          })
+        ).toThrow();
+        expect(() =>
+          MathBlockSchema.parse({
+            id: badId,
+            kind: "math",
+            latex: "E=mc^2",
+          })
+        ).toThrow();
+        expect(() =>
+          QABlockSchema.parse({
+            id: badId,
+            kind: "qa",
+            question: "Q?",
+            answer: "A",
+          })
         ).toThrow();
       }
     });

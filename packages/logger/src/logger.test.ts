@@ -146,6 +146,41 @@ describe("@notebook/logger Structured Pino Logger", () => {
     expect(entry.headers["anthropic-api-key"]).toBe("[REDACTED]");
   });
 
+  it("redacts passcode plaintext at the top level and in nested objects (Ticket 01 review D2)", () => {
+    const memory = createMemoryDestination();
+    const logger = createLogger({
+      name: "passcode-logger",
+      level: "info",
+      destination: memory.stream,
+    });
+
+    const canary = "PASSCODE-CANARY-DO-NOT-LOG-999888";
+    logger.info(
+      {
+        passcode: canary,
+        request: { passcode: canary },
+        request2: { body: { passcode: canary } },
+        owner: { displayName: "alice" },
+      },
+      "Setup attempt with passcode"
+    );
+
+    const logs = memory.getLogs();
+    expect(logs).toHaveLength(1);
+    const entry = logs[0] as {
+      passcode: string;
+      request: { passcode: string };
+      request2: { body: { passcode: string } };
+      owner: { displayName: string };
+    };
+
+    expect(entry.passcode).toBe("[REDACTED]");
+    expect(entry.request.passcode).toBe("[REDACTED]");
+    expect(entry.request2.body.passcode).toBe("[REDACTED]");
+    expect(entry.owner.displayName).toBe("alice");
+    expect(JSON.stringify(logs)).not.toContain(canary);
+  });
+
   it("safely serializes NotebookError instances with code, statusCode, and details", () => {
     const memory = createMemoryDestination();
     const logger = createLogger({

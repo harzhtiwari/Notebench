@@ -1,4 +1,5 @@
 import util from "node:util";
+import { VaultError } from "./errors.js";
 
 const REDACTED = "[REDACTED]";
 
@@ -13,11 +14,13 @@ export class VaultSecret {
 
   constructor(secret: string | Buffer) {
     if (Buffer.isBuffer(secret)) {
+      // Copy so the caller keeps ownership of its own buffer; this instance's
+      // copy is wiped in destroy() (not on construction).
       this.buffer = Buffer.from(secret);
     } else if (typeof secret === "string") {
       this.buffer = Buffer.from(secret, "utf8");
     } else {
-      throw new TypeError("VaultSecret requires string or Buffer input");
+      throw new VaultError("VaultSecret requires string or Buffer input", "VALIDATION_ERROR");
     }
   }
 
@@ -28,7 +31,7 @@ export class VaultSecret {
   public withSecret<T>(callback: (plaintext: string, buffer: Buffer) => T): T {
     this.ensureNotDestroyed();
     if (!this.buffer) {
-      throw new Error("VaultSecret buffer is unavailable");
+      throw new VaultError("VaultSecret buffer is unavailable", "VALIDATION_ERROR");
     }
 
     const tempBuf = Buffer.from(this.buffer);
@@ -48,7 +51,7 @@ export class VaultSecret {
   ): Promise<T> {
     this.ensureNotDestroyed();
     if (!this.buffer) {
-      throw new Error("VaultSecret buffer is unavailable");
+      throw new VaultError("VaultSecret buffer is unavailable", "VALIDATION_ERROR");
     }
 
     const tempBuf = Buffer.from(this.buffer);
@@ -96,7 +99,7 @@ export class VaultSecret {
 
   private ensureNotDestroyed(): void {
     if (this.isDestroyed || !this.buffer) {
-      throw new Error("VaultSecret has already been destroyed");
+      throw new VaultError("VaultSecret has already been destroyed", "VALIDATION_ERROR");
     }
   }
 }

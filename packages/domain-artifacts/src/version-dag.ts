@@ -167,9 +167,13 @@ export class ArtifactVersionDagService {
     // applySurgicalPatch asserts sibling invariance via RFC 8785 SHA-256 before returning
     const updatedContent = applySurgicalPatch(baseContent, patchPayload);
 
+    // Validate the patch result before any write, matching createVersion and
+    // applyProposedContent: invalid replacement shapes must never be committed.
+    const validatedContent = ArtifactContentSchema.parse(updatedContent);
+
     const latest = await this.repository.getLatestVersion(command.artifactId);
     const nextNumber = latest ? latest.number + 1 : 1;
-    const contentDigest = computeNodeDigest(updatedContent);
+    const contentDigest = computeNodeDigest(validatedContent);
 
     return this.repository.createVersion({
       artifactId: command.artifactId,
@@ -180,7 +184,7 @@ export class ArtifactVersionDagService {
       instruction:
         command.instruction ?? `Surgical update targeting node '${command.targetId}'`,
       parentVersionId: command.baseVersionId,
-      content: updatedContent,
+      content: validatedContent,
       contentDigest,
     });
   }

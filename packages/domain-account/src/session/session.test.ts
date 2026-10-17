@@ -2,10 +2,12 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createHash } from "node:crypto";
 import {
   RateLimitedError,
+  SetupAlreadyCompletedError,
   ValidationError,
   type AccountRepositoryPort,
   type CreateOwnerInput,
   type CreateSessionRecordInput,
+  type PasscodeChangeResult,
   type SessionRecord,
   type SessionRepositoryPort,
   type UserRecord,
@@ -22,15 +24,27 @@ import {
 
 /**
  * In-memory AccountRepositoryPort implementation for session unit tests.
+ * The atomic passcode change reaches into the session fake's rows, mirroring
+ * the single SQLite database the real repositories share.
  */
 class InMemoryAccountRepository implements AccountRepositoryPort {
   private owner: UserRecord | null = null;
+
+  /** Test hook: simulates the owner row vanishing between findOwner() and the write. */
+  vanishOnWrite = false;
+
+  constructor(private readonly sessions: InMemorySessionRepository) {}
 
   async findOwner(): Promise<UserRecord | null> {
     return this.owner;
   }
 
   async createOwner(input: CreateOwnerInput): Promise<UserRecord> {
+    if (this.owner) {
+      throw new SetupAlreadyCompletedError(
+        "Owner setup has already been completed (in-memory repository)."
+      );
+    }
     const record: UserRecord = {
       id: "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
       email: input.email ?? null,
@@ -44,10 +58,17 @@ class InMemoryAccountRepository implements AccountRepositoryPort {
     return record;
   }
 
-  async updatePasscodeHash(userId: string, passcodeHash: string): Promise<UserRecord | null> {
-    if (!this.owner || this.owner.id !== userId) return null;
+  async updatePasscodeAndRevokeOtherSessions(
+    userId: string,
+    passcodeHash: string,
+    keepSessionId: string
+  ): Promise<PasscodeChangeResult | null> {
+    if (this.vanishOnWrite || !this.owner || this.owner.id !== userId) {
+      return null;
+    }
     this.owner = { ...this.owner, passcodeHash, updatedAt: new Date().toISOString() };
-    return this.owner;
+    const revokedSessions = await this.sessions.deleteOtherSessions(userId, keepSessionId);
+    return { user: this.owner, revokedSessions };
   }
 }
 
@@ -131,8 +152,8 @@ describe("SessionService (Ticket 02 - RED Phase)", () => {
   let service: SessionService;
 
   beforeEach(async () => {
-    accountRepo = new InMemoryAccountRepository();
     sessionRepo = new InMemorySessionRepository();
+    accountRepo = new InMemoryAccountRepository(sessionRepo);
     nowMs = 1_700_000_000_000;
     service = new SessionService({
       accountRepository: accountRepo,
@@ -238,6 +259,27 @@ describe("SessionService (Ticket 02 - RED Phase)", () => {
     await expect(service.login({ passcode: PASSCODE })).rejects.toThrow(ValidationError);
   });
 
+  it("reports owner_missing when the owner vanishes at the atomic write", async () => {
+    const loggedIn = await service.login({ passcode: PASSCODE });
+    if (!loggedIn.sessionRequired) return expect.unreachable();
+
+    accountRepo.vanishOnWrite = true;
+    try {
+      await service.changePasscode({
+        currentSessionId: loggedIn.sessionId,
+        currentPasscode: PASSCODE,
+        newPasscode: "a-brand-new-secure-passphrase-here",
+      });
+      expect.unreachable();
+    } catch (err: unknown) {
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).details?.["reason"]).toBe("owner_missing");
+    }
+
+    // The failed change leaves the current session untouched.
+    expect(await service.validateSession(loggedIn.rawToken)).not.toBeNull();
+  });
+
   it("logout ends the current session only; logout-everywhere clears all", async () => {
     const first = await service.login({ passcode: PASSCODE });
     const second = await service.login({ passcode: PASSCODE });
@@ -253,7 +295,7 @@ describe("SessionService (Ticket 02 - RED Phase)", () => {
   });
 
   it("reports no sign-in required when the owner has no passcode", async () => {
-    const plainRepo = new InMemoryAccountRepository();
+    const plainRepo = new InMemoryAccountRepository(new InMemorySessionRepository());
     await plainRepo.createOwner({ displayName: "No Passcode", passcodeHash: null });
     const plainService = new SessionService({
       accountRepository: plainRepo,

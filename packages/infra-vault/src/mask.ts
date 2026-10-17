@@ -1,11 +1,12 @@
 /**
- * Derives a fixed-length masked key display token.
- * Prevents information leakage regarding the variable character length of underlying secrets.
- * Examples: 'sk-...abcd' or 'AIza...1234'.
+ * Derives a fixed-length (always 10 characters) masked key display token.
+ * Every branch pads/truncates to the same width so neither the secret's length
+ * nor its prefix style leaks through mask length.
+ * Examples: 'sk-...abcd', 'AIz...Wxyz', 'key...1234'.
  */
 export function deriveMaskedKey(key: string): string {
   if (!key || typeof key !== "string" || key.length < 4) {
-    return "****...****";
+    return "***...****";
   }
 
   const suffix = key.slice(-4);
@@ -15,10 +16,11 @@ export function deriveMaskedKey(key: string): string {
   }
 
   if (key.startsWith("AIza")) {
-    return `AIza...${suffix}`;
+    // Truncated to a 3-char prefix ('AIz') so this branch matches 'sk-...' width.
+    return `AIz...${suffix}`;
   }
 
-  return `key-...${suffix}`;
+  return `key...${suffix}`;
 }
 
 /**

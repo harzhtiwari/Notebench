@@ -178,6 +178,12 @@ describe("guard UI discipline (ticket 03)", () => {
 });
 
 describe("guard hex-colour discipline (ticket 29)", () => {
+  // Payload shared by the fail case (non-token stylesheet) and the pass case
+  // (generated-token stylesheet). Identical bytes, identical scan — only the
+  // path decides the outcome, so the allow-list derivation is what keeps
+  // packages/ui/tokens*.css green.
+  const HEX_TOKEN_CSS = ":root {\n  --nb-ground: #F5F4F1;\n  --nb-ink: #161615;\n}\n";
+
   it("fails a hard-coded hex colour in a web component [Check #36]", async () => {
     const dir = buildTree("guard-hex-fail", {
       "apps/web/src/app/colors/page.tsx": `import * as React from "react";\n\nexport default function Page() {\n  return <div style={{ color: '#fff' }}>hi</div>;\n}\n`,
@@ -198,11 +204,29 @@ describe("guard hex-colour discipline (ticket 29)", () => {
     expect(r.code).toBe(0);
   }, 120_000);
 
-  it("passes generated hex in tokens.css [Check #36]", async () => {
-    const hexTokens = ":root {\n  --nb-ground: #F5F4F1;\n  --nb-ink: #161615;\n}\n";
+  it("fails hex in a non-token stylesheet, printing file, line and literal [Check #36]", async () => {
+    const dir = buildTree("guard-hex-css-fail", {
+      "apps/web/src/app/theme.css": HEX_TOKEN_CSS,
+      "packages/ui/theme.css": "a {\n  color: #fff;\n}\n",
+    });
+    const r = await runGuard(dir);
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("[Check #36]");
+    expect(r.stderr).toContain("theme.css");
+    expect(r.stderr).toContain("#F5F4F1' at line 2");
+    expect(r.stderr).toContain("#fff' at line 2");
+  }, 120_000);
+
+  it("passes generated hex in allow-listed token stylesheets [Check #36]", async () => {
+    // Same HEX_TOKEN_CSS payload as apps/web/src/app/theme.css in the fail
+    // case above; it passes only because the allow-list (derived from check
+    // 28's token pairs) exempts packages/ui/tokens*.css. Un-allow-listed, the
+    // fixtures report Check #36 violations exactly like that fail case.
     const dir = buildTree("guard-hex-tokens", {
-      "docs/ui/tokens.css": hexTokens,
-      "packages/ui/tokens.css": hexTokens,
+      "docs/ui/tokens.css": HEX_TOKEN_CSS,
+      "packages/ui/tokens.css": HEX_TOKEN_CSS,
+      "docs/ui/tokens.media.css": HEX_TOKEN_CSS,
+      "packages/ui/tokens.media.css": HEX_TOKEN_CSS,
     });
     const r = await runGuard(dir);
     expect(r.stderr).toBe("");

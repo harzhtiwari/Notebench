@@ -71,7 +71,7 @@ describe("SqliteSessionRepository & Sessions Table Migration", () => {
     }
   });
 
-  it("renews expiry via touch and revokes others while keeping current", async () => {
+  it("renews expiry via touch and deletes sessions on demand", async () => {
     const dbPath = join(TEST_DIR, "test-revoke.sqlite");
     const { db, sqlite, close } = createSqliteDatabase({ dbPath });
 
@@ -99,11 +99,9 @@ describe("SqliteSessionRepository & Sessions Table Migration", () => {
       });
       expect(touched?.expiresAt).toBe(later);
 
-      const revoked = await sessions.deleteOtherSessions(owner.id, current.id);
-      expect(revoked).toBe(1);
+      await sessions.deleteSession(other.id);
       expect(await sessions.findByTokenHash("c".repeat(64))).not.toBeNull();
       expect(await sessions.findByTokenHash("d".repeat(64))).toBeNull();
-      expect(other.id).toBeDefined();
 
       const cleared = await sessions.deleteAllSessions(owner.id);
       expect(cleared).toBe(1);
@@ -113,21 +111,4 @@ describe("SqliteSessionRepository & Sessions Table Migration", () => {
     }
   });
 
-  it("updates the owner passcode hash", async () => {
-    const dbPath = join(TEST_DIR, "test-passcode.sqlite");
-    const { db, sqlite, close } = createSqliteDatabase({ dbPath });
-
-    try {
-      const accounts = new SqliteAccountRepository(db, sqlite);
-      const owner = await accounts.createOwner({
-        displayName: "Owner",
-        passcodeHash: "old-hash",
-      });
-      const updated = await accounts.updatePasscodeHash(owner.id, "new-hash");
-      expect(updated?.passcodeHash).toBe("new-hash");
-      expect((await accounts.findOwner())?.passcodeHash).toBe("new-hash");
-    } finally {
-      close();
-    }
-  });
 });

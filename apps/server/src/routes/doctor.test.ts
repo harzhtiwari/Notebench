@@ -63,4 +63,26 @@ describe("Doctor Diagnostic Route GET /api/doctor (Ticket 24 - RED phase)", () =
 
     await server.close();
   });
+
+  it("suppresses the exposure alert when network-bound with an owner passcode configured", async () => {
+    const server: FastifyInstance = await buildServer({
+      logger: false,
+      hasOwnerPasscode: true,
+    });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/doctor?host=0.0.0.0",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    const exposureProbe = body.probes.find((p: { id: string }) => p.id === "exposure");
+
+    expect(exposureProbe).toBeDefined();
+    expect(exposureProbe.status).toBe("pass");
+    expect(exposureProbe.message).not.toContain("without a passcode");
+
+    await server.close();
+  });
 });

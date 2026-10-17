@@ -156,10 +156,30 @@ export function setSessionCookie(
 }
 
 /**
+ * Renews the sliding cookie for an already-resolved request session. Shared by
+ * the global guard and the session-management routes so renewal has one shape
+ * (Ticket 02 / NOTEBENCH 6.5).
+ */
+export function renewSessionCookie(
+  reply: FastifyReply,
+  request: FastifyRequest,
+  session: RequestSession
+): void {
+  setSessionCookie(
+    reply,
+    session.rawToken,
+    resolveRequestSecurity(request.protocol, request.headers["x-forwarded-proto"])
+  );
+}
+
+/**
  * Clears both session cookie names (scheme transitions may leave either behind).
+ * The `__Host-` clearing header must carry `Secure`: RFC 6265bis §5.7 makes a
+ * browser ignore any Set-Cookie for a `__Host-` name without it, which would
+ * leave the stale cookie alive until its Max-Age lapses (Ticket 02).
  */
 export function clearSessionCookies(reply: FastifyReply): void {
-  reply.clearCookie(SESSION_COOKIE_NAME_SECURE, { path: "/" });
+  reply.clearCookie(SESSION_COOKIE_NAME_SECURE, { path: "/", secure: true });
   reply.clearCookie(SESSION_COOKIE_NAME_HTTP, { path: "/" });
 }
 
@@ -235,10 +255,6 @@ export function createSessionGuard(deps: {
       });
       return;
     }
-    setSessionCookie(
-      reply,
-      session.rawToken,
-      resolveRequestSecurity(request.protocol, request.headers["x-forwarded-proto"])
-    );
+    renewSessionCookie(reply, request, session);
   };
 }

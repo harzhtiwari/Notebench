@@ -20,6 +20,51 @@ export interface MasterKeyResult {
 }
 
 /**
+ * True when an fs error carries the EEXIST errno code.
+ */
+function isEexist(err: unknown): boolean {
+  return err instanceof Error && (err as NodeJS.ErrnoException).code === "EEXIST";
+}
+
+/**
+ * Reads and validates an existing master key file (64-char hex or 32 raw bytes).
+ * Wraps raw fs failures as STORAGE_ERROR and invalid content as INVALID_MASTER_KEY.
+ */
+function readExistingKeyFile(keyPath: string): MasterKeyResult {
+  try {
+    const fileContent = fs.readFileSync(keyPath, "utf8").trim();
+    if (/^[0-9a-fA-F]{64}$/.test(fileContent)) {
+      return {
+        masterKey: Buffer.from(fileContent, "hex"),
+        source: "file",
+        keyPath,
+      };
+    }
+
+    // Check if file is raw binary 32 bytes
+    const rawBuf = fs.readFileSync(keyPath);
+    if (rawBuf.length === VAULT_CONSTANTS.KEY_BYTE_LENGTH) {
+      return {
+        masterKey: rawBuf,
+        source: "file",
+        keyPath,
+      };
+    }
+
+    throw new VaultError(
+      `Master key file at '${keyPath}' must contain a 64-character hex string or 32 raw bytes`,
+      "INVALID_MASTER_KEY"
+    );
+  } catch (err: unknown) {
+    if (err instanceof VaultError) throw err;
+    throw new VaultError(
+      `Failed to read master key file at '${keyPath}': ${String(err)}`,
+      "STORAGE_ERROR"
+    );
+  }
+}
+
+/**
  * Resolves the master vault key according to Decision 6.1 two-tier precedence:
  *   Tier 1: NOTEBOOK_MASTER_KEY environment variable (32 bytes hex).
  *   Tier 2: File .notebook/vault/master.key (auto-generated CSPRNG 32-byte hex if absent).
@@ -58,37 +103,7 @@ export function resolveMasterKey(
   // 2. Tier 2: File Storage
   const keyPath = path.resolve(vaultDir, keyFileName);
   if (fs.existsSync(keyPath)) {
-    try {
-      const fileContent = fs.readFileSync(keyPath, "utf8").trim();
-      if (/^[0-9a-fA-F]{64}$/.test(fileContent)) {
-        return {
-          masterKey: Buffer.from(fileContent, "hex"),
-          source: "file",
-          keyPath,
-        };
-      }
-
-      // Check if file is raw binary 32 bytes
-      const rawBuf = fs.readFileSync(keyPath);
-      if (rawBuf.length === VAULT_CONSTANTS.KEY_BYTE_LENGTH) {
-        return {
-          masterKey: rawBuf,
-          source: "file",
-          keyPath,
-        };
-      }
-
-      throw new VaultError(
-        `Master key file at '${keyPath}' must contain a 64-character hex string or 32 raw bytes`,
-        "INVALID_MASTER_KEY"
-      );
-    } catch (err: unknown) {
-      if (err instanceof VaultError) throw err;
-      throw new VaultError(
-        `Failed to read master key file at '${keyPath}': ${String(err)}`,
-        "STORAGE_ERROR"
-      );
-    }
+    return readExistingKeyFile(keyPath);
   }
 
   // 3. Auto-generation when absent
@@ -104,8 +119,16 @@ export function resolveMasterKey(
 
   try {
     fs.mkdirSync(vaultDir, { recursive: true, mode: 0o700 });
-    fs.writeFileSync(keyPath, hexKey + "\n", { encoding: "utf8", mode: 0o600 });
+    // Exclusive create ('wx'): a concurrent boot that won the creation race must
+    // not be clobbered by this one (TOCTOU guard).
+    fs.writeFileSync(keyPath, hexKey + "\n", { encoding: "utf8", mode: 0o600, flag: "wx" });
   } catch (err: unknown) {
+    if (isEexist(err)) {
+      // Lost the race against a concurrent boot between the existence check and
+      // exclusive create: adopt the winner's key instead of overwriting it.
+      generatedBuf.fill(0);
+      return readExistingKeyFile(keyPath);
+    }
     throw new VaultError(
       `Failed to initialize auto-generated master key at '${keyPath}': ${String(err)}`,
       "STORAGE_ERROR"

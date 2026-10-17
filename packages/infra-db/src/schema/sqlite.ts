@@ -1,4 +1,10 @@
-import { sqliteTable, text, integer, foreignKey } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  foreignKey,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 /**
  * Users account entity table.
@@ -186,14 +192,25 @@ export const providerKeys = sqliteTable("provider_keys", {
  * independently, including custom typed model IDs.
  * All records strictly require user_id.
  */
-export const providerModelSelections = sqliteTable("provider_model_selections", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  kind: text("kind").notNull(),
-  provider: text("provider").notNull(),
-  modelId: text("model_id").notNull(),
-  createdAt: text("created_at").notNull(),
-  updatedAt: text("updated_at").notNull(),
-});
+export const providerModelSelections = sqliteTable(
+  "provider_model_selections",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    provider: text("provider").notNull(),
+    modelId: text("model_id").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    // Declared to mirror the hand-written DDL in model-selection-repository.ts
+    // (ticket 28 parity: the same named index exists in schema/pg.ts).
+    uniqueIndex("provider_model_selections_user_kind").on(
+      table.userId,
+      table.kind
+    ),
+  ]
+);

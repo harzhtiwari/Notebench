@@ -236,7 +236,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   let vault = options.vault;
   if (!vault) {
     const sqliteInstance = sharedSqliteInstance ?? ensureSharedSqlite();
-    const { masterKey } = resolveMasterKey({ vaultDir: options.vaultDir });
+    const { masterKey } = resolveMasterKey({ vaultDir: options.vaultDir, logger: appLogger });
     vault = new EncryptedVault(
       masterKey,
       new SqliteVaultStorage(new SqliteVaultKeyRepository(sqliteInstance.db, sqliteInstance.sqlite))

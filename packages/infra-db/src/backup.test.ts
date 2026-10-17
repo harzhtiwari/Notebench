@@ -16,12 +16,12 @@ import {
   listBackupSnapshots,
   pruneBackups,
   removeWalShmFiles,
-  rollbackFromBackup,
   selectBackupsToPrune,
   verifyBackupIntegrity,
   type BackupSnapshotEntry,
 } from "./backup.js";
 import { runBackupCli } from "./backup-cli.js";
+import { rollbackFromBackup } from "./migrator/pre-migration-backup.js";
 
 const TEST_ROOT = resolve(`.tmp/build/t26-backup-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
 
@@ -288,6 +288,9 @@ describe("ticket-26 rollback proof (spec 8.3 close-first order)", () => {
 
   it("unit test of the rollback helper: removes WAL/SHM residue while a DB is open (graph #40)", () => {
     const dir = freshCase("helper-open-db");
+    // Scope note: the open `liveDb` below is a DIFFERENT path than the residue
+    // target, so this proves residue unlink with a database open in-process —
+    // NOT target-open unlink (impossible on Windows; see removeWalShmFiles).
     // A live connection stays open in this process for the whole test.
     const livePath = join(dir, "live.sqlite");
     const liveDb = openWalDb(livePath);

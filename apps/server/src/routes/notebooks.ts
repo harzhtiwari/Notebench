@@ -6,12 +6,17 @@ import {
   NotebookError,
   NotFoundError,
   ValidationError,
+  type NotebookErrorCode,
   type NotebookRepositoryPort,
 } from "@notebook/contracts";
 import { NotebookService, type DashboardSortKey } from "@notebook/domain-notebooks";
 
 export interface NotebooksRoutesOptions {
   notebookService?: NotebookService | undefined;
+  /**
+   * Notebook repository. Required alongside notebookService for non-title
+   * PATCH updates (e.g. trashedAt); title updates run through the service.
+   */
   notebookRepo?: NotebookRepositoryPort | undefined;
   defaultUserId?: string | undefined;
   resolveOwnerId?: (() => Promise<string | null>) | undefined;
@@ -206,7 +211,19 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
       }
 
       // If updating other fields like trashedAt
-      const notebook = await options.notebookRepo!.update(id, userId, bodyResult.data);
+      const repo = options.notebookRepo;
+      if (!repo) {
+        request.log.error(
+          "NotebooksRoutes cannot apply a non-title update without the notebookRepo dependency"
+        );
+        return reply.status(500).send({
+          error: {
+            code: "INVARIANCE_VIOLATION" satisfies NotebookErrorCode,
+            message: "Notebook repository dependency is not configured for this update",
+          },
+        });
+      }
+      const notebook = await repo.update(id, userId, bodyResult.data);
       return reply.status(200).send({ notebook });
     } catch (err) {
       if (err instanceof NotFoundError) {

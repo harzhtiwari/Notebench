@@ -153,26 +153,51 @@ describe("System Health 6-Point Diagnostic Suite (Ticket 24 - RED phase)", () =>
       expect(result.message).toContain("delete");
     });
 
-    it("proves probe does NOT write to the database (pure read-only)", async () => {
-      const writtenOperations: string[] = [];
-      const mockDb: SqliteHealthProbeTarget = {
-        pragma: vi.fn((stmt: string) => {
-          if (stmt.toLowerCase().includes("wal =") || stmt.toLowerCase().includes("write")) {
-            writtenOperations.push(stmt);
+    it("runs the full battery against a strict read-only handle without issuing a single write", async () => {
+      // Probe-level contract check: any write statement or write pragma makes
+      // the target throw, so a write attempt can never hide behind a caught
+      // probe error. The engine-level proof (a real file-backed WAL database
+      // under `PRAGMA query_only=ON`) lives in apps/server/src/server.test.ts.
+      const writeAttempts: string[] = [];
+      const strictReadOnlyTarget: SqliteHealthProbeTarget = {
+        pragma: (stmt: string) => {
+          if (stmt.includes("=")) {
+            writeAttempts.push(`PRAGMA ${stmt}`);
+            throw new Error(`readonly: probe issued write pragma '${stmt}'`);
           }
           return "wal";
-        }),
-        prepare: vi.fn((sql: string) => {
-          if (/insert|update|delete|create|drop|alter/i.test(sql)) {
-            writtenOperations.push(sql);
+        },
+        prepare: (sql: string) => {
+          if (!/^\s*select\b/i.test(sql)) {
+            writeAttempts.push(sql);
+            throw new Error(`readonly: probe issued non-select statement '${sql}'`);
           }
-          return { get: vi.fn() };
-        }),
+          return { get: () => ({ version: "v0.1.9" }) };
+        },
       };
 
-      await walProbe.run({ sqliteDb: mockDb });
+      const ONE_GB = 1024 * 1024 * 1024;
+      const results = await runHealthProbes({
+        nodeVersion: "22.13.1",
+        serverHost: "127.0.0.1",
+        sqliteDb: strictReadOnlyTarget,
+        docWorkerPool: {
+          ping: async () => ({
+            pong: true,
+            timestamp: Date.now(),
+            pythonVersion: "3.12.2",
+            workerPid: 7,
+          }),
+        },
+        statfsFn: vi.fn().mockResolvedValue({
+          bsize: 4096,
+          bavail: Math.floor((10 * ONE_GB) / 4096),
+        }),
+      });
 
-      expect(writtenOperations).toHaveLength(0);
+      expect(writeAttempts).toHaveLength(0);
+      expect(results).toHaveLength(6);
+      expect(results.every((r) => r.status === "pass")).toBe(true);
     });
   });
 
@@ -321,6 +346,30 @@ describe("System Health 6-Point Diagnostic Suite (Ticket 24 - RED phase)", () =>
       expect(result.message).toContain(
         "Security Notice: Notebench is accessible on your local network without a passcode. Set a passcode in Account Settings."
       );
+    });
+
+    it("suppresses the alert (status 'pass') when a passcode is configured on a non-loopback bind", async () => {
+      const result = await exposureProbe.run({
+        serverHost: "0.0.0.0",
+        hasOwnerPasscode: true,
+      });
+
+      expect(result.id).toBe("exposure");
+      expect(result.status).toBe("pass");
+      expect(result.message).toContain("0.0.0.0");
+      expect(result.message.toLowerCase()).toContain("passcode");
+      expect(result.message).not.toContain("without a passcode");
+      expect(result.details?.["isExposed"]).toBe(true);
+    });
+
+    it("still alerts when the passcode state is unknown (fail-safe: undefined is not proof of a passcode)", async () => {
+      const result = await exposureProbe.run({
+        serverHost: "192.168.1.10",
+      });
+
+      expect(result.id).toBe("exposure");
+      expect(result.status).toBe("warn");
+      expect(result.message).toContain("without a passcode");
     });
   });
 

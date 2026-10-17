@@ -25,6 +25,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "tsx scripts/e2e.ts",
+    "test:postgres": "tsx scripts/test-postgres.ts",
     "test:mutation": "stryker run",
     "guard": "tsx scripts/guard.ts",
     "doctor": "tsx scripts/doctor.ts",

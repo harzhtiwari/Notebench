@@ -38,13 +38,37 @@ export interface CreateOwnerInput {
 }
 
 /**
+ * Result of the atomic passcode change (NOTEBENCH 6.6): the updated owner
+ * record plus how many other sessions were revoked.
+ */
+export interface PasscodeChangeResult {
+  user: UserRecord;
+  revokedSessions: number;
+}
+
+/**
  * Account Repository Port Interface.
  * Abstract data gateway implemented by infra-db (e.g. SQLite / PostgreSQL).
  */
 export interface AccountRepositoryPort {
   findOwner(): Promise<UserRecord | null>;
+  /**
+   * Atomically creates the single owner account.
+   * Throws SetupAlreadyCompletedError when an owner already exists, including
+   * when concurrent setup calls both pass the findOwner() pre-check.
+   */
   createOwner(input: CreateOwnerInput): Promise<UserRecord>;
-  updatePasscodeHash(userId: string, passcodeHash: string): Promise<UserRecord | null>;
+  /**
+   * Atomically updates the owner passcode hash and revokes every session of
+   * the user except `keepSessionId` inside one transaction (NOTEBENCH 6.6,
+   * PRD A4). Returns null when the user row no longer exists; otherwise the
+   * updated record and the number of revoked sessions.
+   */
+  updatePasscodeAndRevokeOtherSessions(
+    userId: string,
+    passcodeHash: string,
+    keepSessionId: string
+  ): Promise<PasscodeChangeResult | null>;
 }
 
 /**
@@ -123,7 +147,6 @@ export interface SessionRepositoryPort {
     input: { lastActiveAt: string; expiresAt: string }
   ): Promise<SessionRecord | null>;
   deleteSession(id: string): Promise<void>;
-  deleteOtherSessions(userId: string, currentSessionId: string): Promise<number>;
   deleteAllSessions(userId: string): Promise<number>;
   listSessions(userId: string): Promise<SessionRecord[]>;
 }

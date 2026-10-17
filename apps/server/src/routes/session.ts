@@ -10,6 +10,7 @@ import {
 import type { SessionService } from "@notebook/domain-account";
 import {
   clearSessionCookies,
+  renewSessionCookie,
   resolveRequestSecurity,
   resolveRequestSession,
   setSessionCookie,
@@ -41,6 +42,11 @@ export const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (
       });
       return null;
     }
+    // Session-management routes are exempt from the global guard, so a valid
+    // request renews the sliding cookie here; on the logout routes the
+    // subsequent clear replaces the renewal in the same reply (Ticket 02 /
+    // NOTEBENCH 6.5).
+    renewSessionCookie(reply, request, session);
     return session;
   };
 

@@ -10,11 +10,6 @@ import Database from "better-sqlite3";
 import { InvarianceViolationError, NotFoundError } from "@notebook/contracts";
 import type { Logger } from "@notebook/logger";
 
-// Single production rollback sequence (spec 8.3 order: close first, then
-// unlink WAL/SHM). Re-exported so the CLI and tests share one copy with the
-// migration runner instead of duplicating the sequence.
-export { rollbackFromBackup } from "./migrator/pre-migration-backup.js";
-
 // Canonical layout: matches createSqliteDatabase (.notebook/db/app.sqlite)
 // and the pre-migration default backup dir (.notebook/db/backups).
 const NOTEBOOK_DIR_NAME = ".notebook";

@@ -3,6 +3,7 @@ import {
   SetupAlreadyCompletedError,
   ValidationError,
   type AccountRepositoryPort,
+  type PasscodeChangeResult,
   type UserRecord,
   type CreateOwnerInput,
 } from "@notebook/contracts";
@@ -26,7 +27,9 @@ class InMemoryAccountRepository implements AccountRepositoryPort {
 
   async createOwner(input: CreateOwnerInput): Promise<UserRecord> {
     if (this.owner) {
-      throw new Error("Owner already exists in memory");
+      throw new SetupAlreadyCompletedError(
+        "Owner setup has already been completed (in-memory repository)."
+      );
     }
     const record: UserRecord = {
       id: "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
@@ -41,7 +44,11 @@ class InMemoryAccountRepository implements AccountRepositoryPort {
     return record;
   }
 
-  async updatePasscodeHash(userId: string, passcodeHash: string): Promise<UserRecord | null> {
+  async updatePasscodeAndRevokeOtherSessions(
+    userId: string,
+    passcodeHash: string,
+    _keepSessionId: string
+  ): Promise<PasscodeChangeResult | null> {
     if (!this.owner || this.owner.id !== userId) {
       return null;
     }
@@ -50,7 +57,7 @@ class InMemoryAccountRepository implements AccountRepositoryPort {
       passcodeHash,
       updatedAt: new Date().toISOString(),
     };
-    return this.owner;
+    return { user: this.owner, revokedSessions: 0 };
   }
 }
 

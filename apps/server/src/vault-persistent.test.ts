@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, rmSync, mkdirSync } from "node:fs";
 import { resolve, join } from "node:path";
+import { Writable } from "node:stream";
 import {
   createSqliteDatabase,
   SqliteAccountRepository,
@@ -11,6 +12,8 @@ import {
   resolveMasterKey,
   VAULT_CONSTANTS,
 } from "@notebook/infra-vault";
+import { createLogger } from "@notebook/logger";
+import { buildServer } from "./app.js";
 
 const TEST_DIR = resolve(`.tmp/test/test-server-vault-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
 
@@ -93,6 +96,64 @@ describe("Ticket 03: persistent vault wiring (server composition, RED)", () => {
       ).toEqual({ configured: false });
     } finally {
       close();
+    }
+  });
+
+  it("logs an informational notice when the master key is auto-generated at boot (Decision 6.1)", async () => {
+    // Fresh vault dir: no master.key and no NOTEBOOK_MASTER_KEY in the environment.
+    // Snapshot/restore so this worker's environment is untouched afterwards.
+    const previousMasterKeyEnv = process.env[VAULT_CONSTANTS.DEFAULT_MASTER_KEY_ENV];
+    delete process.env[VAULT_CONSTANTS.DEFAULT_MASTER_KEY_ENV];
+    const vaultDir = join(TEST_DIR, "boot-vault");
+
+    const capturedLines: string[] = [];
+    const captureStream = new Writable({
+      write(chunk, _encoding, callback) {
+        capturedLines.push(chunk.toString());
+        callback();
+      },
+    });
+    const customLogger = createLogger({
+      name: "boot-vault-logger",
+      level: "info",
+      destination: captureStream,
+    });
+
+    const sqliteInstance = createSqliteDatabase({ dbPath: join(TEST_DIR, "boot.sqlite") });
+    let app: Awaited<ReturnType<typeof buildServer>> | undefined;
+    try {
+      app = await buildServer({
+        vaultDir,
+        customLogger,
+        db: sqliteInstance,
+        logger: false,
+      });
+      await app.ready();
+
+      expect(existsSync(join(vaultDir, "master.key"))).toBe(true);
+
+      // Parse the captured NDJSON lines and locate the generation notice.
+      const entries = capturedLines
+        .flatMap((chunk) => chunk.split("\n"))
+        .filter((line) => line.trim() !== "")
+        .map((line) => JSON.parse(line) as { level?: number; msg?: string });
+
+      const notice = entries.find((entry) =>
+        entry.msg?.includes("Generated new 32-byte master encryption key")
+      );
+      expect(notice).toBeDefined();
+      // The notice is informational (Decision 6.1), not a warning or error.
+      expect(notice?.level).toBe(customLogger.levels.values["info"]);
+    } finally {
+      if (previousMasterKeyEnv === undefined) {
+        delete process.env[VAULT_CONSTANTS.DEFAULT_MASTER_KEY_ENV];
+      } else {
+        process.env[VAULT_CONSTANTS.DEFAULT_MASTER_KEY_ENV] = previousMasterKeyEnv;
+      }
+      if (app) {
+        await app.close();
+      }
+      sqliteInstance.close();
     }
   });
 });

@@ -37,20 +37,20 @@ export class InMemoryArtifactVersionRepository
       createdAt: params.createdAt ?? new Date().toISOString(),
     };
 
-    this.versions.set(id, version);
+    this.versions.set(id, structuredClone(version));
 
     const list = this.artifactIndex.get(params.artifactId) ?? [];
     list.push(id);
     this.artifactIndex.set(params.artifactId, list);
 
-    return version;
+    return structuredClone(version);
   }
 
   public async getVersionById(
     versionId: string
   ): Promise<ArtifactVersion | null> {
     const version = this.versions.get(versionId);
-    return version ? { ...version } : null;
+    return version ? structuredClone(version) : null;
   }
 
   public async listVersions(
@@ -61,7 +61,7 @@ export class InMemoryArtifactVersionRepository
     for (const id of ids) {
       const v = this.versions.get(id);
       if (v) {
-        result.push({ ...v });
+        result.push(structuredClone(v));
       }
     }
     return result.sort((a, b) => a.number - b.number);
@@ -75,6 +75,6 @@ export class InMemoryArtifactVersionRepository
       return null;
     }
     const last = list[list.length - 1];
-    return last ? { ...last } : null;
+    return last ? structuredClone(last) : null;
   }
 }

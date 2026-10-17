@@ -361,7 +361,8 @@ export const diskCapacityProbe: HealthProbeDefinition = {
 
 /**
  * 6. Exposure Alert Probe (Decision 1.44, 6.9, 8.8.6)
- * Checks interface binding; daemon bound to non-loopback is alert.
+ * Checks interface binding; daemon bound to non-loopback is alert only when
+ * no owner passcode is configured (PRD 1.44 / 8.8.6).
  */
 export const exposureProbe: HealthProbeDefinition = {
   id: "exposure",
@@ -370,6 +371,7 @@ export const exposureProbe: HealthProbeDefinition = {
   run: async (context?: HealthProbeContext): Promise<HealthProbeResult> => {
     const startTime = Date.now();
     const host = context?.serverHost ?? process.env["HOST"] ?? "127.0.0.1";
+    const hasOwnerPasscode = context?.hasOwnerPasscode === true;
     const durationMs = Date.now() - startTime;
 
     const isLoopback = host === "127.0.0.1" || host === "localhost" || host === "::1";
@@ -384,6 +386,25 @@ export const exposureProbe: HealthProbeDefinition = {
           host,
           isLoopback: true,
           isExposed: false,
+        },
+        durationMs,
+      };
+    }
+
+    if (hasOwnerPasscode) {
+      // Non-loopback bind protected by an owner passcode: no alert, no banner.
+      // `undefined` deliberately stays an alert (fail-safe): the absence of
+      // passcode information is not proof that a passcode is configured.
+      return {
+        id: "exposure",
+        name: "Exposure Alert",
+        status: "pass",
+        message: `Bound to non-loopback interface (${host}) with an owner passcode configured; exposure alert suppressed`,
+        details: {
+          host,
+          isLoopback: false,
+          isExposed: true,
+          hasOwnerPasscode: true,
         },
         durationMs,
       };

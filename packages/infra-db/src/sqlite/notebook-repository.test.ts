@@ -114,7 +114,10 @@ describe("SqliteNotebookRepository (Ticket 05 CRUD & Duplicate)", () => {
   });
 
   describe("duplicate (B4 / Coverage Gap Closed)", () => {
-    it("duplicates notebook, creating fresh rows with new IDs for sources and artifacts, without copying chat history or memory rules", async () => {
+    it("duplicates notebook creating fresh rows with new IDs for sources and artifacts only, without copying chat history or memory rules", async () => {
+      // Ticket 05 section 7 also calls for chunks and vectors to be copied,
+      // but no chunk/embedding tables exist yet (ingestion storage is
+      // unbuilt). This test intentionally covers sources + artifacts only.
       const original = await repo.create(userId, { title: "Physics 101" });
       const now = new Date().toISOString();
 
@@ -125,14 +128,17 @@ describe("SqliteNotebookRepository (Ticket 05 CRUD & Duplicate)", () => {
         VALUES ('${sourceId}', '${userId}', '${original.id}', 'Mechanics.pdf', 'pdf', '/uploads/mech.pdf', 'hash-123', 500000, '${now}', '${now}');
       `);
 
-      // Seed artifact and version
+      // Seed artifact with a version chain (v2 derived from v1)
       const artifactId = "55555555-5555-4555-8555-555555555555";
-      const versionId = "66666666-6666-4666-8666-666666666666";
+      const versionIdV1 = "66666666-6666-4666-8666-666666666666";
+      const versionIdV2 = "66666666-6666-4666-8666-666666666667";
       dbInstance.sqlite.exec(`
         INSERT INTO artifacts (id, user_id, notebook_id, type, title, schema_version, current_version_id, created_at, updated_at)
-        VALUES ('${artifactId}', '${userId}', '${original.id}', 'quiz', 'Kinematics Quiz', 1, '${versionId}', '${now}', '${now}');
-        INSERT INTO artifact_versions (id, user_id, artifact_id, number, created_by, content, created_at)
-        VALUES ('${versionId}', '${userId}', '${artifactId}', 1, 'user', '{"questions":[]}', '${now}');
+        VALUES ('${artifactId}', '${userId}', '${original.id}', 'quiz', 'Kinematics Quiz', 1, '${versionIdV2}', '${now}', '${now}');
+        INSERT INTO artifact_versions (id, user_id, artifact_id, number, created_by, parent_version_id, content, created_at)
+        VALUES ('${versionIdV1}', '${userId}', '${artifactId}', 1, 'user', NULL, '{"questions":[]}', '${now}');
+        INSERT INTO artifact_versions (id, user_id, artifact_id, number, created_by, parent_version_id, content, created_at)
+        VALUES ('${versionIdV2}', '${userId}', '${artifactId}', 2, 'ai', '${versionIdV1}', '{"questions":[{"id":"q1"}]}', '${now}');
       `);
 
       // Seed memory rule (must NOT be duplicated)
@@ -148,36 +154,98 @@ describe("SqliteNotebookRepository (Ticket 05 CRUD & Duplicate)", () => {
       expect(duplicated.id).not.toBe(original.id);
       expect(duplicated.title).toBe("Copy of Physics 101");
 
-      // Verify sources of duplicated notebook
+      // Verify sources of duplicated notebook: fresh row, same count/content
       const dupSources = dbInstance.sqlite
         .prepare("SELECT * FROM sources WHERE notebook_id = ?")
-        .all(duplicated.id) as Array<{ id: string; title: string; content_hash: string }>;
+        .all(duplicated.id) as Array<{
+          id: string;
+          title: string;
+          content_hash: string;
+          byte_size: number;
+        }>;
       expect(dupSources).toHaveLength(1);
       expect(dupSources[0]?.id).not.toBe(sourceId);
       expect(dupSources[0]?.title).toBe("Mechanics.pdf");
       expect(dupSources[0]?.content_hash).toBe("hash-123");
+      expect(dupSources[0]?.byte_size).toBe(500000);
 
-      // Verify artifacts and versions of duplicated notebook
+      // Verify artifacts and version DAG of duplicated notebook
       const dupArtifacts = dbInstance.sqlite
         .prepare("SELECT * FROM artifacts WHERE notebook_id = ?")
         .all(duplicated.id) as Array<{ id: string; title: string; current_version_id: string }>;
       expect(dupArtifacts).toHaveLength(1);
       expect(dupArtifacts[0]?.id).not.toBe(artifactId);
       expect(dupArtifacts[0]?.title).toBe("Kinematics Quiz");
-      expect(dupArtifacts[0]?.current_version_id).not.toBe(versionId);
 
       const dupVersions = dbInstance.sqlite
-        .prepare("SELECT * FROM artifact_versions WHERE artifact_id = ?")
-        .all(dupArtifacts[0]?.id) as Array<{ id: string; content: string }>;
-      expect(dupVersions).toHaveLength(1);
-      expect(dupVersions[0]?.id).toBe(dupArtifacts[0]?.current_version_id);
+        .prepare("SELECT * FROM artifact_versions WHERE artifact_id = ? ORDER BY number ASC")
+        .all(dupArtifacts[0]?.id) as Array<{
+          id: string;
+          number: number;
+          parent_version_id: string | null;
+          content: string;
+        }>;
+      expect(dupVersions).toHaveLength(2);
+      expect(dupVersions[0]?.id).not.toBe(versionIdV1);
+      expect(dupVersions[0]?.parent_version_id).toBeNull();
+      expect(dupVersions[1]?.id).not.toBe(versionIdV2);
+      expect(dupVersions[1]?.parent_version_id).toBe(dupVersions[0]?.id);
       expect(dupVersions[0]?.content).toBe('{"questions":[]}');
+      expect(dupVersions[1]?.content).toBe('{"questions":[{"id":"q1"}]}');
+      expect(dupArtifacts[0]?.current_version_id).toBe(dupVersions[1]?.id);
+
+      // The original rows were copied, not moved
+      const originalCounts = dbInstance.sqlite
+        .prepare(`
+          SELECT
+            (SELECT COUNT(*) FROM sources WHERE notebook_id = ?) AS sources,
+            (SELECT COUNT(*) FROM artifacts WHERE notebook_id = ?) AS artifacts
+        `)
+        .get(original.id, original.id) as { sources: number; artifacts: number };
+      expect(originalCounts.sources).toBe(1);
+      expect(originalCounts.artifacts).toBe(1);
 
       // Verify memory rules were NOT copied
       const dupRules = dbInstance.sqlite
         .prepare("SELECT * FROM memory_rules WHERE notebook_id = ?")
         .all(duplicated.id);
       expect(dupRules).toHaveLength(0);
+    });
+  });
+
+  describe("artifact_versions self-referencing FK (bootstrapped schema)", () => {
+    it("declares parent_version_id REFERENCES artifact_versions(id) and enables foreign keys", () => {
+      expect(dbInstance.sqlite.pragma("foreign_keys", { simple: true })).toBe(1);
+
+      const foreignKeys = dbInstance.sqlite.pragma(
+        "foreign_key_list(artifact_versions)"
+      ) as Array<{ table: string; from: string; to: string }>;
+
+      expect(foreignKeys).toContainEqual(
+        expect.objectContaining({
+          table: "artifact_versions",
+          from: "parent_version_id",
+          to: "id",
+        })
+      );
+    });
+
+    it("rejects a version whose parent_version_id does not exist", async () => {
+      const nb = await repo.create(userId, { title: "FK Probe" });
+      const now = new Date().toISOString();
+      const artifactId = "77777777-7777-4777-8777-777777777777";
+
+      dbInstance.sqlite.exec(`
+        INSERT INTO artifacts (id, user_id, notebook_id, type, title, created_at, updated_at)
+        VALUES ('${artifactId}', '${userId}', '${nb.id}', 'report', 'FK Probe Artifact', '${now}', '${now}');
+      `);
+
+      expect(() =>
+        dbInstance.sqlite.exec(`
+          INSERT INTO artifact_versions (id, user_id, artifact_id, number, created_by, parent_version_id, content, created_at)
+          VALUES ('88888888-8888-4888-8888-888888888888', '${userId}', '${artifactId}', 1, 'user', '99999999-9999-4999-8999-999999999999', '{}', '${now}');
+        `)
+      ).toThrow(/FOREIGN KEY/i);
     });
   });
 

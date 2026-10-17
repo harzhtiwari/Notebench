@@ -1,9 +1,11 @@
 import { NotebookError, type NotebookErrorCode } from "@notebook/contracts";
 
 export type VaultErrorCategory =
+  // Wrong-AAD context substitutions are deliberately folded into this category:
+  // AES-GCM authenticates AAD jointly with the ciphertext, so a wrong AAD is
+  // cryptographically indistinguishable from tampering.
   | "TAMPERED_CIPHERTEXT"
   | "INVALID_MASTER_KEY"
-  | "AAD_MISMATCH"
   | "KEY_NOT_FOUND"
   | "STORAGE_ERROR"
   | "VALIDATION_ERROR";
@@ -27,7 +29,6 @@ export class VaultError extends NotebookError {
 
     switch (category) {
       case "TAMPERED_CIPHERTEXT":
-      case "AAD_MISMATCH":
         this.code = "INVARIANCE_VIOLATION";
         this.statusCode = 409;
         break;
@@ -38,6 +39,12 @@ export class VaultError extends NotebookError {
       case "KEY_NOT_FOUND":
         this.code = "NOT_FOUND";
         this.statusCode = 404;
+        break;
+      case "STORAGE_ERROR":
+        // Vault storage I/O failure: an internal fault, not bad client input.
+        // 500-class, mirroring the server's internal-error convention.
+        this.code = "INVARIANCE_VIOLATION";
+        this.statusCode = 500;
         break;
       case "VALIDATION_ERROR":
       default:

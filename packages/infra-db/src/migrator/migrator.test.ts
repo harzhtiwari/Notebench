@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { existsSync, rmSync, mkdirSync, readdirSync } from "node:fs";
+import { existsSync, rmSync, mkdirSync, readdirSync, utimesSync } from "node:fs";
 import { resolve, join } from "node:path";
 import Database from "better-sqlite3";
 import {
@@ -86,7 +86,7 @@ describe("Pre-Migration Backup & Rollback Engine", () => {
     }
   });
 
-  it("prunes old pre-migration backups beyond maxRetainedBackups", async () => {
+  it("keeps every pre-migration backup inside the 14-day retention window, even beyond maxRetainedBackups", async () => {
     const caseDir = join(TEST_DIR, "case-2");
     mkdirSync(caseDir, { recursive: true });
     const backupDir = join(caseDir, "backups");
@@ -97,7 +97,9 @@ describe("Pre-Migration Backup & Rollback Engine", () => {
       activeDb.pragma("journal_mode = WAL");
       activeDb.exec("CREATE TABLE t (id INTEGER);");
 
-      // Create 12 backups with maxRetainedBackups = 5
+      // 12 fresh backups with maxRetainedBackups = 5: the canonical spec 8.7
+      // union (top-10 OR all within 14 days, whichever keeps more) keeps the
+      // whole retention window, not just the count cap.
       for (let i = 0; i < 12; i++) {
         await createPreMigrationBackup({
           activeDb,
@@ -111,8 +113,64 @@ describe("Pre-Migration Backup & Rollback Engine", () => {
       const sqliteFiles = files.filter((f) => f.endsWith(".sqlite"));
       const metaFiles = files.filter((f) => f.endsWith(".meta.json"));
 
-      expect(sqliteFiles.length).toBe(5);
-      expect(metaFiles.length).toBe(5);
+      expect(sqliteFiles.length).toBe(12);
+      expect(metaFiles.length).toBe(12);
+    } finally {
+      activeDb.close();
+    }
+  });
+
+  it("never prunes the newest pre-migration backup, even when mtime order disagrees with name order", async () => {
+    const caseDir = join(TEST_DIR, "case-2-never-newest");
+    mkdirSync(caseDir, { recursive: true });
+    const backupDir = join(caseDir, "backups");
+    const dbPath = join(caseDir, "app.sqlite");
+
+    const activeDb = new Database(dbPath);
+    try {
+      activeDb.pragma("journal_mode = WAL");
+      activeDb.exec("CREATE TABLE t (id INTEGER);");
+
+      const created: string[] = [];
+      for (let i = 0; i < 4; i++) {
+        const meta = await createPreMigrationBackup({
+          activeDb,
+          activeDbPath: dbPath,
+          backupDir,
+          maxRetainedBackups: 100,
+        });
+        created.push(meta.backupDbPath);
+      }
+
+      // Forge mtimes so the first-created (name-first) snapshot is the newest
+      // by mtime and the last-created one is the oldest; all four are outside
+      // the 14-day window, so only the count cap governs their fate.
+      const dayMs = 86_400_000;
+      for (let i = 0; i < created.length; i++) {
+        const when = new Date(Date.now() - (i + 1) * 20 * dayMs);
+        const file = created[i] as string;
+        utimesSync(file, when, when);
+        utimesSync(`${file}.meta.json`, when, when);
+      }
+
+      const newest = created[0] as string;
+      const oldest = created[3] as string;
+
+      const fresh = await createPreMigrationBackup({
+        activeDb,
+        activeDbPath: dbPath,
+        backupDir,
+        maxRetainedBackups: 2,
+      });
+
+      // Canonical union keeps the fresh snapshot plus the mtime-newest one;
+      // the oldest (80-day) snapshot must be pruned.
+      const remaining = readdirSync(backupDir).filter((f) => f.endsWith(".sqlite"));
+      expect(remaining).toHaveLength(2);
+      expect(existsSync(fresh.backupDbPath)).toBe(true);
+      expect(existsSync(newest)).toBe(true);
+      expect(existsSync(`${newest}.meta.json`)).toBe(true);
+      expect(existsSync(oldest)).toBe(false);
     } finally {
       activeDb.close();
     }
