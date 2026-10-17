@@ -1,13 +1,32 @@
 import Database from "better-sqlite3";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import { dirname, resolve } from "node:path";
-import { mkdirSync } from "node:fs";
+import { dirname, resolve, join } from "node:path";
+import { mkdirSync, existsSync } from "node:fs";
 import { sqliteSchema } from "../schema/index.js";
 
 /**
- * Default persistent SQLite database path conforming to ADR 0004.
+ * Resolves the monorepo root by locating pnpm-workspace.yaml upwards from a given directory.
+ * Falls back to process.cwd() if not found.
  */
-export const DEFAULT_SQLITE_DB_PATH = resolve(".notebook/db/app.sqlite");
+export function findMonorepoRoot(startDir = process.cwd()): string {
+  let current = resolve(startDir);
+  while (true) {
+    if (existsSync(join(current, "pnpm-workspace.yaml"))) {
+      return current;
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      return resolve(startDir);
+    }
+    current = parent;
+  }
+}
+
+/**
+ * Default persistent SQLite database path conforming to ADR 0004.
+ * Always anchors to the monorepo root .notebook/ directory regardless of subpackage cwd.
+ */
+export const DEFAULT_SQLITE_DB_PATH = join(findMonorepoRoot(), ".notebook", "db", "app.sqlite");
 
 export interface SqliteDatabaseConfig {
   /**
@@ -59,7 +78,12 @@ export interface SqliteDatabaseInstance {
 export function createSqliteDatabase(
   config: SqliteDatabaseConfig = {}
 ): SqliteDatabaseInstance {
-  const dbPath = config.dbPath ? resolve(config.dbPath) : DEFAULT_SQLITE_DB_PATH;
+  const dbPath =
+    config.dbPath === ":memory:"
+      ? ":memory:"
+      : config.dbPath
+        ? resolve(config.dbPath)
+        : DEFAULT_SQLITE_DB_PATH;
 
   let sqlite: Database.Database;
 

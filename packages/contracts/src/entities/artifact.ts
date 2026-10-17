@@ -17,7 +17,7 @@ export const ArtifactSchema = z.object({
   notebookId: z.string().uuid(),
   type: ArtifactTypeSchema,
   title: z.string().min(1),
-  schemaVersion: z.number().int().positive().default(1),
+  schemaVersion: z.literal(1).default(1),
   currentVersionId: z.string().uuid(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

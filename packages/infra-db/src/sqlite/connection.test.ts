@@ -4,26 +4,63 @@ import { resolve, join } from "node:path";
 import {
   createSqliteDatabase,
   DEFAULT_SQLITE_DB_PATH,
+  findMonorepoRoot,
 } from "./connection.js";
 
-const TEST_DIR = resolve(".tmp/test-db-connection");
+const TEST_DIR = resolve(`.tmp/test/test-db-connection-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
+
+/**
+ * Windows holds file locks briefly after sqlite handles close, longer under
+ * parallel suites: retry transient lock errors with a generous budget.
+ */
+async function removeDirWithRetry(dir: string): Promise<void> {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch (error: unknown) {
+      const code = (error as { code?: string }).code;
+      if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        continue;
+      }
+      throw error;
+    }
+  }
+}
 
 describe("SQLite Database Connection", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     if (existsSync(TEST_DIR)) {
-      rmSync(TEST_DIR, { recursive: true, force: true });
+      await removeDirWithRetry(TEST_DIR);
     }
     mkdirSync(TEST_DIR, { recursive: true });
-  });
+  }, 120_000);
 
-  afterEach(() => {
+  afterEach(async () => {
     if (existsSync(TEST_DIR)) {
-      rmSync(TEST_DIR, { recursive: true, force: true });
+      try {
+        await removeDirWithRetry(TEST_DIR);
+      } catch {
+        // Non-fatal if OS locks are briefly transitioning
+      }
     }
-  });
+  }, 120_000);
 
   it("exposes default db path matching ADR 0004 (.notebook/db/app.sqlite)", () => {
-    expect(DEFAULT_SQLITE_DB_PATH).toBe(resolve(".notebook/db/app.sqlite"));
+    const root = findMonorepoRoot();
+    expect(DEFAULT_SQLITE_DB_PATH).toBe(join(root, ".notebook", "db", "app.sqlite"));
+  });
+
+  it("resolves the monorepo root correctly even from a nested subpackage directory", () => {
+    const root = findMonorepoRoot();
+    expect(existsSync(join(root, "pnpm-workspace.yaml"))).toBe(true);
+
+    const nestedPath = join(root, "apps", "server");
+    expect(findMonorepoRoot(nestedPath)).toBe(root);
+
+    const deepNestedPath = join(root, "packages", "infra-db", "src", "sqlite");
+    expect(findMonorepoRoot(deepNestedPath)).toBe(root);
   });
 
   it("opens database in WAL mode with busy_timeout=5000 and synchronous=NORMAL", () => {

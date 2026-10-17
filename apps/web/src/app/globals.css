@@ -1,0 +1,22 @@
+@import "tailwindcss";
+@source "..";
+@source "../../../../packages/ui/src";
+@source "../../../../packages/ui/dist";
+@source "../../packages/ui/src";
+@source "../../packages/ui/dist";
+@import "@notebook/ui/tokens.css";
+@import "@notebook/ui/tokens.theme.css";
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    min-height: 100%;
+    width: 100%;
+    font-family: var(--nb-font-ui);
+    background-color: var(--nb-ground);
+    color: var(--nb-ink);
+  }
+}

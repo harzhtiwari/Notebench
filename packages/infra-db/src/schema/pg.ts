@@ -6,6 +6,8 @@ import {
   integer,
   boolean,
   timestamp,
+  foreignKey,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -85,23 +87,32 @@ export const artifacts = pgTable("artifacts", {
  * PostgreSQL Artifact versions append-only history DAG table.
  * All records strictly require user_id.
  */
-export const artifactVersions = pgTable("artifact_versions", {
-  id: uuid("id").primaryKey(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  artifactId: uuid("artifact_id")
-    .notNull()
-    .references(() => artifacts.id, { onDelete: "cascade" }),
-  number: integer("number").notNull(),
-  createdBy: varchar("created_by", { length: 50 }).notNull(),
-  model: varchar("model", { length: 100 }),
-  instruction: text("instruction"),
-  parentVersionId: uuid("parent_version_id"),
-  content: text("content").notNull(),
-  contentDigest: varchar("content_digest", { length: 64 }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-});
+export const artifactVersions = pgTable(
+  "artifact_versions",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    artifactId: uuid("artifact_id")
+      .notNull()
+      .references(() => artifacts.id, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    createdBy: varchar("created_by", { length: 50 }).notNull(),
+    model: varchar("model", { length: 100 }),
+    instruction: text("instruction"),
+    parentVersionId: uuid("parent_version_id"),
+    content: text("content").notNull(),
+    contentDigest: varchar("content_digest", { length: 64 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    parentVersionFk: foreignKey({
+      columns: [table.parentVersionId],
+      foreignColumns: [table.id],
+    }),
+  })
+);
 
 /**
  * PostgreSQL Sessions dual-token authentication table.
@@ -158,3 +169,51 @@ export const memoryRules = pgTable("memory_rules", {
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 });
+
+/**
+ * PostgreSQL Provider keys encrypted credentials storage table.
+ * All records strictly require user_id.
+ */
+export const providerKeys = pgTable("provider_keys", {
+  id: uuid("id").primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  keyId: text("key_id").notNull(),
+  ciphertext: text("ciphertext").notNull(),
+  iv: text("iv").notNull(),
+  tag: text("tag").notNull(),
+  schemaVersion: integer("schema_version").notNull().default(1),
+  maskedKey: text("masked_key").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
+/**
+ * PostgreSQL provider model selections table (Ticket 04, PRD D6/D7).
+ * One row per (user_id, kind): chat and embedding models persist independently.
+ * All records strictly require user_id.
+ */
+export const providerModelSelections = pgTable(
+  "provider_model_selections",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    provider: text("provider").notNull(),
+    modelId: text("model_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    // Parity with the SQLite DDL in model-selection-repository.ts: one row
+    // per (user_id, kind) so chat and embedding models persist independently.
+    uniqueIndex("provider_model_selections_user_kind").on(
+      table.userId,
+      table.kind
+    ),
+  ]
+);

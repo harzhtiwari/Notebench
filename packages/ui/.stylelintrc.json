@@ -1,0 +1,76 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "referenceFiles": ["./tokens.css", "./tokens.media.css"],
+  "ignoreFiles": [
+    "**/tokens.css",
+    "**/tokens.theme.css",
+    "**/tokens.media.css",
+    "**/board.test.html"
+  ],
+  "rules": {
+    "no-unknown-custom-properties": [
+      true,
+      { "reportDisables": true }
+    ],
+    "no-Unknown-custom-media": true,
+    "color-no-hex": [
+      true,
+      { "reportDisables": true }
+    ],
+    "color-named": "never",
+    "function-disallowed-list": ["rgb", "rgba", "hsl", "hsla", "oklch", "lab", "lch"],
+    "comment-word-disallowed-list": [
+      ["/lint-off/", "/stylelint-disable/"],
+      { "message": "Do not disable token linting in product files." }
+    ],
+    "declaration-property-value-disallowed-list": {
+      "border-radius": [
+        "/--nb-radius-(xs|sm|md|lg|xl|full)/"
+      ]
+    },
+    "declaration-property-value-allowed-list": {
+      "/^(color|background|background-color|border-color|outline-color|fill|stroke)$/": [
+        "/^var\\(--nb-/",
+        "transparent",
+        "currentColor",
+        "inherit",
+        "none",
+        "Highlight",
+        "ButtonText",
+        "HighlightText"
+      ],
+      "/^(padding|margin|gap|row-gap|column-gap|inset|top|right|bottom|left)/": [
+        "/^var\\(--nb-space-/",
+        "/^var\\(--nb-layout-/",
+        "/^calc\\(/",
+        "0",
+        "auto"
+      ],
+      "border-radius": [
+        "/^var\\(--nb-radius-(panel|modal|composer|card|well|input|menu|control|chip|tag|rail)\\)$/",
+        "/^calc\\(/",
+        "0"
+      ],
+      "box-shadow": [
+        "/^var\\(--nb-shadow-(float|modal)\\)$/",
+        "/^inset 0/",
+        "none"
+      ],
+      "z-index": [
+        "/^var\\(--nb-z-(base|raised|header|popover|modal|toast)\\)$/"
+      ],
+      "/^font-size$/": [
+        "/^var\\(--nb-text-/"
+      ],
+      "/^font-family$/": [
+        "/^var\\(--nb-font-/"
+      ],
+      "/^font-weight$/": [
+        "/^var\\(--nb-weight-/"
+      ],
+      "/^line-height$/": [
+        "/^var\\(--nb-leading-/"
+      ]
+    }
+  }
+}

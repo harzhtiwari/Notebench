@@ -11,14 +11,14 @@ export type CitationLocator = z.infer<typeof CitationLocatorSchema>;
 
 export const CitationRefSchema = z.object({
   sourceId: z.string().uuid(),
-  chunkId: z.string().uuid().optional(),
+  chunkId: z.string().uuid(),
   snippet: z.string().optional(),
   locator: CitationLocatorSchema.default({}),
 });
 export type CitationRef = z.infer<typeof CitationRefSchema>;
 
 export const CitationSchema = z.object({
-  id: z.string().uuid().or(z.string().min(1)),
+  id: z.string().uuid(),
   sourceId: z.string().uuid(),
   chunkId: z.string().uuid().optional(),
   snippet: z.string().optional(),

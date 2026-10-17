@@ -1,4 +1,10 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  foreignKey,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 /**
  * Users account entity table.
@@ -77,23 +83,32 @@ export const artifacts = sqliteTable("artifacts", {
  * Artifact versions append-only history DAG table.
  * All records strictly require user_id.
  */
-export const artifactVersions = sqliteTable("artifact_versions", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  artifactId: text("artifact_id")
-    .notNull()
-    .references(() => artifacts.id, { onDelete: "cascade" }),
-  number: integer("number").notNull(),
-  createdBy: text("created_by").notNull(),
-  model: text("model"),
-  instruction: text("instruction"),
-  parentVersionId: text("parent_version_id"),
-  content: text("content").notNull(),
-  contentDigest: text("content_digest"),
-  createdAt: text("created_at").notNull(),
-});
+export const artifactVersions = sqliteTable(
+  "artifact_versions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    artifactId: text("artifact_id")
+      .notNull()
+      .references(() => artifacts.id, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    createdBy: text("created_by").notNull(),
+    model: text("model"),
+    instruction: text("instruction"),
+    parentVersionId: text("parent_version_id"),
+    content: text("content").notNull(),
+    contentDigest: text("content_digest"),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => ({
+    parentVersionFk: foreignKey({
+      columns: [table.parentVersionId],
+      foreignColumns: [table.id],
+    }),
+  })
+);
 
 /**
  * Sessions dual-token authentication table.
@@ -150,3 +165,52 @@ export const memoryRules = sqliteTable("memory_rules", {
   isActive: integer("is_active").notNull().default(1),
   createdAt: text("created_at").notNull(),
 });
+
+/**
+ * Provider keys encrypted credentials storage table.
+ * All records strictly require user_id.
+ */
+export const providerKeys = sqliteTable("provider_keys", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  keyId: text("key_id").notNull(),
+  ciphertext: text("ciphertext").notNull(),
+  iv: text("iv").notNull(),
+  tag: text("tag").notNull(),
+  schemaVersion: integer("schema_version").notNull().default(1),
+  maskedKey: text("masked_key").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+/**
+ * Provider model selections table (Ticket 04, PRD D6/D7).
+ * One row per (user_id, kind): chat and embedding models persist
+ * independently, including custom typed model IDs.
+ * All records strictly require user_id.
+ */
+export const providerModelSelections = sqliteTable(
+  "provider_model_selections",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    provider: text("provider").notNull(),
+    modelId: text("model_id").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    // Declared to mirror the hand-written DDL in model-selection-repository.ts
+    // (ticket 28 parity: the same named index exists in schema/pg.ts).
+    uniqueIndex("provider_model_selections_user_kind").on(
+      table.userId,
+      table.kind
+    ),
+  ]
+);

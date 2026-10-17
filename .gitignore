@@ -17,6 +17,7 @@
 docs/Project/
 docs/research/
 docs/adr/
+docs/ui/
 
 # Operating System files
 .DS_Store
@@ -61,3 +62,11 @@ pnpm-debug.log*
 *.swp
 *.swo
 *~
+
+# Claude Code local files (skills, hooks, permission grants — reinstall via `graphify install --project --strict --platform claude`)
+.claude/
+# Gemini CLI local files (skills, hooks — reinstall via `graphify install --project --platform gemini`)
+.gemini/
+
+# Graphify knowledge graph (local, regenerable via `graphify extract . --code-only`)
+graphify-out/

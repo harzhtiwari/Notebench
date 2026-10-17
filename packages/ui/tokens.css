@@ -1,0 +1,320 @@
+/*
+  GENERATED FILE. Do not edit. Source: tokens.json, build: build_tokens.py
+
+  Naming rule: --nb-<role>[-<variant>]
+  Name the role, never the look.  --nb-ground: yes.  --background: no.
+
+  Theme rule
+  - Light is defined on :root and on [data-theme="light"].
+  - Dark redefines the same names twice: once for the OS setting and once for
+    [data-theme="dark"]. Put the attribute on <html> for the whole app, or on
+    any element to preview that theme inside the other one.
+  - color-scheme is set in each theme so native controls follow.
+
+  Components read only these variables. A literal color, size, radius, shadow
+  or z-index in a component is a bug (lint_tokens.py fails the build on it).
+*/
+
+:root, [data-theme="light"] {
+  color-scheme: light;
+
+  /* Color */
+  --nb-ground:           #F5F4F1;
+  --nb-sheet:            #FFFFFF;
+  --nb-well:             #EEEDE9;
+  --nb-well-hover:       #E5E4DF;
+  --nb-edge:             #767671;
+  --nb-hairline:         #E1E0DB;
+  --nb-ink:              #161615;
+  --nb-ink-2:            #43433F;
+  --nb-ink-3:            #5C5C57;
+  --nb-ink-inv:          #FFFFFF;
+  --nb-link:             #1D5BD8;
+  --nb-link-wash:        #E2EBFC;
+  --nb-you:              #0F6A5B;
+  --nb-you-wash:         #D9EBE6;
+  --nb-ai:               #5B4BC4;
+  --nb-ai-wash:          #E8E5F8;
+  --nb-marker:           #F2D64B;
+  --nb-marker-text:      #7A6710;
+  --nb-marker-wash:      #F6E8A6;
+  --nb-marker-swipe:     #F4E07A;
+  --nb-on-marker:        #161615;
+  --nb-ok:               #1F6B3A;
+  --nb-ok-wash:          #DDEEE3;
+  --nb-warn:             #8A5A00;
+  --nb-warn-wash:        #F5E5BF;
+  --nb-danger:           #B5301D;
+  --nb-danger-wash:      #F7DDD7;
+  --nb-scrim:            rgba(22, 22, 21, 0.45);
+  --nb-select:           #CFE0FA;
+  --nb-hatch:            #77776F;
+  --nb-focus:            #161615;
+  --nb-disabled-fg:      #8C8C86;
+  --nb-disabled-bg:      #EEEDE9;
+  --nb-chart-1:          #302460;
+  --nb-chart-2:          #C45F1C;
+  --nb-chart-3:          #128181;
+  --nb-chart-4:          #A31CC4;
+  --nb-tool-cobalt:      #2563EB;
+  --nb-tool-amber:       #B45309;
+  --nb-tool-rose:        #D6336C;
+  --nb-tool-emerald:     #0F8A5F;
+  --nb-tool-cyan:        #0284A8;
+  --nb-tool-purple:      #7C3AED;
+  --nb-tool-indigo:      #4F46E5;
+  --nb-tool-teal:        #0D8A80;
+
+  /* Elevation: only things that float get a shadow */
+  --nb-shadow-float:     0 1px 2px rgba(22, 22, 21, 0.06), 0 8px 24px rgba(22, 22, 21, 0.12);
+  --nb-shadow-modal:     0 2px 4px rgba(22, 22, 21, 0.08), 0 24px 56px rgba(22, 22, 21, 0.22);
+}
+
+:root {
+  /* Type */
+  --nb-font-ui:          "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --nb-font-read:        "Literata Variable", "Literata", "Iowan Old Style", Georgia, serif;
+  --nb-font-mono:        "Atkinson Hyperlegible Mono Variable", "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --nb-text-2xs:         0.75rem;
+  --nb-text-xs:          0.8125rem;
+  --nb-text-sm:          0.875rem;
+  --nb-text-md:          1rem;
+  --nb-text-lg:          1.0625rem;
+  --nb-text-xl:          1.25rem;
+  --nb-text-2xl:         1.5rem;
+  --nb-text-3xl:         2.5rem;
+  --nb-leading-tight:    1.2;
+  --nb-leading-ui:       1.5;
+  --nb-leading-read:     1.65;
+  --nb-leading-none:     1;
+  --nb-weight-regular:   400;
+  --nb-weight-medium:    500;
+  --nb-weight-semibold:  600;
+  --nb-weight-bold:      700;
+  --nb-tracking-tight:   -0.01em;
+  --nb-tracking-normal:  0;
+
+  /* Space, 4px base. Numbers match Tailwind's (space-4 = 1rem). */
+  --nb-space-0:          0;
+  --nb-space-0-5:        0.125rem;
+  --nb-space-1:          0.25rem;
+  --nb-space-2:          0.5rem;
+  --nb-space-3:          0.75rem;
+  --nb-space-4:          1rem;
+  --nb-space-5:          1.25rem;
+  --nb-space-6:          1.5rem;
+  --nb-space-8:          2rem;
+  --nb-space-10:         2.5rem;
+  --nb-space-12:         3rem;
+  --nb-space-16:         4rem;
+  --nb-space-24:         6rem;
+
+  /* Radius: the scale, then the role each step is for. Components use roles. */
+  --nb-radius-xs:        4px;
+  --nb-radius-sm:        8px;
+  --nb-radius-md:        12px;
+  --nb-radius-lg:        16px;
+  --nb-radius-xl:        24px;
+  --nb-radius-full:      9999px;
+  --nb-radius-panel:     var(--nb-radius-xl);
+  --nb-radius-modal:     var(--nb-radius-xl);
+  --nb-radius-composer:  var(--nb-radius-xl);
+  --nb-radius-card:      var(--nb-radius-lg);
+  --nb-radius-well:      var(--nb-radius-md);
+  --nb-radius-input:     var(--nb-radius-md);
+  --nb-radius-menu:      var(--nb-radius-md);
+  --nb-radius-control:   var(--nb-radius-full);
+  --nb-radius-chip:      var(--nb-radius-full);
+  --nb-radius-tag:       var(--nb-radius-xs);
+  --nb-radius-rail:      var(--nb-radius-full);
+
+  /* Border and focus ring */
+  --nb-border-1:         1px;
+  --nb-border-2:         2px;
+  --nb-border-rail:      4px;
+  --nb-ring-width:       2px;
+  --nb-ring-offset:      2px;
+
+  /* Size */
+  --nb-size-icon-sm:     1rem;
+  --nb-size-icon-md:     1.25rem;
+  --nb-size-icon-lg:     1.5rem;
+  --nb-size-control-sm:  1.75rem;
+  --nb-size-control-md:  2.25rem;
+  --nb-size-control-lg:  2.75rem;
+  --nb-size-target-min:  1.5rem;
+  --nb-size-logo:        2.5rem;
+  --nb-size-tile-icon:   2.25rem;
+  --nb-size-switch-w:    2.75rem;
+  --nb-size-switch-h:    1.5rem;
+  --nb-size-progress:    0.5rem;
+  --nb-size-textarea-min: 5rem;
+  --nb-size-composer-min: 8rem;
+
+  /* Layout */
+  --nb-layout-gutter:    0.875rem;
+  --nb-layout-header-h:  4.5rem;
+  --nb-layout-panel-w:   18rem;
+  --nb-layout-panel-w-collapsed: 3.5rem;
+  --nb-layout-composer-h: 4.875rem;
+  --nb-layout-chat-max:  46rem;
+  --nb-layout-app-max:   90rem;
+  --nb-layout-modal-sm:  28rem;
+  --nb-layout-modal-md:  40rem;
+  --nb-layout-modal-lg:  56rem;
+  --nb-layout-popover-w: 24rem;
+  --nb-layout-measure:   66ch;
+  --nb-layout-title-min: 14rem;
+
+  /* Stacking */
+  --nb-z-base:           0;
+  --nb-z-raised:         1;
+  --nb-z-header:         30;
+  --nb-z-popover:        40;
+  --nb-z-modal:          50;
+  --nb-z-toast:          60;
+
+  /* Motion */
+  --nb-dur-fast:         100ms;
+  --nb-dur-base:         180ms;
+  --nb-dur-slow:         240ms;
+  --nb-dur-spin:         800ms;
+  --nb-ease:             cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Breakpoints (for reading in JS; media queries use tokens.media.css) */
+  --nb-bp-sm:            30rem;
+  --nb-bp-md:            43.75rem;
+  --nb-bp-lg:            68.75rem;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --nb-size-control-md:  2.75rem;
+    --nb-size-control-sm:  2.75rem;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --nb-ground:           #0F0F0F;
+    --nb-sheet:            #1F1F1F;
+    --nb-well:             #161616;
+    --nb-well-hover:       #2B2B2B;
+    --nb-edge:             #7C7C7C;
+    --nb-hairline:         #2D2D2D;
+    --nb-ink:              #F2F2F2;
+    --nb-ink-2:            #C7C7C7;
+    --nb-ink-3:            #9A9A9A;
+    --nb-ink-inv:          #0F0F0F;
+    --nb-link:             #7FAEFF;
+    --nb-link-wash:        #1A2B49;
+    --nb-you:              #4DB6A1;
+    --nb-you-wash:         #14302A;
+    --nb-ai:               #A99BFF;
+    --nb-ai-wash:          #262046;
+    --nb-marker:           #E3C646;
+    --nb-marker-text:      #E3C646;
+    --nb-marker-wash:      #3A3411;
+    --nb-marker-swipe:     #5C4F10;
+    --nb-on-marker:        #161615;
+    --nb-ok:               #6FD39A;
+    --nb-ok-wash:          #173222;
+    --nb-warn:             #E2B04A;
+    --nb-warn-wash:        #38290B;
+    --nb-danger:           #F08A78;
+    --nb-danger-wash:      #3B1C17;
+    --nb-scrim:            rgba(0, 0, 0, 0.62);
+    --nb-select:           #1B2F4F;
+    --nb-hatch:            #8A8A8A;
+    --nb-focus:            #F2F2F2;
+    --nb-disabled-fg:      #6B6B6B;
+    --nb-disabled-bg:      #1A1A1A;
+    --nb-chart-1:          #8974DC;
+    --nb-chart-2:          #E64C8A;
+    --nb-chart-3:          #67CFE9;
+    --nb-chart-4:          #8AD05A;
+    --nb-tool-cobalt:      #76A0FF;
+    --nb-tool-amber:       #F2A04A;
+    --nb-tool-rose:        #F872B9;
+    --nb-tool-emerald:     #3FDDA0;
+    --nb-tool-cyan:        #4DD2E1;
+    --nb-tool-purple:      #A47DFF;
+    --nb-tool-indigo:      #818CF8;
+    --nb-tool-teal:        #2DD4BF;
+    --nb-shadow-float:     0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.5);
+    --nb-shadow-modal:     0 2px 4px rgba(0, 0, 0, 0.5), 0 24px 56px rgba(0, 0, 0, 0.7);
+  }
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --nb-ground:           #0F0F0F;
+  --nb-sheet:            #1F1F1F;
+  --nb-well:             #161616;
+  --nb-well-hover:       #2B2B2B;
+  --nb-edge:             #7C7C7C;
+  --nb-hairline:         #2D2D2D;
+  --nb-ink:              #F2F2F2;
+  --nb-ink-2:            #C7C7C7;
+  --nb-ink-3:            #9A9A9A;
+  --nb-ink-inv:          #0F0F0F;
+  --nb-link:             #7FAEFF;
+  --nb-link-wash:        #1A2B49;
+  --nb-you:              #4DB6A1;
+  --nb-you-wash:         #14302A;
+  --nb-ai:               #A99BFF;
+  --nb-ai-wash:          #262046;
+  --nb-marker:           #E3C646;
+  --nb-marker-text:      #E3C646;
+  --nb-marker-wash:      #3A3411;
+  --nb-marker-swipe:     #5C4F10;
+  --nb-on-marker:        #161615;
+  --nb-ok:               #6FD39A;
+  --nb-ok-wash:          #173222;
+  --nb-warn:             #E2B04A;
+  --nb-warn-wash:        #38290B;
+  --nb-danger:           #F08A78;
+  --nb-danger-wash:      #3B1C17;
+  --nb-scrim:            rgba(0, 0, 0, 0.62);
+  --nb-select:           #1B2F4F;
+  --nb-hatch:            #8A8A8A;
+  --nb-focus:            #F2F2F2;
+  --nb-disabled-fg:      #6B6B6B;
+  --nb-disabled-bg:      #1A1A1A;
+  --nb-chart-1:          #8974DC;
+  --nb-chart-2:          #E64C8A;
+  --nb-chart-3:          #67CFE9;
+  --nb-chart-4:          #8AD05A;
+  --nb-tool-cobalt:      #76A0FF;
+  --nb-tool-amber:       #F2A04A;
+  --nb-tool-rose:        #F872B9;
+  --nb-tool-emerald:     #3FDDA0;
+  --nb-tool-cyan:        #4DD2E1;
+  --nb-tool-purple:      #A47DFF;
+  --nb-tool-indigo:      #818CF8;
+  --nb-tool-teal:        #2DD4BF;
+  --nb-shadow-float:     0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.5);
+  --nb-shadow-modal:     0 2px 4px rgba(0, 0, 0, 0.5), 0 24px 56px rgba(0, 0, 0, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --nb-dur-fast: 0ms; --nb-dur-base: 0ms; --nb-dur-slow: 0ms; --nb-dur-spin: 0ms; }
+}
+
+/* Text selection uses the selection token */
+::selection { background: var(--nb-select); color: var(--nb-ink); }
+
+/* Focus: one rule for every interactive element. The offset leaves a gap of
+   the surface color, so the ring is always judged against the surface. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: var(--nb-ring-width) solid var(--nb-focus);
+  outline-offset: var(--nb-ring-offset);
+}
+
+/* Windows high contrast: system colors win; shapes and labels keep the meaning */
+@media (forced-colors: active) {
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline-color: Highlight;
+  }
+}

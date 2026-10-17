@@ -1,0 +1,13 @@
+{
+  "extends": "@notebook/tsconfig/nextjs.json",
+  "compilerOptions": {
+    "allowJs": false
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "next-env.d.ts",
+    "out/types/**/*.ts"
+  ]
+}
