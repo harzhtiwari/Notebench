@@ -1,4 +1,4 @@
-import { POLL_INTERVAL_MS, waitForReadiness } from "./readiness.js";
+import { POLL_INTERVAL_MS, tailToText, waitForReadiness } from "./readiness.js";
 import { OrchestratorError } from "./types.js";
 import type { WarmupMode } from "./types.js";
 
@@ -131,7 +131,7 @@ export async function verifyWarmup(
     attempts += 1;
     if (isChildExited()) {
       const tail = await getLogTail();
-      const tailText = tail.length > 0 ? tail.join("\n") : "(no log tail captured)";
+      const tailText = tailToText(tail);
       throw new OrchestratorError(
         `web exited while waiting for UI warm-up (attempt ${attempts}). Log tail:\n${tailText}`,
         1

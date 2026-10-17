@@ -28,7 +28,7 @@ import type {
   ServerSpawnRequest,
 } from "../src/composer.js";
 import { PROCESS_START_TIME_TOLERANCE_MS } from "../src/process-start-time.js";
-import { makeTempRoot as createTempRoot, removeTempRoots } from "./temp-dir.js";
+import { makeTempRoot as createTempRoot, removeTempRoots, silentLogs } from "./temp-dir.js";
 
 /**
  * Ticket 03 RED suite (written before implementation).
@@ -78,16 +78,6 @@ function healthySpawn(): ServerSpawnRequest {
   return {
     executable: process.execPath,
     argv: ["-e", HEALTHY_SCRIPT],
-  };
-}
-
-function silentLogs(): { lines: string[]; logLine: (line: string) => void } {
-  const lines: string[] = [];
-  return {
-    lines,
-    logLine: (line: string) => {
-      lines.push(line);
-    },
   };
 }
 

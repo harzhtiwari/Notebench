@@ -1,5 +1,6 @@
-import { mkdir as fsMkdir, readFile as fsReadFile, writeFile as fsWriteFile } from "node:fs/promises";
+import { mkdir as fsMkdir, writeFile as fsWriteFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { defaultReadFile } from "./defaults.js";
 
 /**
  * Run-identity lifecycle for the dev orchestrator (`run/<ns>/identity.json`).
@@ -84,10 +85,6 @@ export interface IdentityIoDeps {
   readFile?: ((path: string) => Promise<string>) | undefined;
   writeFile?: ((path: string, content: string) => Promise<void> | void) | undefined;
   mkdir?: ((path: string) => Promise<void> | void) | undefined;
-}
-
-async function defaultReadFile(path: string): Promise<string> {
-  return fsReadFile(path, "utf-8");
 }
 
 async function defaultWriteFile(path: string, content: string): Promise<void> {

@@ -1,6 +1,7 @@
 import { execFile as nodeExecFile } from "node:child_process";
 import { promisify } from "node:util";
 import { unlink as fsUnlink } from "node:fs/promises";
+import { defaultSleep } from "./defaults.js";
 import type { RunPaths } from "./paths.js";
 import type { ServiceName } from "./types.js";
 import { POLL_INTERVAL_MS, TEARDOWN_GRACE_MS } from "./readiness.js";
@@ -69,12 +70,6 @@ export interface TeardownResult {
 }
 
 const execFileAsync = promisify(nodeExecFile);
-
-function defaultSleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
 
 function defaultGracefulStop(child: OwnedChild): void {
   try {

@@ -8,6 +8,7 @@ import {
 import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseOrchestratorArgs } from "./args.js";
+import { defaultProbeHttp, defaultSleep } from "./defaults.js";
 import { resolveRunPaths } from "./paths.js";
 import type { RunPaths } from "./paths.js";
 import { allocateRunPorts } from "./ports.js";
@@ -16,6 +17,7 @@ import type { SpawnedChild, SpawnFn } from "./spawn.js";
 import {
   createServiceLogTee,
   formatStartupLine,
+  LOG_TAIL_LINES,
   readLogTail,
   rotateNamespaceLogs,
 } from "./logs.js";
@@ -23,6 +25,7 @@ import {
   POLL_INTERVAL_MS,
   SERVER_HEALTH_DEADLINE_MS,
   SIDECAR_DEADLINE_MS,
+  tailToText,
   TEARDOWN_GRACE_MS,
   waitForReadiness,
 } from "./readiness.js";
@@ -96,8 +99,6 @@ interface WebSpawnRequest {
 interface WebSpawnContext {
   host: string;
   port: number;
-  serverOrigin: string;
-  distDir: string;
   bundler: WebDevBundler;
   webDir: string;
 }
@@ -206,21 +207,6 @@ function defaultLogLine(line: string): void {
   console.log(line);
 }
 
-function defaultSleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-async function defaultProbeHealth(url: string): Promise<boolean> {
-  try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
-    return response.status >= 200 && response.status < 300;
-  } catch {
-    return false;
-  }
-}
-
 function defaultOnSignal(signal: string, handler: () => void): void {
   process.on(signal, handler);
 }
@@ -252,15 +238,6 @@ function resolveTsxLoader(): string {
 /** Checkout root derived from this module (source lives here, not under state). */
 function resolveRepoRoot(): string {
   return dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
-}
-
-async function defaultProbeWeb(url: string): Promise<boolean> {
-  try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
-    return response.status >= 200 && response.status < 300;
-  } catch {
-    return false;
-  }
 }
 
 /** Real headless-browser probe for `--warmup ui` (lazy browser load). */
@@ -347,7 +324,7 @@ export async function startDefaultWebPhase(
   const runEnv = env ?? process.env;
   const logLine = deps?.logLine ?? defaultLogLine;
   const sleep = deps?.sleep ?? defaultSleep;
-  const probeWeb = deps?.probeWeb ?? defaultProbeWeb;
+  const probeWeb = deps?.probeWeb ?? defaultProbeHttp;
   const createWebSpawn = deps?.createWebSpawn ?? defaultCreateWebSpawn;
   const webDeadlineMs = deps?.webDeadlineMs ?? SIDECAR_DEADLINE_MS;
   const pollIntervalMs = deps?.pollIntervalMs ?? POLL_INTERVAL_MS;
@@ -369,8 +346,6 @@ export async function startDefaultWebPhase(
   const spawnRequest = createWebSpawn({
     host: ctx.host,
     port,
-    serverOrigin,
-    distDir: generated.distDir,
     bundler,
     webDir,
   });
@@ -517,7 +492,7 @@ async function readFailureTail(
       const lines = content.split(/\r?\n/);
       const last: string | undefined = lines[lines.length - 1];
       const trimmed = last === "" ? lines.slice(0, -1) : lines;
-      return trimmed.slice(Math.max(0, trimmed.length - 80));
+      return trimmed.slice(Math.max(0, trimmed.length - LOG_TAIL_LINES));
     }
     previous = content;
     await sleep(50);
@@ -538,7 +513,7 @@ export async function startBackendPhase(
   const now = deps?.now ?? Date.now;
   const sleep = deps?.sleep ?? defaultSleep;
   const logLine = deps?.logLine ?? defaultLogLine;
-  const probeHealth = deps?.probeHealth ?? defaultProbeHealth;
+  const probeHealth = deps?.probeHealth ?? defaultProbeHttp;
   const onSignal = deps?.onSignal ?? defaultOnSignal;
   const removeSignal = deps?.removeSignal ?? defaultRemoveSignal;
   const createServerSpawn = deps?.createServerSpawn ?? defaultCreateServerSpawn;
@@ -717,7 +692,7 @@ export async function startBackendPhase(
     if (shuttingDown || settled) return;
     await flushOutput();
     const tail = await readFailureTail(paths.serverLogFile, sleep);
-    const tailText = tail.length > 0 ? tail.join("\n") : "(no log tail captured)";
+    const tailText = tailToText(tail);
     logLine(`[server] exited unexpectedly. Log tail:\n${tailText}`);
     await teardownOwnedRun(paths, owned, { isPidLive });
     finish(1);
@@ -789,7 +764,7 @@ export async function startBackendPhase(
         if (shuttingDown || settled) return;
         if (web.flush !== undefined) await web.flush();
         const tail = await readFailureTail(web.logFile, sleep);
-        const tailText = tail.length > 0 ? tail.join("\n") : "(no log tail captured)";
+        const tailText = tailToText(tail);
         logLine(`[web] exited unexpectedly. Log tail:\n${tailText}`);
         await teardownOwnedRun(paths, owned, { isPidLive });
         finish(1);
@@ -800,7 +775,7 @@ export async function startBackendPhase(
       );
       const serverOrigin = `http://${host}:${allocated.serverPort}`;
       const webOrigin = `http://${host}:${web.port}`;
-      const probeWebRoute = deps?.probeWeb ?? defaultProbeWeb;
+      const probeWebRoute = deps?.probeWeb ?? defaultProbeHttp;
       const warmup = await verifyWarmup(
         {
           mode: parsed.warmup,

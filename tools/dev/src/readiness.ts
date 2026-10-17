@@ -1,3 +1,4 @@
+import { defaultSleep } from "./defaults.js";
 import { OrchestratorError } from "./types.js";
 import type { ServiceName } from "./types.js";
 
@@ -44,13 +45,7 @@ export interface ReadinessDeps {
   sleep?: ((ms: number) => Promise<void>) | undefined;
 }
 
-function defaultSleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-function tailToText(tail: string[]): string {
+export function tailToText(tail: string[]): string {
   if (tail.length === 0) return "(no log tail captured)";
   return tail.join("\n");
 }

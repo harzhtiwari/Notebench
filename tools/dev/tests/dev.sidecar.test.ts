@@ -7,7 +7,7 @@ import type { ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import getPort from "get-port";
-import { makeTempRoot as createTempRoot, removeTempRoots } from "./temp-dir.js";
+import { makeTempRoot as createTempRoot, removeTempRoots, silentLogs } from "./temp-dir.js";
 import type { ServerReadyContext } from "../src/composer.js";
 import type { SpawnFn } from "../src/spawn.js";
 
@@ -523,11 +523,6 @@ http.createServer((req, res) => {
   setTimeout(() => { console.error("server-fatal-error"); process.exit(1); }, 1200);
 });
 `;
-
-  function silentLogs(): { lines: string[]; logLine: (line: string) => void } {
-    const lines: string[] = [];
-    return { lines, logLine: (line: string) => lines.push(line) };
-  }
 
   async function pollPortFile(path: string, timeoutMs: number): Promise<string> {
     const start = Date.now();

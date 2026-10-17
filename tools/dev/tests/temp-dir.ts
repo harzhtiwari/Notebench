@@ -33,3 +33,17 @@ export async function removeTempRoots(roots: string[]): Promise<void> {
     }
   }
 }
+
+/**
+ * Push-to-array collector for injected `logLine` seams: suites assert on
+ * the collected lines instead of teeing to the console.
+ */
+export function silentLogs(): { lines: string[]; logLine: (line: string) => void } {
+  const lines: string[] = [];
+  return {
+    lines,
+    logLine: (line: string) => {
+      lines.push(line);
+    },
+  };
+}

@@ -1,4 +1,5 @@
-import { access, appendFile as fsAppendFile, readFile as fsReadFile, rename as fsRename, rm } from "node:fs/promises";
+import { access, appendFile as fsAppendFile, rename as fsRename, rm } from "node:fs/promises";
+import { defaultReadFile } from "./defaults.js";
 import type { ServiceName } from "./types.js";
 
 /**
@@ -124,10 +125,6 @@ export function createServiceLogTee(options: ServiceLogTeeOptions): ServiceLogTe
 
 export interface LogReadDeps {
   readFile?: ((path: string) => Promise<string>) | undefined;
-}
-
-async function defaultReadFile(path: string): Promise<string> {
-  return fsReadFile(path, "utf-8");
 }
 
 /**

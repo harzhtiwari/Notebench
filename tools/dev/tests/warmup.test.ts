@@ -14,7 +14,7 @@ import {
   verifyWarmup,
 } from "../src/warmup.js";
 import type { RouteProbe, UiProbeResult, WarmupGateTiming, WarmupResult } from "../src/warmup.js";
-import { makeTempRoot as createTempRoot, removeTempRoots } from "./temp-dir.js";
+import { makeTempRoot as createTempRoot, removeTempRoots, silentLogs } from "./temp-dir.js";
 
 /**
  * Ticket 07 RED suite (written before implementation).
@@ -301,11 +301,6 @@ http.createServer((req, res) => {
 
   const IDLE_SCRIPT = `setInterval(() => {}, 1000);`;
 
-  function captureLogs(): { lines: string[]; logLine: (line: string) => void } {
-    const lines: string[] = [];
-    return { lines, logLine: (line: string) => void lines.push(line) };
-  }
-
   async function startWebFixture(ctx: ServerReadyContext, root: string) {
     const port = await getPort();
     const child = spawnChild({
@@ -328,7 +323,7 @@ http.createServer((req, res) => {
 
   it("route mode: the pre-verification line never claims ready; the ready line states level + origins", async () => {
     const root = makeTempRoot();
-    const { lines, logLine } = captureLogs();
+    const { lines, logLine } = silentLogs();
     const uiProbeCalls: string[] = [];
     const handle = await startBackendPhase(
       { root, argv: ["--namespace", "warmup-route-ns"], env: {} },
@@ -362,7 +357,7 @@ http.createServer((req, res) => {
 
   it("route mode: reports the verified warmup result through the onWarmup hook", async () => {
     const root = makeTempRoot();
-    const { logLine } = captureLogs();
+    const { logLine } = silentLogs();
     const seen: { result: WarmupResult | null } = { result: null };
     const handle = await startBackendPhase(
       { root, argv: ["--namespace", "warmup-hook-ns"], env: {} },
@@ -389,7 +384,7 @@ http.createServer((req, res) => {
 
   it("ui mode with a failing probe withholds ready and fails with exit 5", async () => {
     const root = makeTempRoot();
-    const { lines, logLine } = captureLogs();
+    const { lines, logLine } = silentLogs();
     const failure = await startBackendPhase(
       { root, argv: ["--namespace", "warmup-ui-fail-ns", "--warmup", "ui"], env: {} },
       {
@@ -414,7 +409,7 @@ http.createServer((req, res) => {
 
   it("ui mode with a passing probe reports level=ui with both gate timings", async () => {
     const root = makeTempRoot();
-    const { lines, logLine } = captureLogs();
+    const { lines, logLine } = silentLogs();
     const handle = await startBackendPhase(
       { root, argv: ["--namespace", "warmup-ui-pass-ns", "--warmup", "ui"], env: {} },
       {

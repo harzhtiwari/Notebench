@@ -1,6 +1,7 @@
-import { existsSync as fsExistsSync, readFileSync as fsReadFileSync } from "node:fs";
+import { existsSync as fsExistsSync } from "node:fs";
 import { join } from "node:path";
 import { parseNamespace } from "./args.js";
+import { defaultReadFileSync } from "./defaults.js";
 
 /**
  * Namespace-aware end-to-end port reader (ticket 03, spec 7.3).
@@ -23,10 +24,6 @@ function defaultExists(path: string): boolean {
   } catch {
     return false;
   }
-}
-
-function defaultReadFile(path: string): string {
-  return fsReadFileSync(path, "utf-8");
 }
 
 function parsePortText(text: string): number | undefined {
@@ -73,7 +70,7 @@ export function resolveE2EWebPort(
   deps?: E2EPortReaderDeps | undefined
 ): number | undefined {
   const exists = deps?.exists ?? defaultExists;
-  const readFile = deps?.readFile ?? defaultReadFile;
+  const readFile = deps?.readFile ?? defaultReadFileSync;
   const namespace = resolveNamespace(env);
   const namespaced = readPortFile(join(root, ".tmp", "ports", namespace, "web.port"), exists, readFile);
   if (namespaced !== undefined) return namespaced;
