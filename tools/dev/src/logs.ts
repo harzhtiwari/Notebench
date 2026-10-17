@@ -103,13 +103,19 @@ export function createServiceLogTee(options: ServiceLogTeeOptions): ServiceLogTe
     });
   };
   let lineBuffer = "";
+  const emitLine = (line: string): void => {
+    const trimmed = line.replace(/\r$/, "");
+    if (trimmed !== "") logLine(formatLogLine(service, trimmed));
+  };
   const emitPrefixedLines = (chunk: string): void => {
     lineBuffer += chunk;
-    const parts = lineBuffer.split("\n");
+    // A bare `\r` (progress overwrite) also ends a segment, so progress
+    // output can never accumulate without bound in the buffer (P22); the
+    // final partial segment stays buffered until the next chunk or flush.
+    const parts = lineBuffer.split(/\r\n|\r|\n/);
     lineBuffer = parts.pop() ?? "";
     for (const part of parts) {
-      const trimmed = part.replace(/\r$/, "");
-      if (trimmed !== "") logLine(formatLogLine(service, trimmed));
+      emitLine(part);
     }
   };
   return {
@@ -119,6 +125,11 @@ export function createServiceLogTee(options: ServiceLogTeeOptions): ServiceLogTe
     },
     flush: async () => {
       await flushChain;
+      // Drain the residual partial line: it is already in the log file, so
+      // withholding it from the console would lose the last line (P22).
+      const residual = lineBuffer;
+      lineBuffer = "";
+      if (residual !== "") emitLine(residual);
     },
   };
 }
@@ -179,6 +190,10 @@ async function defaultRemove(path: string): Promise<void> {
  * `previous.log`. Only the two paths given are touched, so a sibling
  * namespace is never affected. Resolves `"fresh"` when there is no latest
  * log yet.
+ *
+ * Best-effort: a locked/in-use log file (Windows AV or an editor) must
+ * never abort the run (P23), so any failure (including injected IO
+ * rejections) leaves the namespace unrotated and resolves `"fresh"`.
  */
 export async function rotateNamespaceLogs(
   options: RotateOptions,
@@ -187,10 +202,15 @@ export async function rotateNamespaceLogs(
   const exists = deps?.exists ?? defaultExists;
   const rename = deps?.rename ?? defaultRename;
   const remove = deps?.remove ?? defaultRemove;
-  if (!(await exists(options.latestFile))) return "fresh";
-  if (await exists(options.previousFile)) {
-    await remove(options.previousFile);
+  try {
+    if (!(await exists(options.latestFile))) return "fresh";
+    if (await exists(options.previousFile)) {
+      await remove(options.previousFile);
+    }
+    await rename(options.latestFile, options.previousFile);
+    return "rotated";
+  } catch {
+    // Rotation is log hygiene, not run-critical: swallow and carry on.
+    return "fresh";
   }
-  await rename(options.latestFile, options.previousFile);
-  return "rotated";
 }

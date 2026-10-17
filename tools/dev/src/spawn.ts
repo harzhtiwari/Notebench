@@ -36,6 +36,8 @@ export interface SpawnRequest {
 export interface ChildExit {
   code: number | null;
   signal: string | null;
+  /** Set when the child failed before a normal exit was observed (P6). */
+  error?: string | undefined;
 }
 
 export interface SpawnedChild {
@@ -54,7 +56,6 @@ export interface SpawnFnOptions {
   shell: false;
   cwd?: string | undefined;
   env?: Record<string, string | undefined> | undefined;
-  stdio?: string | undefined;
   detached?: boolean | undefined;
   output?: ((stream: "stdout" | "stderr", chunk: string) => void) | undefined;
 }
@@ -99,6 +100,7 @@ function defaultSpawnFn(
   argv: string[],
   options: SpawnFnOptions
 ): SpawnFnChild {
+  const forward = options.output;
   const child: ChildProcess = nodeSpawn(executable, argv, {
     shell: false,
     cwd: options.cwd,
@@ -106,25 +108,38 @@ function defaultSpawnFn(
     // undefined reach Node exactly as provided); the assertion only bridges
     // @types/node's ProcessEnv (which requires NODE_ENV) to that record.
     env: options.env as NodeJS.ProcessEnv | undefined,
-    stdio: "pipe",
+    // Pipes are only drained when an output sink is attached; a chatty child
+    // with no `onOutput` would otherwise block forever on a full pipe and its
+    // `exited` would never resolve (P17).
+    stdio: forward === undefined ? "ignore" : "pipe",
     detached: options.detached,
     // Explicitly attached: the whole supervised tree shares the one user
     // console, so third-party grandchildren (Next.js workers, turbo tasks)
     // inherit it instead of flashing fresh windows.
     windowsHide: false,
   });
-  const forward = options.output;
+  // Subscribed immediately: a failed spawn emits 'error' asynchronously and an
+  // unhandled 'error' event would crash the orchestrator (P6) — including the
+  // no-PID throw path, where `spawnChild` never gets to subscribe.
+  const errorListeners: ((error: unknown) => void)[] = [];
+  child.on("error", (error: unknown) => {
+    for (const listener of errorListeners) listener(error);
+  });
   if (forward !== undefined) {
     const stdout = child.stdout;
     if (stdout !== null) {
-      stdout.on("data", (chunk: unknown) => {
-        forward("stdout", typeof chunk === "string" ? chunk : String(chunk));
+      // Decode across chunk boundaries so a multi-byte UTF-8 sequence split
+      // between chunks is never mangled (P6).
+      stdout.setEncoding("utf8");
+      stdout.on("data", (chunk: string) => {
+        forward("stdout", chunk);
       });
     }
     const stderr = child.stderr;
     if (stderr !== null) {
-      stderr.on("data", (chunk: unknown) => {
-        forward("stderr", typeof chunk === "string" ? chunk : String(chunk));
+      stderr.setEncoding("utf8");
+      stderr.on("data", (chunk: string) => {
+        forward("stderr", chunk);
       });
     }
   }
@@ -136,9 +151,7 @@ function defaultSpawnFn(
           listener(code, typeof signal === "string" ? signal : null);
         });
       } else if (event === "error") {
-        child.on("error", (error: unknown) => {
-          listener(error);
-        });
+        errorListeners.push((error) => listener(error));
       }
     },
   };
@@ -179,7 +192,6 @@ export function spawnChild(request: SpawnRequest, deps?: SpawnDeps | undefined):
     shell: false,
     cwd: request.cwd,
     env: request.env,
-    stdio: "pipe",
     detached: supervisedDetached(),
     output: request.onOutput,
   });
@@ -187,16 +199,33 @@ export function spawnChild(request: SpawnRequest, deps?: SpawnDeps | undefined):
   if (pid === undefined || !Number.isInteger(pid) || pid <= 0) {
     throw new OrchestratorError(`Spawned ${request.service} reported no PID.`, 1);
   }
+  let settled = false;
   let resolveExit: (value: ChildExit) => void = () => undefined;
   const exited = new Promise<ChildExit>((resolve) => {
     resolveExit = resolve;
   });
+  const settle = (value: ChildExit): void => {
+    if (settled) return;
+    settled = true;
+    resolveExit(value);
+  };
   child.on("exit", (...args: unknown[]) => {
     const code: unknown = args[0];
     const signal: unknown = args[1];
-    resolveExit({
+    settle({
       code: typeof code === "number" ? code : null,
       signal: typeof signal === "string" ? signal : null,
+    });
+  });
+  // A spawn/process error resolves `exited` with a controlled error record:
+  // without this subscription Node's unhandled 'error' event would crash the
+  // orchestrator (P6).
+  child.on("error", (...args: unknown[]) => {
+    const error: unknown = args[0];
+    settle({
+      code: null,
+      signal: null,
+      error: error instanceof Error ? error.message : String(error),
     });
   });
   return {

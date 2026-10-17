@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import net from "node:net";
 import { spawn as nodeSpawn } from "node:child_process";
 import { once } from "node:events";
+import { mkdir, readFile } from "node:fs/promises";
 import { join, sep } from "node:path";
 import getPort from "get-port";
 import { parseOrchestratorArgs } from "../src/args.js";
@@ -23,6 +24,7 @@ import type { ChildIdentity } from "../src/identity.js";
 import {
   ALLOWLISTED_STARTUP_FIELDS,
   LOG_TAIL_LINES,
+  createServiceLogTee,
   formatLogLine,
   formatStartupLine,
   readLogTail,
@@ -157,7 +159,18 @@ describe("ticket 01: orchestrator args, paths, ports", () => {
 
   describe("namespace allowlist", () => {
     it.each(["default", "a", "team-1", "a_b", "ns9", "AbC-1_x"])("accepts %s", (ns) => {
-      expect(parseNamespace(ns)).toBe(ns);
+      expect(parseNamespace(ns)).toBe(ns.toLowerCase());
+    });
+
+    it("case-normalizes so Dev and dev can never alias one directory (P25)", () => {
+      expect(parseNamespace("Dev")).toBe("dev");
+      expect(parseNamespace("DEV-1")).toBe("dev-1");
+      expect(parseNamespace("aB_cD")).toBe("ab_cd");
+      const upper = resolveRunPaths(process.cwd(), "Dev");
+      const lower = resolveRunPaths(process.cwd(), "dev");
+      expect(upper.portsDir).toBe(lower.portsDir);
+      expect(upper.serverLogFile).toBe(lower.serverLogFile);
+      expect(upper.identityFile).toBe(lower.identityFile);
     });
 
     it.each(["", "..", "../x", "a/b", "a\\b", ".hidden", "-lead", "_lead", "a b", "a.b", "a:b"])(
@@ -284,6 +297,25 @@ describe("ticket 01: orchestrator args, paths, ports", () => {
       expect(err).toBeInstanceOf(OrchestratorError);
       expect((err as OrchestratorError).exitCode).toBe(2);
     });
+
+    it("enforces the reserved set after auto allocation, retrying past a collision (P28)", async () => {
+      const forced = await freePort();
+      const fallback = await freePort();
+      const exclusions: number[][] = [];
+      const ports = await allocateRunPorts(
+        { serverPort: forced },
+        {
+          getPortFn: async (options) => {
+            exclusions.push([...(options?.exclude ?? [])]);
+            return exclusions.length === 1 ? forced : fallback;
+          },
+        }
+      );
+      expect(ports.serverPort).toBe(forced);
+      expect(ports.webPort).toBe(fallback);
+      expect(exclusions).toHaveLength(2);
+      expect(exclusions[0]).toContain(forced);
+    });
   });
 
   describe("conflict diagnostics", () => {
@@ -305,6 +337,7 @@ describe("ticket 01: orchestrator args, paths, ports", () => {
   describe("ticket 02: spawn with known executables and explicit argv", () => {
     function makeFakeChild(pid: number): SpawnFnChild & {
       fireExit: (code: number | null, signal: string | null) => void;
+      fireError: (error: unknown) => void;
     } {
       const listeners = new Map<string, (...args: unknown[]) => void>();
       return {
@@ -315,6 +348,13 @@ describe("ticket 01: orchestrator args, paths, ports", () => {
         fireExit: (code: number | null, signal: string | null) => {
           const cb = listeners.get("exit");
           if (cb !== undefined) cb(code, signal);
+        },
+        fireError: (error: unknown) => {
+          const cb = listeners.get("error");
+          // Node's ChildProcess EventEmitter throws on an unhandled 'error'
+          // event: this fake reproduces exactly that P6 crash.
+          if (cb === undefined) throw error;
+          cb(error);
         },
       };
     }
@@ -406,6 +446,120 @@ describe("ticket 01: orchestrator args, paths, ports", () => {
       await expect(child.exited).resolves.toEqual({ code: 3, signal: null });
     });
 
+    it("surfaces a child 'error' as an exit record instead of crashing (P6)", async () => {
+      const fake = makeFakeChild(31337);
+      const child = spawnChild(
+        {
+          executable: "node",
+          argv: ["-e", "process.exit(0)"],
+          service: "server",
+          namespace: "default",
+          runId: "run-err",
+          logFile: "/tmp/err.log",
+        },
+        { spawnFn: () => fake }
+      );
+      fake.fireError(new Error("spawn ENOENT"));
+      await expect(child.exited).resolves.toEqual({
+        code: null,
+        signal: null,
+        error: "spawn ENOENT",
+      });
+    });
+
+    it("keeps the first exit observation when an error arrives later", async () => {
+      const fake = makeFakeChild(31338);
+      const child = spawnChild(
+        {
+          executable: "node",
+          argv: ["-e", "process.exit(0)"],
+          service: "server",
+          namespace: "default",
+          runId: "run-late-err",
+          logFile: "/tmp/late-err.log",
+        },
+        { spawnFn: () => fake }
+      );
+      fake.fireExit(7, null);
+      fake.fireError(new Error("late error"));
+      await expect(child.exited).resolves.toEqual({ code: 7, signal: null });
+    });
+
+    it("decodes multi-byte UTF-8 split across chunk boundaries (P6)", async () => {
+      const chunks: string[] = [];
+      const child = spawnChild({
+        executable: process.execPath,
+        argv: [
+          "-e",
+          "process.stdout.write(Buffer.from([0xc3])); " +
+            "setTimeout(() => process.stdout.write(Buffer.from([0xa9])), 30)",
+        ],
+        service: "web",
+        namespace: "default",
+        runId: "run-utf8",
+        logFile: "/tmp/utf8.log",
+        onOutput: (_stream, chunk) => {
+          chunks.push(chunk);
+        },
+      });
+      const exit = await child.exited;
+      expect(exit.code).toBe(0);
+      expect(chunks.join("")).toBe("é");
+    }, 20_000);
+
+    it("a failed spawn cannot crash the orchestrator with an unhandled 'error' (P6)", async () => {
+      const missingCwd = join(makeTempRoot(), "missing-cwd");
+      expect(() =>
+        spawnChild({
+          executable: process.execPath,
+          argv: ["-e", "0"],
+          service: "server",
+          namespace: "default",
+          runId: "run-crash",
+          logFile: "/tmp/crash.log",
+          cwd: missingCwd,
+        })
+      ).toThrow(OrchestratorError);
+      // A failed spawn emits 'error' asynchronously: without a subscription
+      // this is the window where the orchestrator dies (P6).
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }, 20_000);
+
+    it("keeps a chatty child without onOutput from deadlocking on a full pipe (P17)", async () => {
+      const child = spawnChild({
+        executable: process.execPath,
+        argv: [
+          "-e",
+          "process.stdout.write('x'.repeat(1024 * 1024)); " +
+            "process.stdout.write('y'.repeat(1024 * 1024))",
+        ],
+        service: "server",
+        namespace: "default",
+        runId: "run-chatty",
+        logFile: "/tmp/chatty.log",
+      });
+      try {
+        let timer: NodeJS.Timeout | undefined;
+        const exit = await Promise.race([
+          child.exited,
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error("chatty child never exited: pipe not drained")),
+              5000
+            );
+          }),
+        ]);
+        if (timer !== undefined) clearTimeout(timer);
+        expect(exit.code).toBe(0);
+      } finally {
+        try {
+          process.kill(child.pid, "SIGKILL");
+        } catch {
+          // Already reaped by the exit above.
+        }
+      }
+    }, 20_000);
+
     it("rejects non-string argv entries and shell wrappers", () => {
       expect(() =>
         spawnChild(
@@ -481,6 +635,74 @@ describe("ticket 01: orchestrator args, paths, ports", () => {
       );
       expect(result).toBe("fresh");
       expect(renamed).toEqual([]);
+    });
+
+    it("keeps rotation best-effort when the latest log is locked (P23)", async () => {
+      const result = await rotateNamespaceLogs(
+        {
+          latestFile: "/root/.tmp/logs/server/locked/latest.log",
+          previousFile: "/root/.tmp/logs/server/locked/previous.log",
+        },
+        {
+          exists: () => true,
+          remove: () => undefined,
+          rename: () => {
+            throw new Error("EBUSY: resource busy or locked");
+          },
+        }
+      );
+      expect(result).toBe("fresh");
+    });
+
+    it("keeps rotation best-effort when the stale previous log cannot be removed (P23)", async () => {
+      const renamed: string[] = [];
+      const result = await rotateNamespaceLogs(
+        {
+          latestFile: "/root/.tmp/logs/web/stuck/latest.log",
+          previousFile: "/root/.tmp/logs/web/stuck/previous.log",
+        },
+        {
+          exists: () => true,
+          remove: () => {
+            throw new Error("EPERM: operation not permitted");
+          },
+          rename: (from: string, to: string) => {
+            renamed.push(`${from} -> ${to}`);
+          },
+        }
+      );
+      expect(result).toBe("fresh");
+      expect(renamed).toEqual([]);
+    });
+
+    it("drains the residual partial line to the console on flush (P22)", async () => {
+      const logFile = join(makeTempRoot(), "tee-flush.log");
+      const lines: string[] = [];
+      const tee = createServiceLogTee({
+        logFile,
+        service: "web",
+        logLine: (line: string) => {
+          lines.push(line);
+        },
+      });
+      tee.onOutput("stdout", "boot: compiling");
+      await tee.flush();
+      expect(lines).toEqual(["[web] boot: compiling"]);
+      await expect(readFile(logFile, "utf-8")).resolves.toBe("boot: compiling");
+    });
+
+    it("bounds carriage-return progress output by emitting each overwrite segment (P22)", async () => {
+      const lines: string[] = [];
+      const tee = createServiceLogTee({
+        logFile: join(makeTempRoot(), "tee-progress.log"),
+        service: "server",
+        logLine: (line: string) => {
+          lines.push(line);
+        },
+      });
+      tee.onOutput("stdout", "10%\r50%\r100%\n");
+      await tee.flush();
+      expect(lines).toEqual(["[server] 10%", "[server] 50%", "[server] 100%"]);
     });
 
     it("logs only allowlisted startup values and never secrets", () => {
@@ -677,6 +899,38 @@ describe("ticket 01: orchestrator args, paths, ports", () => {
       expect(nowMs).toBeLessThan(5000);
       expect(sleeps.length).toBeLessThanOrEqual(1);
     });
+
+    it("bounds each probe by the remaining budget and reports actual elapsed (P18)", async () => {
+      let calls = 0;
+      const startedAt = Date.now();
+      let message = "";
+      try {
+        await waitForReadiness(
+          {
+            service: "server",
+            deadlineMs: 200,
+            intervalMs: 10,
+            probe: () => {
+              calls += 1;
+              if (calls === 1) return false;
+              return new Promise<boolean>((resolve) => {
+                setTimeout(() => resolve(false), 600);
+              });
+            },
+            isChildExited: () => false,
+            getLogTail: () => [],
+          }
+        );
+        expect.unreachable("expected readiness timeout");
+      } catch (error: unknown) {
+        message = (error as OrchestratorError).message;
+      }
+      const observedMs = Date.now() - startedAt;
+      expect(observedMs).toBeLessThan(550);
+      const reportedMs = Number(/after (\d+)ms/.exec(message)?.[1] ?? "NaN");
+      expect(Number.isFinite(reportedMs)).toBe(true);
+      expect(Math.abs(reportedMs - observedMs)).toBeLessThan(150);
+    }, 20_000);
   });
 
   describe("ticket 02: run identity liveness and stale rejection", () => {
@@ -1013,6 +1267,29 @@ describe("round-2: teardown ownership, completeness, and fault containment", () 
     expect(unlinked).toContain(p.identityFile);
     expect(unlinked).toContain(p.serverPortFile);
     expect(unlinked).toContain(p.serverPidFile);
+  });
+
+  it("lists a file in cleanedFiles only when the unlink actually succeeded (T3.5)", async () => {
+    const root = makeTempRoot();
+    const p = resolveRunPaths(root, "unlink-truth-ns");
+    // A directory at a record path makes the real unlink fail (EPERM/EISDIR):
+    // it must not be reported as cleaned, and later files must still unlink.
+    await mkdir(p.serverPortFile, { recursive: true });
+    await writeIdentity(p.identityFile, identityRecord("run-truth", "unlink-truth-ns"));
+    const result = await teardownOwnedRun(
+      p,
+      [
+        { service: "server", pid: 9004, startTimeMs: 10 },
+        { service: "web", pid: 9005, startTimeMs: 20 },
+      ],
+      { isPidLive: () => false }
+    );
+    expect(result.cleanedFiles).not.toContain(p.serverPortFile);
+    expect(result.cleanedFiles).toContain(p.serverPidFile);
+    expect(result.cleanedFiles).toContain(p.identityFile);
+    expect(result.cleanedFiles).toContain(p.webPortFile);
+    expect(result.cleanedFiles).toContain(p.webPidFile);
+    await expect(readIdentity(p.identityFile)).resolves.toBeNull();
   });
 
   it("contains a rejecting liveness check: later children and file cleanup still run", async () => {

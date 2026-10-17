@@ -121,8 +121,18 @@ async function defaultForceKill(pid: number, platform: string): Promise<void> {
 async function defaultUnlink(path: string): Promise<void> {
   try {
     await fsUnlink(path);
-  } catch {
-    // Missing files are fine: teardown is idempotent.
+  } catch (error: unknown) {
+    // ENOENT means the file is already gone, which teardown legitimately
+    // counts as cleaned; any other failure (EPERM/EACCES/EISDIR) must
+    // surface so a caller never reports a file it did not remove.
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      (error as { code?: unknown })["code"] === "ENOENT"
+    ) {
+      return;
+    }
+    throw error;
   }
 }
 
@@ -163,7 +173,13 @@ export async function releaseRunClaim(
   const unlink = deps?.unlink ?? defaultUnlink;
   const current = await readIdentity(paths.identityFile);
   if (current !== null && current.runId !== runId) return;
-  await unlink(paths.identityFile);
+  try {
+    await unlink(paths.identityFile);
+  } catch {
+    // Releasing the claim stays best-effort on shutdown paths: a locked
+    // record must not abort teardown; the next run's ownership check handles
+    // the residue.
+  }
 }
 
 /**

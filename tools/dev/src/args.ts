@@ -6,11 +6,20 @@ import type { OrchestratorOptions, WarmupMode } from "./types.js";
  * Namespace allowlist: starts with a letter or digit, then letters, digits,
  * `-`, `_`, max 32 chars. Rejects traversal-like values by construction
  * (no `.`, `/`, `\`, separators, or whitespace allowed).
+ *
+ * Names are lowercased before use (not rejected): `Dev` and `dev` are the
+ * same directory on case-insensitive filesystems (Windows/macOS), so
+ * accepting both spellings would alias one run's ports, PIDs, logs, and
+ * identity to the other namespace (P25). Normalizing keeps every
+ * pattern-conformant name working instead of failing names with uppercase.
  */
 const NAMESPACE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$/;
 
 export function parseNamespace(value: unknown): string {
-  if (typeof value === "string" && NAMESPACE_PATTERN.test(value)) return value;
+  if (typeof value === "string") {
+    const normalized = value.toLowerCase();
+    if (NAMESPACE_PATTERN.test(normalized)) return normalized;
+  }
   const shown = typeof value === "string" ? value : JSON.stringify(value) ?? String(value);
   throw new OrchestratorError(
     `Invalid namespace "${shown}": must start with a letter or digit, ` +

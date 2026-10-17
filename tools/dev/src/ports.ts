@@ -145,16 +145,33 @@ export interface AllocatedPorts {
   webPort: number;
 }
 
+interface AllocateDeps {
+  /**
+   * Automatic-allocation seam; production uses `get-port` directly, tests
+   * inject a deterministic allocator.
+   */
+  getPortFn?:
+    | ((options?: { exclude?: Iterable<number>; host?: string }) => Promise<number>)
+    | undefined;
+}
+
+/** Bounded retries when an auto-assigned port lands inside the reserved set. */
+const AUTO_PORT_ATTEMPTS = 10;
+
 /**
  * Allocate one run's ports. Forced ports are honored exactly and fail fast
  * (exit 2) on conflict; automatic ports come from get-port with a shared
  * reserved set so the two services can never share a port in one run.
  */
-export async function allocateRunPorts(requests: AllocateRequests = {}): Promise<AllocatedPorts> {
+export async function allocateRunPorts(
+  requests: AllocateRequests = {},
+  deps?: AllocateDeps | undefined
+): Promise<AllocatedPorts> {
   const host = requests.host ?? "127.0.0.1";
   const reserved = new Set<number>();
-  const serverPort = await takePort("server", requests.serverPort, reserved, host);
-  const webPort = await takePort("web", requests.webPort, reserved, host);
+  const alloc = deps?.getPortFn ?? getPort;
+  const serverPort = await takePort("server", requests.serverPort, reserved, host, alloc);
+  const webPort = await takePort("web", requests.webPort, reserved, host, alloc);
   return { serverPort, webPort };
 }
 
@@ -162,7 +179,8 @@ async function takePort(
   service: "server" | "web",
   forced: number | undefined,
   reserved: Set<number>,
-  host: string
+  host: string,
+  alloc: NonNullable<AllocateDeps["getPortFn"]>
 ): Promise<number> {
   if (forced !== undefined) {
     const port = parsePortInput(forced, `${service} port`);
@@ -175,7 +193,20 @@ async function takePort(
     reserved.add(port);
     return port;
   }
-  const port = await getPort({ exclude: [...reserved], host });
-  reserved.add(port);
-  return port;
+  // get-port v7 filters `exclude` only against its preferred-port sequence;
+  // with no preferred port (the auto path) the assigned port is unchecked, so
+  // a forced port inside the ephemeral range could still be handed to the
+  // other service (P28). Enforce the reserved set after allocation, retrying
+  // when the allocator returns a reserved port.
+  for (let attempt = 0; attempt < AUTO_PORT_ATTEMPTS; attempt += 1) {
+    const port = await alloc({ exclude: [...reserved], host });
+    if (reserved.has(port)) continue;
+    reserved.add(port);
+    return port;
+  }
+  throw new OrchestratorError(
+    `Could not allocate a ${service} port outside this run's reserved set ` +
+      `(${[...reserved].join(", ")}).`,
+    1
+  );
 }
