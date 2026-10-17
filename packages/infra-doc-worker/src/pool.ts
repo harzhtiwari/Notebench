@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import { resolve } from "node:path";
-import { createLogger, type Logger } from "@notebook/logger";
+import { createLogger, type Logger } from "@notebench/logger";
 import {
   type DocWorkerPingResult,
   type DocWorkerInfoResult,
@@ -20,7 +20,7 @@ import {
   type EmbeddingQueryResult,
   EmbeddingQueryResultSchema,
   ParserFailedError,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import { DocWorkerProcess } from "./worker-process.js";
 
 export interface DocWorkerPoolOptions {

@@ -17,7 +17,7 @@ import {
   type VaultEnvelope,
   type AadPayload,
 } from "./index.js";
-import { NotebookError } from "@notebook/contracts";
+import { NotebookError } from "@notebench/contracts";
 
 describe("Ticket 03: Encrypted API Key Vault", () => {
   let tempDir: string;

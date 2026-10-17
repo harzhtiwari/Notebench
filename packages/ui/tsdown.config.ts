@@ -14,7 +14,7 @@ export default defineConfig({
   deps: {
     neverBundle: ["react", "react-dom"],
     onlyImport: [
-      "@notebook/contracts",
+      "@notebench/contracts",
       "react",
       "react-dom",
       "react/jsx-runtime",

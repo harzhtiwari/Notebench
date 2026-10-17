@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { TargetMilestone } from "@notebook/contracts";
+import type { TargetMilestone } from "@notebench/contracts";
 import { CheckCircle, XCircle } from "../primitives/icons.js";
 import { VersionBadge } from "../primitives/badges.js";
 import { cn } from "../../lib/utils.js";

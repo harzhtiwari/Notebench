@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildServer } from "../app.js";
-import { createSqliteDatabase, initializeSqliteSchema, type SqliteDatabaseInstance } from "@notebook/infra-db";
+import { createSqliteDatabase, initializeSqliteSchema, type SqliteDatabaseInstance } from "@notebench/infra-db";
 
 describe("Notebooks Fastify Routes (Ticket 05)", () => {
   let app: FastifyInstance;

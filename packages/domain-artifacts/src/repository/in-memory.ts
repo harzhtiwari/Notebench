@@ -3,7 +3,7 @@ import type {
   ArtifactVersion,
   ArtifactVersionRepositoryPort,
   CreateArtifactVersionParams,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 
 /**
  * In-Memory append-only repository for Artifact Versions DAG.

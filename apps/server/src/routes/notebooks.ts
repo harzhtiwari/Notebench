@@ -7,8 +7,8 @@ import {
   NotFoundError,
   ValidationError,
   type NotebookRepositoryPort,
-} from "@notebook/contracts";
-import { NotebookService, type DashboardSortKey } from "@notebook/domain-notebooks";
+} from "@notebench/contracts";
+import { NotebookService, type DashboardSortKey } from "@notebench/domain-notebooks";
 
 export interface NotebooksRoutesOptions {
   notebookService?: NotebookService | undefined;

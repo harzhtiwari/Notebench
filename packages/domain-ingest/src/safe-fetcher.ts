@@ -5,7 +5,7 @@ import {
   SsrfBlockedError,
   PayloadTooLargeError,
   InvalidContentTypeError,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 
 export { SsrfBlockedError, PayloadTooLargeError, InvalidContentTypeError };
 

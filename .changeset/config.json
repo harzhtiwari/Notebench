@@ -3,7 +3,7 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [
-    ["@notebook/*"]
+    ["@notebench/*"]
   ],
   "linked": [],
   "access": "restricted",

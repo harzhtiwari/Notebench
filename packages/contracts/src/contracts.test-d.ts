@@ -42,7 +42,7 @@ import {
   type DeletionJobStatus,
 } from "./entities/index.js";
 
-describe("Type-Level Regression Suite: @notebook/contracts", () => {
+describe("Type-Level Regression Suite: @notebench/contracts", () => {
   it("locks SSE Discriminated Union type inference", () => {
     type InferredSse = z.infer<typeof SseEventSchema>;
     expectTypeOf<InferredSse>().toEqualTypeOf<SseEvent>();

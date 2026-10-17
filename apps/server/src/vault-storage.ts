@@ -1,5 +1,5 @@
-import type { VaultKeyRecord, VaultStorage } from "@notebook/infra-vault";
-import type { SqliteVaultKeyRepository } from "@notebook/infra-db";
+import type { VaultKeyRecord, VaultStorage } from "@notebench/infra-vault";
+import type { SqliteVaultKeyRepository } from "@notebench/infra-db";
 
 /**
  * Composition-root glue (Guard 11): wires the SQLite vault-key repository

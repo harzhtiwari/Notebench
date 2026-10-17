@@ -2,13 +2,13 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";
 import { delimiter, join } from "node:path";
-import { createLogger, type Logger } from "@notebook/logger";
+import { createLogger, type Logger } from "@notebench/logger";
 import {
   createJsonRpcRequest,
   type JsonRpcId,
   JsonRpcResponseSchema,
   ParserFailedError,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 
 export interface WorkerProcessOptions {
   projectDir: string;

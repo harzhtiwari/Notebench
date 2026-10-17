@@ -1,4 +1,4 @@
-import type { DeletionLevel } from "@notebook/contracts";
+import type { DeletionLevel } from "@notebench/contracts";
 
 export type DeletionRisk = "low" | "medium" | "high";
 export type DeletionConfirmType = "click" | "phrase" | "reauth";

@@ -6,8 +6,8 @@ import {
   RateLimitedError,
   ValidationError,
   type NotebookErrorCode,
-} from "@notebook/contracts";
-import type { SessionService } from "@notebook/domain-account";
+} from "@notebench/contracts";
+import type { SessionService } from "@notebench/domain-account";
 import {
   clearSessionCookies,
   resolveRequestSecurity,

@@ -2,7 +2,7 @@ import type {
   HealthProbeId,
   HealthProbeResult,
   DocWorkerProbe,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 
 export interface SqliteHealthProbeTarget {
   pragma(pragmaStatement: string, options?: { simple?: boolean }): unknown;

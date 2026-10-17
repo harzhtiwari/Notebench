@@ -1,5 +1,5 @@
 {
-  "extends": "@notebook/tsconfig/build.json",
+  "extends": "@notebench/tsconfig/build.json",
   "compilerOptions": {
     "lib": ["ES2022"],
     // Tests observe the web compiler config seam (`apps/web/next.config.ts`),

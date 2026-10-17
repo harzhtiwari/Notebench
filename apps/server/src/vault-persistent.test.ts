@@ -5,12 +5,12 @@ import {
   createSqliteDatabase,
   SqliteAccountRepository,
   SqliteVaultKeyRepository,
-} from "@notebook/infra-db";
+} from "@notebench/infra-db";
 import {
   EncryptedVault,
   resolveMasterKey,
   VAULT_CONSTANTS,
-} from "@notebook/infra-vault";
+} from "@notebench/infra-vault";
 
 const TEST_DIR = resolve(`.tmp/test/test-server-vault-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
 

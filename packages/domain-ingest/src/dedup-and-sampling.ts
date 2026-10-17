@@ -1,5 +1,5 @@
 import { blake3 } from "hash-wasm";
-import type { Source } from "@notebook/contracts";
+import type { Source } from "@notebench/contracts";
 
 /**
  * Normalizes input string to canonical representation:

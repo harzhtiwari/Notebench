@@ -3,7 +3,7 @@ import {
   DASHBOARD_COLUMNS_CONFIG,
   type DashboardColumnId,
   type NotebookSummary,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import { Button } from "../primitives/button.js";
 import { NotebookEmblem } from "./notebook-emblem.js";
 import { formatBytes, formatRelativeTime } from "../../lib/formatters.js";

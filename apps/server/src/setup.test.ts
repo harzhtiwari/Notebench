@@ -2,14 +2,14 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, rmSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { createLogger } from "@notebook/logger";
-import { createSqliteDatabase, SqliteAccountRepository } from "@notebook/infra-db";
+import { createLogger } from "@notebench/logger";
+import { createSqliteDatabase, SqliteAccountRepository } from "@notebench/infra-db";
 import {
   OwnerSetupService,
   Argon2PasscodeHasher,
   DEFAULT_ARGON2_CONFIG,
   FakePasscodeHasher,
-} from "@notebook/domain-account";
+} from "@notebench/domain-account";
 import { buildServer } from "./app.js";
 
 const TEST_DIR = resolve(`.tmp/test/test-server-setup-${process.env["VITEST_WORKER_ID"] ?? "0"}`);

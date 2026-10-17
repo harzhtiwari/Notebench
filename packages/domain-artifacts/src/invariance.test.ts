@@ -3,7 +3,7 @@ import {
   InvarianceViolationError,
   type DocumentContent,
   type FlashcardsContent,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import {
   computeNodeDigest,
   verifySiblingInvariance,

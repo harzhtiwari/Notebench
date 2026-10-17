@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { QuizOption, QuizQuestion as QuizQuestionData } from "@notebook/contracts";
+import type { QuizOption, QuizQuestion as QuizQuestionData } from "@notebench/contracts";
 import {
   Badge,
   Button,

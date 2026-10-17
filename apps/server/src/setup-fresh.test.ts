@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { createSqliteDatabase, initializeSqliteSchema, type SqliteDatabaseInstance } from "@notebook/infra-db";
+import { createSqliteDatabase, initializeSqliteSchema, type SqliteDatabaseInstance } from "@notebench/infra-db";
 import { buildServer } from "./app.js";
 
 describe("Fresh boot must not fake an owner (Ticket 01 vs 05)", () => {

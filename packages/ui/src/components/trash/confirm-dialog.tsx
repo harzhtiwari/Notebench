@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { DeletionLevel } from "@notebook/contracts";
+import type { DeletionLevel } from "@notebench/contracts";
 import { Button } from "../primitives/button.js";
 import { CheckboxRow } from "../primitives/fields.js";
 import {

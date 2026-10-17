@@ -1,5 +1,5 @@
 {
-  "name": "@notebook/infra-db",
+  "name": "@notebench/infra-db",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -33,14 +33,14 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@notebook/contracts": "workspace:*",
-    "@notebook/logger": "workspace:*",
+    "@notebench/contracts": "workspace:*",
+    "@notebench/logger": "workspace:*",
     "better-sqlite3": "13.0.3",
     "drizzle-orm": "^0.45.4",
     "pg": "^8.13.3"
   },
   "devDependencies": {
-    "@notebook/tsconfig": "workspace:*",
+    "@notebench/tsconfig": "workspace:*",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",

@@ -11,7 +11,7 @@ import {
   type DashboardMetrics,
   type NotebookRepositoryPort,
   NotFoundError,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import { sqliteSchema } from "../schema/index.js";
 
 /**

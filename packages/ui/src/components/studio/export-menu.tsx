@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { ArtifactType } from "@notebook/contracts";
+import type { ArtifactType } from "@notebench/contracts";
 import {
   DropdownMenu,
   DropdownMenuTrigger,

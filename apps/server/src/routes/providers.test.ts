@@ -1,20 +1,20 @@
 import { describe, it, expect } from "vitest";
 import { randomBytes, randomUUID } from "node:crypto";
 import Fastify from "fastify";
-import { EncryptedVault, MemoryVaultStorage } from "@notebook/infra-vault";
+import { EncryptedVault, MemoryVaultStorage } from "@notebench/infra-vault";
 import {
   createSqliteDatabase,
   initializeSqliteSchema,
   SqliteModelSelectionRepository,
   SqliteVaultKeyRepository,
-} from "@notebook/infra-db";
+} from "@notebench/infra-db";
 import type {
   ModelRef,
   ProviderAdapter,
   ProviderCallParams,
   ProviderId,
   TestKeyResult,
-} from "@notebook/infra-llm";
+} from "@notebench/infra-llm";
 import { providersRoutes, type ModelSelectionStore } from "./providers.js";
 import { buildServer } from "../app.js";
 import { SqliteVaultStorage } from "../vault-storage.js";

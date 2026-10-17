@@ -7,8 +7,8 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import Database from "better-sqlite3";
-import { InvarianceViolationError, NotFoundError } from "@notebook/contracts";
-import type { Logger } from "@notebook/logger";
+import { InvarianceViolationError, NotFoundError } from "@notebench/contracts";
+import type { Logger } from "@notebench/logger";
 
 // Single production rollback sequence (spec 8.3 order: close first, then
 // unlink WAL/SHM). Re-exported so the CLI and tests share one copy with the

@@ -4,7 +4,7 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
 import { StatusCard } from "./index.js";
 import { AlertBanner } from "../primitives/index.js";
-import type { HealthProbeResult } from "@notebook/contracts";
+import type { HealthProbeResult } from "@notebench/contracts";
 
 afterEach(() => {
   cleanup();

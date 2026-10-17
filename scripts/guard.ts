@@ -150,18 +150,18 @@ for (const entry of rootEntries) {
 
 const webFiles = getAllFiles(join(ROOT, "apps", "web", "src"));
 const allowedWebPackages = new Set([
-  "@notebook/contracts",
-  "@notebook/api-client",
-  "@notebook/hooks",
-  "@notebook/ui",
-  "@notebook/editor",
+  "@notebench/contracts",
+  "@notebench/api-client",
+  "@notebench/hooks",
+  "@notebench/ui",
+  "@notebench/editor",
 ]);
 
 for (const file of webFiles) {
   const content = readFileSync(file, "utf-8");
   for (const { specifier: importPath } of extractSpecifiers(stripComments(content))) {
     // Check 4: Allowed Web Packages
-    if (importPath.startsWith("@notebook/")) {
+    if (importPath.startsWith("@notebench/")) {
       const rootPkg = importPath.split("/").slice(0, 2).join("/");
       if (!allowedWebPackages.has(rootPkg)) {
         addViolation(
@@ -174,17 +174,17 @@ for (const file of webFiles) {
     }
 
     // Check 5: Web cannot import from apps/server
-    if (importPath.includes("apps/server") || importPath.includes("@notebook/server")) {
+    if (importPath.includes("apps/server") || importPath.includes("@notebench/server")) {
       addViolation(5, "Web Import Boundary", file, "apps/web cannot import from apps/server.");
     }
 
     // Check 6: Web cannot import from infra-*
-    if (importPath.includes("@notebook/infra-")) {
+    if (importPath.includes("@notebench/infra-")) {
       addViolation(6, "Web Import Boundary", file, "apps/web cannot import infrastructure packages.");
     }
 
     // Check 7: Web cannot import domain-* directly
-    if (importPath.includes("@notebook/domain-")) {
+    if (importPath.includes("@notebench/domain-")) {
       addViolation(7, "Web Import Boundary", file, "apps/web cannot import domain packages directly.");
     }
 
@@ -213,7 +213,7 @@ if (existsSync(packagesDir)) {
         const content = readFileSync(file, "utf-8");
         for (const { specifier: imp } of extractSpecifiers(stripComments(content))) {
           // Check 9: Infra cannot import domain-*
-          if (imp.includes("@notebook/domain-")) {
+          if (imp.includes("@notebench/domain-")) {
             addViolation(9, "Infra-Domain Boundary", file, `Infra package '${pkg.name}' cannot import domain packages.`);
           }
 
@@ -223,7 +223,7 @@ if (existsSync(packagesDir)) {
           }
 
           // Check 11: Infra cannot import peer infra-* packages
-          if (imp.startsWith("@notebook/infra-") && !imp.startsWith(`@notebook/${pkg.name}`)) {
+          if (imp.startsWith("@notebench/infra-") && !imp.startsWith(`@notebench/${pkg.name}`)) {
             addViolation(11, "Infra Seam Independence", file, `Infra package '${pkg.name}' cannot import peer infra package '${imp}'.`);
           }
         }
@@ -245,7 +245,7 @@ if (existsSync(packagesDir)) {
         const content = readFileSync(file, "utf-8");
         for (const { specifier: imp } of extractSpecifiers(stripComments(content))) {
           // Check 15 & 16: Domain deep imports banned (must only import through root index)
-          if (imp.startsWith("@notebook/domain-")) {
+          if (imp.startsWith("@notebench/domain-")) {
             const parts = imp.split("/");
             if (parts.length > 2) {
               addViolation(
@@ -273,7 +273,7 @@ if (existsSync(packagesDir)) {
           }
 
           // Check 20: Domains cannot import infra packages directly
-          if (imp.startsWith("@notebook/infra-")) {
+          if (imp.startsWith("@notebench/infra-")) {
             addViolation(20, "Domain-Infra Inversion", file, `Domain cannot import '${imp}' directly. Use port/contract interfaces.`);
           }
         }
@@ -460,7 +460,7 @@ for (const pkgDir of [join(ROOT, "packages", "ui")]) {
       const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf-8")) as { exports?: unknown; main?: unknown };
       const serialized = JSON.stringify(pkg.exports ?? {}) + String(pkg.main ?? "");
       if (serialized.includes("src/") && (serialized.includes(".ts") || serialized.includes(".tsx"))) {
-        addViolation(33, "Compiled Output Invariant", pkgJsonPath, "@notebook/ui exports/main must point at compiled dist, never src/*.ts (would force transpilePackages).");
+        addViolation(33, "Compiled Output Invariant", pkgJsonPath, "@notebench/ui exports/main must point at compiled dist, never src/*.ts (would force transpilePackages).");
       }
     } catch {
       // ignore JSON parse errors — typecheck covers malformed package.json
@@ -518,7 +518,7 @@ for (const file of webFiles) {
         12,
         "UI Icon Discipline",
         file,
-        `Direct icon-library import '${specifier}' at line ${line} is banned in apps/web. Import icons through '@notebook/ui'.`
+        `Direct icon-library import '${specifier}' at line ${line} is banned in apps/web. Import icons through '@notebench/ui'.`
       );
     }
   }
@@ -572,7 +572,7 @@ for (const componentFile of webComponentFiles) {
         13,
         "UI Reusability Discipline",
         componentFile,
-        `Web component used from ${routes.size} routes (${[...routes].sort().join(", ")}) is not re-exported from '@notebook/ui'. Move it to packages/ui.`
+        `Web component used from ${routes.size} routes (${[...routes].sort().join(", ")}) is not re-exported from '@notebench/ui'. Move it to packages/ui.`
       );
     }
   }

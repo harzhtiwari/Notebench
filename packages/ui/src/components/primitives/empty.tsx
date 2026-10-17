@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { TargetMilestone } from "@notebook/contracts";
+import type { TargetMilestone } from "@notebench/contracts";
 
 import { Button } from "./button.js";
 import { VersionBadge } from "./badges.js";

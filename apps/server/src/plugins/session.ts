@@ -10,8 +10,8 @@ import {
   isSecureRequest,
   resolveSessionCookieName,
   type SessionService,
-} from "@notebook/domain-account";
-import type { SessionRecord } from "@notebook/contracts";
+} from "@notebench/domain-account";
+import type { SessionRecord } from "@notebench/contracts";
 
 export interface SessionSupportOptions {
   sessionService: SessionService;

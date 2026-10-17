@@ -3,7 +3,7 @@ import { canonicalizeJson } from "./jcs.js";
 import {
   type ArtifactContent,
   InvarianceViolationError,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 
 /**
  * Computes deterministic RFC 8785 (JCS) SHA-256 digest of any JSON-serializable node.

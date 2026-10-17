@@ -1,5 +1,5 @@
 {
-  "name": "@notebook/tools-dev",
+  "name": "@notebench/tools-dev",
   "version": "0.1.0",
   "description": "Notebench dev-runtime tool: orchestrator and web sidecar lifecycle (tickets 05+ land here; tickets 01-04 stay in scripts/dev/)",
   "private": true,
@@ -14,7 +14,7 @@
     "tsx": "^4.19.2"
   },
   "devDependencies": {
-    "@notebook/tsconfig": "workspace:*",
+    "@notebench/tsconfig": "workspace:*",
     "@types/node": "^26.6.5",
     "typescript": "^7.0.2",
     "vitest": "^5.0.4"

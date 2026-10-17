@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, rmSync, mkdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { createSqliteDatabase, SqliteAccountRepository, SqliteSessionRepository } from "@notebook/infra-db";
-import type { SqliteDatabaseInstance } from "@notebook/infra-db";
-import { OwnerSetupService, FakePasscodeHasher } from "@notebook/domain-account";
-import { SessionService } from "@notebook/domain-account";
+import { createSqliteDatabase, SqliteAccountRepository, SqliteSessionRepository } from "@notebench/infra-db";
+import type { SqliteDatabaseInstance } from "@notebench/infra-db";
+import { OwnerSetupService, FakePasscodeHasher } from "@notebench/domain-account";
+import { SessionService } from "@notebench/domain-account";
 import { buildServer } from "./app.js";
 
 const TEST_DIR = resolve(`.tmp/test/test-server-rate-limit-${process.env["VITEST_WORKER_ID"] ?? "0"}`);

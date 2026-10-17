@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Source } from "@notebook/contracts";
-import { SourceSummarySchema } from "@notebook/contracts";
+import type { Source } from "@notebench/contracts";
+import { SourceSummarySchema } from "@notebench/contracts";
 import {
   DeduplicationService,
   SourceNormalizer,

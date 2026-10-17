@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import {
   HEALTH_THRESHOLDS,
   type HealthProbeResult,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import type {
   HealthProbeDefinition,
   HealthProbeContext,

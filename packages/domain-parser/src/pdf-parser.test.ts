@@ -3,7 +3,7 @@ import type {
   PdfExtractorPort,
   PdfExtractResult,
   PdfPreflightResult,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import {
   PdfParserService,
   normalizeBoundingBox,

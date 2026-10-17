@@ -6,7 +6,7 @@ import type {
   AccountRepositoryPort,
   UserRecord,
   CreateOwnerInput,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import { users } from "../schema/sqlite.js";
 
 /**

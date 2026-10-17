@@ -14,8 +14,8 @@ import {
   ParserFailedError,
   NotFoundError,
   InvarianceViolationError,
-} from "@notebook/contracts";
-import type { Logger } from "@notebook/logger";
+} from "@notebench/contracts";
+import type { Logger } from "@notebench/logger";
 
 export interface BackupMetadata {
   backupId: string;

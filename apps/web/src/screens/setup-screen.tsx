@@ -16,8 +16,8 @@ import {
   PasswordInput,
   resolveIconProps,
   validatePasscode,
-} from "@notebook/ui";
-import type { AppStateResult, SetupOwnerInput, SetupOwnerResult } from "@notebook/contracts";
+} from "@notebench/ui";
+import type { AppStateResult, SetupOwnerInput, SetupOwnerResult } from "@notebench/contracts";
 import { ApiRequestError, fetchApiJson } from "../lib/api";
 
 /**

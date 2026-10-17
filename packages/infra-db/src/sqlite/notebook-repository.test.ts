@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createSqliteDatabase, type SqliteDatabaseInstance } from "./connection.js";
 import { SqliteNotebookRepository, initializeSqliteSchema } from "./notebook-repository.js";
-import { NotFoundError } from "@notebook/contracts";
+import { NotFoundError } from "@notebench/contracts";
 
 describe("SqliteNotebookRepository (Ticket 05 CRUD & Duplicate)", () => {
   let dbInstance: SqliteDatabaseInstance;

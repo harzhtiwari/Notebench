@@ -1,5 +1,5 @@
 {
-  "extends": "@notebook/tsconfig/build.json",
+  "extends": "@notebench/tsconfig/build.json",
   "compilerOptions": {
     "jsx": "react-jsx",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],

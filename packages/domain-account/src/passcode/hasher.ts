@@ -1,5 +1,5 @@
 import { hash, verify, type Algorithm } from "@node-rs/argon2";
-import type { PasscodeHasher } from "@notebook/contracts";
+import type { PasscodeHasher } from "@notebench/contracts";
 
 /**
  * Argon2 algorithm identifier constants matching @node-rs/argon2 enum values:

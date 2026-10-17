@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Writable } from "node:stream";
 import { createLogger, createChildLogger } from "./logger.js";
-import { InvarianceViolationError } from "@notebook/contracts";
+import { InvarianceViolationError } from "@notebench/contracts";
 
 function createMemoryDestination() {
   const chunks: string[] = [];
@@ -18,7 +18,7 @@ function createMemoryDestination() {
   };
 }
 
-describe("@notebook/logger Structured Pino Logger", () => {
+describe("@notebench/logger Structured Pino Logger", () => {
   it("formats structured JSON logs with standard metadata", () => {
     const memory = createMemoryDestination();
     const logger = createLogger({

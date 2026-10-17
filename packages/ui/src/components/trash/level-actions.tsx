@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { DeletionLevel } from "@notebook/contracts";
+import type { DeletionLevel } from "@notebench/contracts";
 import { Button } from "../primitives/button.js";
 import { Badge } from "../primitives/badges.js";
 import { ConfirmDialog } from "./confirm-dialog.js";

@@ -2,7 +2,7 @@ import type {
   DocxBlock,
   DocxExtractorPort,
   DocxExtractResult,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 
 export interface ParsedDocxDocument {
   totalCharacters: number;

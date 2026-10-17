@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
-import { EncryptedVault, scrubSecretFromText } from "@notebook/infra-vault";
+import { EncryptedVault, scrubSecretFromText } from "@notebench/infra-vault";
 import {
   getAdapter,
   ProviderError,
@@ -7,8 +7,8 @@ import {
   type ProviderAdapter,
   type ProviderFailureCategory,
   type ProviderId,
-} from "@notebook/infra-llm";
-import type { NotebookErrorCode } from "@notebook/contracts";
+} from "@notebench/infra-llm";
+import type { NotebookErrorCode } from "@notebench/contracts";
 
 const DEFAULT_KEY_ID = "default";
 

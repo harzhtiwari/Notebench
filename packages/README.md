@@ -19,9 +19,9 @@ outside the owning package — neither by relative path nor by package subpath.
 Import another package **only by its bare specifier**:
 
 ```ts
-import { NotebookError } from "@notebook/contracts"; // ✅ entry point
+import { NotebookError } from "@notebench/contracts"; // ✅ entry point
 import { upload } from "../../domain-ingest/src/upload.js"; // ❌ internal file
-import { X } from "@notebook/ui/src/lib/theme.js"; // ❌ internal subpath
+import { X } from "@notebench/ui/src/lib/theme.js"; // ❌ internal subpath
 ```
 
 Inside your own package: relative imports freely. Colocated `*.test.ts` files may

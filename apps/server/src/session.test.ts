@@ -3,13 +3,13 @@ import { existsSync, rmSync, mkdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { createHash } from "node:crypto";
 import type { FastifyInstance } from "fastify";
-import { createSqliteDatabase, SqliteAccountRepository, SqliteSessionRepository } from "@notebook/infra-db";
-import type { SqliteDatabaseInstance } from "@notebook/infra-db";
+import { createSqliteDatabase, SqliteAccountRepository, SqliteSessionRepository } from "@notebench/infra-db";
+import type { SqliteDatabaseInstance } from "@notebench/infra-db";
 import {
   OwnerSetupService,
   FakePasscodeHasher,
   SessionService,
-} from "@notebook/domain-account";
+} from "@notebench/domain-account";
 import { buildServer } from "./app.js";
 
 const TEST_DIR = resolve(`.tmp/test/test-server-session-${process.env["VITEST_WORKER_ID"] ?? "0"}`);

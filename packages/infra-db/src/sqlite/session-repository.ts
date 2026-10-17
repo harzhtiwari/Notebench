@@ -6,7 +6,7 @@ import type {
   CreateSessionRecordInput,
   SessionRecord,
   SessionRepositoryPort,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import { sessions } from "../schema/sqlite.js";
 
 /**

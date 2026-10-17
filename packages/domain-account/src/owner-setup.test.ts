@@ -5,7 +5,7 @@ import {
   type AccountRepositoryPort,
   type UserRecord,
   type CreateOwnerInput,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import {
   OwnerSetupService,
   validatePasscode,

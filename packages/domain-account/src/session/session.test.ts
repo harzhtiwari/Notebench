@@ -9,7 +9,7 @@ import {
   type SessionRecord,
   type SessionRepositoryPort,
   type UserRecord,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import {
   FakePasscodeHasher,
   SESSION_CONFIG,

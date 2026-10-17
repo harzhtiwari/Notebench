@@ -5,7 +5,7 @@ import type {
   FtsStorePort,
   VectorStorePort,
   HybridRetrievalParams,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 
 export interface RrfOptions {
   kConstant?: number | undefined;

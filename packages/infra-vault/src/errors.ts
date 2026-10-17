@@ -1,4 +1,4 @@
-import { NotebookError, type NotebookErrorCode } from "@notebook/contracts";
+import { NotebookError, type NotebookErrorCode } from "@notebench/contracts";
 
 export type VaultErrorCategory =
   | "TAMPERED_CIPHERTEXT"
