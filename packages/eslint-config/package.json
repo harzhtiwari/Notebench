@@ -1,5 +1,5 @@
 {
-  "name": "@notebook/eslint-config",
+  "name": "@notebench/eslint-config",
   "version": "0.1.0",
   "private": true,
   "type": "module",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
-import { Well, WellDescription, WellTitle } from "@notebook/ui";
+import { Well, WellDescription, WellTitle } from "@notebench/ui";
 import {
   createMemoryRouter,
   parseRoute,

@@ -1,5 +1,5 @@
 /**
- * @notebook/tools-dev entry.
+ * @notebench/tools-dev entry.
  *
  * The dev-runtime track lives here in full: orchestrator and web sidecar
  * lifecycle (tickets 01-05+) with tests mirroring `src/` under `tests/`.

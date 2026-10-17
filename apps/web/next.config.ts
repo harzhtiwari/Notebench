@@ -116,7 +116,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  // @notebook/ui ships compiled dist output — do NOT list here (see transpilePackages docs).
+  // @notebench/ui ships compiled dist output — do NOT list here (see transpilePackages docs).
   transpilePackages: [],
   experimental: {
     optimizePackageImports: ["@phosphor-icons/react"],

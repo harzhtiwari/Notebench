@@ -2,7 +2,7 @@ import {
   ValidationError,
   PASSCODE_MIN_LENGTH,
   PASSCODE_MAX_LENGTH,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 
 /**
  * Curated blocklist of common, expected, or compromised single-factor passcodes

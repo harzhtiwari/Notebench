@@ -5,8 +5,8 @@ import {
   SetupAlreadyCompletedError,
   ValidationError,
   type NotebookErrorCode,
-} from "@notebook/contracts";
-import type { OwnerSetupService } from "@notebook/domain-account";
+} from "@notebench/contracts";
+import type { OwnerSetupService } from "@notebench/domain-account";
 
 export interface SetupRouteOptions {
   ownerSetupService: OwnerSetupService;

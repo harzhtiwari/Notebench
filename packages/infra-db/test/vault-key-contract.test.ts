@@ -20,7 +20,7 @@ import { createFreshPgDatabase, pgIntegrationSkipReason } from "./pg-harness.js"
  *
  * The exact same test body runs against the SQLite and the PostgreSQL
  * implementation of the smallest stable repository port in `infra-db`
- * (`VaultKeyStorage`, shape-matched to `@notebook/infra-vault`'s
+ * (`VaultKeyStorage`, shape-matched to `@notebench/infra-vault`'s
  * `VaultStorage` — infra packages cannot import each other, guard check 11).
  *
  * The SQLite dialect always runs. The PostgreSQL dialect skips cleanly when

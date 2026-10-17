@@ -4,7 +4,7 @@ import {
   type ArtifactVersionRepositoryPort,
   ArtifactContentSchema,
   NotFoundError,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import {
   computeNodeDigest,
   applySurgicalPatch,

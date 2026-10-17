@@ -6,7 +6,7 @@ import * as React from "react";
 import { Flashcard, QuizQuestion, AutosaveDot, DraftRecoveryBanner } from "./index.js";
 import { autosavePolicy } from "../../lib/autosave-policy.js";
 import { useAutosave } from "../../hooks/use-autosave.js";
-import type { FlashcardItem, QuizQuestion as QuizQuestionType } from "@notebook/contracts";
+import type { FlashcardItem, QuizQuestion as QuizQuestionType } from "@notebench/contracts";
 
 afterEach(() => {
   cleanup();

@@ -2,7 +2,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
-import type { NotebookSummary } from "@notebook/contracts";
+import type { NotebookSummary } from "@notebench/contracts";
 import {
   SearchInput,
   SortSelect,

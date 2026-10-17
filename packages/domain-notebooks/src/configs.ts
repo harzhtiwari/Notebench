@@ -8,4 +8,4 @@ export {
   type DashboardMetricId,
   type DashboardMetricConfig,
   DASHBOARD_METRICS_CONFIG,
-} from "@notebook/contracts";
+} from "@notebench/contracts";

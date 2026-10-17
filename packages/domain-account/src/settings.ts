@@ -3,7 +3,7 @@ import {
   type SettingDefinition,
   NotFoundError,
   ValidationError,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 
 const registryMap = new Map<string, SettingDefinition>(
   SETTINGS_REGISTRY.map((s) => [s.id, s])

@@ -7,7 +7,7 @@ import type {
   VectorStorePort,
   FtsSearchResult,
   FtsStorePort,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 
 /**
  * Converts a Float32Array or number array to a Node.js Buffer for better-sqlite3 vector binding.

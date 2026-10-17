@@ -8,8 +8,8 @@ import {
   NotebookError,
   InvarianceViolationError,
   ParserFailedError,
-} from "@notebook/contracts";
-import type { Logger } from "@notebook/logger";
+} from "@notebench/contracts";
+import type { Logger } from "@notebench/logger";
 import { pgSchema } from "../schema/index.js";
 import {
   createPreMigrationBackup,

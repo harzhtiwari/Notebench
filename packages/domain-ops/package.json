@@ -1,5 +1,5 @@
 {
-  "name": "@notebook/domain-ops",
+  "name": "@notebench/domain-ops",
   "version": "0.1.0",
   "description": "Operations, system health, and diagnostic domain services",
   "private": true,
@@ -18,10 +18,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@notebook/contracts": "workspace:*"
+    "@notebench/contracts": "workspace:*"
   },
   "devDependencies": {
-    "@notebook/tsconfig": "workspace:*",
+    "@notebench/tsconfig": "workspace:*",
     "@types/node": "^26.6.5",
     "tsdown": "^0.23.1",
     "typescript": "^7.0.2",

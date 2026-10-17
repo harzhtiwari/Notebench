@@ -5,7 +5,7 @@ import {
   type DuplicateNotebookInput,
   type DashboardMetrics,
   ValidationError,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import { type DashboardSortKey } from "./configs.js";
 import { filterNotebookSummaries, sortNotebookSummaries } from "./filter-and-sort.js";
 

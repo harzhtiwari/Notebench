@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, rmSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
-import { SetupAlreadyCompletedError } from "@notebook/contracts";
+import { SetupAlreadyCompletedError } from "@notebench/contracts";
 import { createSqliteDatabase } from "./connection.js";
 import { SqliteAccountRepository } from "./account-repository.js";
 import { SqliteSessionRepository } from "./session-repository.js";

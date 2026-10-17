@@ -7,7 +7,7 @@ import {
   ResizableHandle,
 } from "./resizable.js";
 
-describe("Resizable Primitives (@notebook/ui)", () => {
+describe("Resizable Primitives (@notebench/ui)", () => {
   it("renders panel group with horizontal layout and panels", () => {
     const { container } = render(
       <ResizablePanelGroup direction="horizontal" className="test-group">

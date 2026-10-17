@@ -12,7 +12,7 @@ editable artifacts with surgical block-level AI editing.
 | Piece | Lives in | Rule |
 |---|---|---|
 | Daemon (sole backend entrypoint) | `apps/server` (Fastify: REST + SSE, serves static SPA) | Next.js standalone server mode is banned |
-| Web UI (static SPA export) | `apps/web` → `apps/web/out` | Import only `@notebook/contracts`, `@notebook/api-client`, `@notebook/hooks`, `@notebook/ui`, `@notebook/editor` |
+| Web UI (static SPA export) | `apps/web` → `apps/web/out` | Import only `@notebench/contracts`, `@notebench/api-client`, `@notebench/hooks`, `@notebench/ui`, `@notebench/editor` |
 | Domain logic | `packages/domain-*` | Import peer domains via package root only; never raw DB drivers (`better-sqlite3`, `pg`) |
 | Infra adapters | `packages/infra-*` | Never import `domain-*` or `apps/*`; connect via contract interfaces only |
 | Shared types | `packages/contracts` | Cross-cutting types live here; `packages/shared` and `packages/common` are banned |
@@ -79,7 +79,7 @@ A task is done only when the relevant gates pass and their output is shown — n
 
 - **Topology (ADR 0001)**: Decoupled client-daemon. Fastify (`apps/server`) is the sole execution
   entrypoint and production composition root serving REST, SSE, and static SPA export (`apps/web/out`).
-- **Realtime Transport**: Strict HTTP REST + Server-Sent Events (SSE) via `@notebook/contracts`.
+- **Realtime Transport**: Strict HTTP REST + Server-Sent Events (SSE) via `@notebench/contracts`.
   WebSockets are banned. Large uploads stream direct-to-disk (`.notebook/uploads/`).
 - **State Taxonomy (ADR 0004)**: Persistent data strictly in `.notebook/` (`db/`, `uploads/`, `artifacts/`,
   `vault/`); disposable data strictly in `.tmp/` (`cache/`, `ports/`, `pids/`, `logs/`). Root dot-folders
@@ -102,7 +102,7 @@ A task is done only when the relevant gates pass and their output is shown — n
 - **Module System & Types**: Pure ESM (`"type": "module"`). Backend packages and `apps/server` must include
   `.js` extension on relative imports. Use `unknown` and narrow explicitly. Explicit `any`, double
   assertions (`as unknown as T`), and non-null assertions (`!`) in domain packages are prohibited.
-- **Errors**: Extend `NotebookError` with a typed `NotebookErrorCode` from `@notebook/contracts`.
+- **Errors**: Extend `NotebookError` with a typed `NotebookErrorCode` from `@notebench/contracts`.
 - **Surgical diffs**: Modify exactly the target blocks/files. Do not refactor unrelated code — it is the
   most common way agents break working repos.
 

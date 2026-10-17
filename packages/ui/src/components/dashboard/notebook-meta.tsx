@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { NotebookSummary } from "@notebook/contracts";
+import type { NotebookSummary } from "@notebench/contracts";
 import { formatBytes, formatRelativeTime } from "../../lib/formatters.js";
 import { cn } from "../../lib/utils.js";
 

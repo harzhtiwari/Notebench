@@ -6,7 +6,7 @@ import {
   type PasscodeChangeResult,
   type UserRecord,
   type CreateOwnerInput,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import {
   OwnerSetupService,
   validatePasscode,

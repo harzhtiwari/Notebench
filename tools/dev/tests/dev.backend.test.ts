@@ -595,17 +595,17 @@ describe("ticket 03: freshness gates for server-consumed compiled outputs", () =
     const root = makeTempRoot();
     const names = serverCompiledDeps(root).map((dep) => dep.name);
     expect(names).toEqual([
-      "@notebook/contracts",
-      "@notebook/logger",
-      "@notebook/domain-ops",
-      "@notebook/domain-account",
-      "@notebook/domain-notebooks",
-      "@notebook/infra-db",
-      "@notebook/infra-doc-worker",
-      "@notebook/infra-llm",
-      "@notebook/infra-vault",
+      "@notebench/contracts",
+      "@notebench/logger",
+      "@notebench/domain-ops",
+      "@notebench/domain-account",
+      "@notebench/domain-notebooks",
+      "@notebench/infra-db",
+      "@notebench/infra-doc-worker",
+      "@notebench/infra-llm",
+      "@notebench/infra-vault",
     ]);
-    expect(names).not.toContain("@notebook/ui");
+    expect(names).not.toContain("@notebench/ui");
     expect(names).not.toContain("next");
   });
 

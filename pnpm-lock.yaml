@@ -237,38 +237,38 @@ importers:
       '@fastify/static':
         specifier: ^10.1.6
         version: 10.1.6
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@notebook/domain-account':
+      '@notebench/domain-account':
         specifier: workspace:*
         version: link:../../packages/domain-account
-      '@notebook/domain-notebooks':
+      '@notebench/domain-notebooks':
         specifier: workspace:*
         version: link:../../packages/domain-notebooks
-      '@notebook/domain-ops':
+      '@notebench/domain-ops':
         specifier: workspace:*
         version: link:../../packages/domain-ops
-      '@notebook/infra-db':
+      '@notebench/infra-db':
         specifier: workspace:*
         version: link:../../packages/infra-db
-      '@notebook/infra-doc-worker':
+      '@notebench/infra-doc-worker':
         specifier: workspace:*
         version: link:../../packages/infra-doc-worker
-      '@notebook/infra-llm':
+      '@notebench/infra-llm':
         specifier: workspace:*
         version: link:../../packages/infra-llm
-      '@notebook/infra-vault':
+      '@notebench/infra-vault':
         specifier: workspace:*
         version: link:../../packages/infra-vault
-      '@notebook/logger':
+      '@notebench/logger':
         specifier: workspace:*
         version: link:../../packages/logger
       fastify:
         specifier: ^5.2.1
         version: 5.12.5
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@types/node':
@@ -289,10 +289,10 @@ importers:
 
   apps/web:
     dependencies:
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@notebook/ui':
+      '@notebench/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       next:
@@ -305,7 +305,7 @@ importers:
         specifier: ^19.3.0
         version: 19.3.0(react@19.3.0)
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@tailwindcss/postcss':
@@ -338,14 +338,14 @@ importers:
 
   examples/basic-usage:
     dependencies:
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@notebook/logger':
+      '@notebench/logger':
         specifier: workspace:*
         version: link:../../packages/logger
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@types/node':
@@ -364,7 +364,7 @@ importers:
         specifier: ^4.6.6
         version: 4.6.6
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -382,11 +382,11 @@ importers:
       '@node-rs/argon2':
         specifier: ^2.2.2
         version: 2.2.2
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../contracts
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -404,11 +404,11 @@ importers:
 
   packages/domain-artifacts:
     dependencies:
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../contracts
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -432,7 +432,7 @@ importers:
       '@mozilla/readability':
         specifier: ^0.6.0
         version: 0.6.0
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../contracts
       hash-wasm:
@@ -451,7 +451,7 @@ importers:
         specifier: ^8.11.2
         version: 8.11.2
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -475,11 +475,11 @@ importers:
 
   packages/domain-notebooks:
     dependencies:
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../contracts
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -497,11 +497,11 @@ importers:
 
   packages/domain-ops:
     dependencies:
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../contracts
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -519,11 +519,11 @@ importers:
 
   packages/domain-parser:
     dependencies:
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../contracts
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -541,11 +541,11 @@ importers:
 
   packages/domain-rag:
     dependencies:
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../contracts
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -597,10 +597,10 @@ importers:
 
   packages/infra-db:
     dependencies:
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@notebook/logger':
+      '@notebench/logger':
         specifier: workspace:*
         version: link:../logger
       better-sqlite3:
@@ -613,7 +613,7 @@ importers:
         specifier: ^8.13.3
         version: 8.23.1
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/better-sqlite3':
@@ -637,14 +637,14 @@ importers:
 
   packages/infra-doc-worker:
     dependencies:
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@notebook/logger':
+      '@notebench/logger':
         specifier: workspace:*
         version: link:../logger
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -659,7 +659,7 @@ importers:
 
   packages/infra-llm:
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -677,11 +677,11 @@ importers:
 
   packages/infra-vault:
     dependencies:
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../contracts
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -699,7 +699,7 @@ importers:
 
   packages/infra-vectorstore:
     dependencies:
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../contracts
       better-sqlite3:
@@ -709,7 +709,7 @@ importers:
         specifier: ^0.1.9
         version: 0.1.9
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/better-sqlite3':
@@ -730,14 +730,14 @@ importers:
 
   packages/logger:
     dependencies:
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../contracts
       pino:
         specifier: ^10.4.0
         version: 10.4.0
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -760,7 +760,7 @@ importers:
 
   packages/ui:
     dependencies:
-      '@notebook/contracts':
+      '@notebench/contracts':
         specifier: workspace:*
         version: link:../contracts
       '@phosphor-icons/react':
@@ -806,7 +806,7 @@ importers:
       '@arethetypeswrong/core':
         specifier: ^0.18.5
         version: 0.18.5
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@testing-library/react':
@@ -855,7 +855,7 @@ importers:
         specifier: ^4.19.2
         version: 4.23.15
     devDependencies:
-      '@notebook/tsconfig':
+      '@notebench/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@types/node':

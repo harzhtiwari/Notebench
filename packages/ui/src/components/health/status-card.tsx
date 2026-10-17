@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { HealthProbeResult, HealthProbeStatus } from "@notebook/contracts";
+import type { HealthProbeResult, HealthProbeStatus } from "@notebench/contracts";
 import { Button } from "../primitives/button.js";
 import { Badge, type BadgeVariant } from "../primitives/badges.js";
 import {

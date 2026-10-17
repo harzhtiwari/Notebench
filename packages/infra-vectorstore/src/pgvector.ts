@@ -2,7 +2,7 @@ import type {
   VectorRecord,
   VectorSearchResult,
   VectorStorePort,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 
 /**
  * Ticket 28 — Postgres pgvector store implementing `VectorStorePort`
@@ -16,7 +16,7 @@ import type {
  *
  * The store talks to a structural `PgQueryable` rather than importing the
  * `pg` driver: driver ownership stays where the pool is created
- * (`@notebook/infra-db`, AGENTS §3 / ticket 28 §3.5) and this package needs no
+ * (`@notebench/infra-db`, AGENTS §3 / ticket 28 §3.5) and this package needs no
  * new dependency. Pass a `pg.Pool` (it satisfies the shape) or a thin
  * adapter over one.
  */

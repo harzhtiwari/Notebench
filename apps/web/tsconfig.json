@@ -1,5 +1,5 @@
 {
-  "extends": "@notebook/tsconfig/nextjs.json",
+  "extends": "@notebench/tsconfig/nextjs.json",
   "compilerOptions": {
     "allowJs": false
   },

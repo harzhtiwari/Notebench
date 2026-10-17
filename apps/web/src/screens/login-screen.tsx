@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { LockscreenModal } from "@notebook/ui";
+import { LockscreenModal } from "@notebench/ui";
 import { apiUrl } from "../lib/api";
 
 interface AppStateProbe {

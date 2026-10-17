@@ -1,5 +1,5 @@
-import { createLogger } from "@notebook/logger";
-import { DocumentASTSchema, type DocumentAST } from "@notebook/contracts";
+import { createLogger } from "@notebench/logger";
+import { DocumentASTSchema, type DocumentAST } from "@notebench/contracts";
 
 // 1. Initialize structured logger
 const logger = createLogger({
@@ -33,7 +33,7 @@ try {
       contentType: validated.type,
       nodeCount: validated.content.length,
     },
-    "Successfully validated Document AST against @notebook/contracts"
+    "Successfully validated Document AST against @notebench/contracts"
   );
   console.log("Example completed successfully!");
 } catch (error) {

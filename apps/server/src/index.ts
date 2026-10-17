@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { buildServer } from "./app.js";
-import { DocWorkerPool } from "@notebook/infra-doc-worker";
+import { DocWorkerPool } from "@notebench/infra-doc-worker";
 
 /**
  * Port-file contract for the dev orchestrator .

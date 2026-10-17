@@ -51,7 +51,7 @@ import {
 } from "./index.js";
 import { cn } from "../../lib/utils.js";
 
-describe("@notebook/ui Design System & Primitives", () => {
+describe("@notebench/ui Design System & Primitives", () => {
   // ==========================================================================
   // SEAM 1: UTILITY & STYLING TOKENS
   // ==========================================================================

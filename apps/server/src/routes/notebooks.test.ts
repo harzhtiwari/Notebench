@@ -6,8 +6,8 @@ import {
   initializeSqliteSchema,
   SqliteNotebookRepository,
   type SqliteDatabaseInstance,
-} from "@notebook/infra-db";
-import { NotebookService } from "@notebook/domain-notebooks";
+} from "@notebench/infra-db";
+import { NotebookService } from "@notebench/domain-notebooks";
 import { notebooksRoutes } from "./notebooks.js";
 
 describe("Notebooks Fastify Routes (Ticket 05)", () => {

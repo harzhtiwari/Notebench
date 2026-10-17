@@ -5,7 +5,7 @@ import {
   type PdfExtractResult,
   type PdfPage,
   type PdfPreflightResult,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 
 export interface ParsedPdfDocument {
   pageCount: number;

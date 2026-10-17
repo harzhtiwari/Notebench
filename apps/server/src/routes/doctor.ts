@@ -2,13 +2,13 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type {
   DoctorReport,
   DocWorkerProbe,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import {
   runHealthProbes,
   type SqliteHealthProbeTarget,
   type HealthProbeContext,
-} from "@notebook/domain-ops";
-import type { Logger } from "@notebook/logger";
+} from "@notebench/domain-ops";
+import type { Logger } from "@notebench/logger";
 
 export interface DoctorRouteOptions {
   docWorkerPool?: DocWorkerProbe | undefined;

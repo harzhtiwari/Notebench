@@ -1,4 +1,4 @@
-import type { NotebookSummary } from "@notebook/contracts";
+import type { NotebookSummary } from "@notebench/contracts";
 import { type DashboardSortKey, DASHBOARD_SORT_KEYS_CONFIG } from "./configs.js";
 
 /**

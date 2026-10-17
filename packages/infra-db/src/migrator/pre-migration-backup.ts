@@ -13,8 +13,8 @@ import {
   ParserFailedError,
   NotFoundError,
   InvarianceViolationError,
-} from "@notebook/contracts";
-import type { Logger } from "@notebook/logger";
+} from "@notebench/contracts";
+import type { Logger } from "@notebench/logger";
 import { pruneBackups } from "../backup.js";
 
 export interface BackupMetadata {

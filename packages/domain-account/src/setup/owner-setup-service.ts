@@ -6,7 +6,7 @@ import {
   type SetupOwnerResult,
   type AppStateResult,
   type UserRecord,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import { validatePasscode } from "../passcode/policy.js";
 import { Argon2PasscodeHasher } from "../passcode/hasher.js";
 

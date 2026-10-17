@@ -8,9 +8,9 @@ import {
   NotFoundError,
   ValidationError,
   SETTINGS_REGISTRY,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 
-describe("Domain Account: Settings Service (@notebook/domain-account)", () => {
+describe("Domain Account: Settings Service (@notebench/domain-account)", () => {
   describe("validateSettingUpdate", () => {
     it("throws NotFoundError when setting ID does not exist in registry", () => {
       expect(() => {

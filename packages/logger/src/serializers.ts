@@ -1,5 +1,5 @@
 import { stdSerializers } from "pino";
-import { NotebookError } from "@notebook/contracts";
+import { NotebookError } from "@notebench/contracts";
 
 export interface SerializedError {
   name: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { DocxExtractorPort, DocxExtractResult } from "@notebook/contracts";
+import type { DocxExtractorPort, DocxExtractResult } from "@notebench/contracts";
 import { DocxParserService } from "./docx-parser.js";
 
 describe("DocxParserService (Seam 1)", () => {

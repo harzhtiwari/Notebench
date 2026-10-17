@@ -10,7 +10,7 @@ import { promisify } from "node:util";
  * Modification-time gates apply ONLY to workspace dependencies the server
  * actually consumes as compiled output. The web production export is never
  * built in the dev path, and packages the server never imports (notably
- * `@notebook/ui`, whose dist invariant guard check 33 enforces for the web
+ * `@notebench/ui`, whose dist invariant guard check 33 enforces for the web
  * bundler) are not gated here.
  */
 
@@ -26,15 +26,15 @@ export interface CompiledDep {
 }
 
 const SERVER_DEP_ORDER: ReadonlyArray<{ name: string; dirName: string }> = [
-  { name: "@notebook/contracts", dirName: "contracts" },
-  { name: "@notebook/logger", dirName: "logger" },
-  { name: "@notebook/domain-ops", dirName: "domain-ops" },
-  { name: "@notebook/domain-account", dirName: "domain-account" },
-  { name: "@notebook/domain-notebooks", dirName: "domain-notebooks" },
-  { name: "@notebook/infra-db", dirName: "infra-db" },
-  { name: "@notebook/infra-doc-worker", dirName: "infra-doc-worker" },
-  { name: "@notebook/infra-llm", dirName: "infra-llm" },
-  { name: "@notebook/infra-vault", dirName: "infra-vault" },
+  { name: "@notebench/contracts", dirName: "contracts" },
+  { name: "@notebench/logger", dirName: "logger" },
+  { name: "@notebench/domain-ops", dirName: "domain-ops" },
+  { name: "@notebench/domain-account", dirName: "domain-account" },
+  { name: "@notebench/domain-notebooks", dirName: "domain-notebooks" },
+  { name: "@notebench/infra-db", dirName: "infra-db" },
+  { name: "@notebench/infra-doc-worker", dirName: "infra-doc-worker" },
+  { name: "@notebench/infra-llm", dirName: "infra-llm" },
+  { name: "@notebench/infra-vault", dirName: "infra-vault" },
 ];
 
 /**

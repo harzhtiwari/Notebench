@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { NotebookSummary } from "@notebook/contracts";
+import type { NotebookSummary } from "@notebench/contracts";
 import { Button } from "../primitives/button.js";
 import { NotebookEmblem } from "./notebook-emblem.js";
 import { NotebookMeta } from "./notebook-meta.js";

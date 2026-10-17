@@ -12,7 +12,7 @@ import type {
   NotebookSummary,
   NotebookRepositoryPort,
   DuplicateNotebookInput,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 
 describe("Notebook Domain Service & Configs (Ticket 05)", () => {
   const sampleNotebooks: NotebookSummary[] = [

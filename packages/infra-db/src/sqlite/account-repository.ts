@@ -8,7 +8,7 @@ import {
   type PasscodeChangeResult,
   type UserRecord,
   type CreateOwnerInput,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import { sessions, users } from "../schema/sqlite.js";
 
 /**

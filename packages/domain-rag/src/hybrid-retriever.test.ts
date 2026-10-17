@@ -4,7 +4,7 @@ import type {
   VectorSearchResult,
   FtsStorePort,
   VectorStorePort,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import {
   ReciprocalRankFusionService,
   HybridRetriever,

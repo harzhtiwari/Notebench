@@ -3,8 +3,8 @@ import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { createSqliteDatabase } from "@notebook/infra-db";
-import { runHealthProbes } from "@notebook/domain-ops";
+import { createSqliteDatabase } from "@notebench/infra-db";
+import { runHealthProbes } from "@notebench/domain-ops";
 import { buildServer, resolveWebOutDir } from "./app.js";
 
 describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {

@@ -1,5 +1,5 @@
 {
-  "name": "@notebook/contracts",
+  "name": "@notebench/contracts",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -20,7 +20,7 @@
     "zod": "^4.6.6"
   },
   "devDependencies": {
-    "@notebook/tsconfig": "workspace:*",
+    "@notebench/tsconfig": "workspace:*",
     "@types/node": "^26.6.5",
     "typescript": "^7.0.2",
     "vitest": "^5.0.4"

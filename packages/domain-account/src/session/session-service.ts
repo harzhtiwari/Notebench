@@ -6,7 +6,7 @@ import {
   type SessionRecord,
   type SessionRepositoryPort,
   type SessionSummary,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import { validatePasscode } from "../passcode/policy.js";
 import {
   SESSION_CONFIG,

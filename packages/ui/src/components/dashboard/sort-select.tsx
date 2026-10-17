@@ -2,7 +2,7 @@ import * as React from "react";
 import {
   DASHBOARD_SORT_KEYS_CONFIG,
   type DashboardSortKey,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import { cn } from "../../lib/utils.js";
 
 export interface SortSelectProps

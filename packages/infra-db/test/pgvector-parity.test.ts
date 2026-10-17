@@ -4,7 +4,7 @@ import {
   PgVectorStore,
   SqliteVectorStore,
 } from "../../infra-vectorstore/src/index.js";
-import type { VectorSearchResult } from "@notebook/contracts";
+import type { VectorSearchResult } from "@notebench/contracts";
 import { createPgDatabase, type PgDatabaseInstance } from "../src/pg/connection.js";
 import {
   createFreshPgDatabase,
@@ -26,8 +26,8 @@ import {
  * so the orders are expected to be identical; the tolerance only absorbs
  * float32 kernel noise.
  *
- * The store implementation lives in `@notebook/infra-vectorstore` and the pg
- * driver only resolves inside `@notebook/infra-db` (pnpm isolated
+ * The store implementation lives in `@notebench/infra-vectorstore` and the pg
+ * driver only resolves inside `@notebench/infra-db` (pnpm isolated
  * node_modules), so this file imports the store's source entry point by
  * relative path: package-level isolation makes `pg` + `sqlite-vec`
  * unresolvable in any single package.

@@ -11,7 +11,7 @@ import { ChartBar } from "../primitives/icons.js";
 import {
   type DashboardMetrics,
   DASHBOARD_METRICS_CONFIG,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import { formatBytes } from "../../lib/formatters.js";
 
 export interface MetricsPopoverProps {

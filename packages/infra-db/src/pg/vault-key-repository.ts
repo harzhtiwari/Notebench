@@ -12,7 +12,7 @@ import type {
  * Mirrors `SqliteVaultKeyRepository` (sqlite/vault-key-repository.ts):
  * `save` is a replace by (provider, keyId, userId), `delete` reports whether a
  * row was removed, and `list` is scoped to one user. The port type is declared
- * in the SQLite module because `infra-db` cannot import `@notebook/infra-vault`
+ * in the SQLite module because `infra-db` cannot import `@notebench/infra-vault`
  * (guard check 11); both implementations shape-match `VaultStorage`.
  *
  * The `provider_keys` table is created by `initializePgSchema` (bootstrap.ts),

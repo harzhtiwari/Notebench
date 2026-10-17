@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import type { DocWorkerProbe } from "@notebook/contracts";
+import type { DocWorkerProbe } from "@notebench/contracts";
 import {
   healthProbes,
   getHealthProbe,

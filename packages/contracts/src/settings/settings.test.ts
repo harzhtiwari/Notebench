@@ -10,7 +10,7 @@ import {
   getSectionsForPage,
 } from "./index.js";
 
-describe("Declarative Settings Registry Contract (@notebook/contracts)", () => {
+describe("Declarative Settings Registry Contract (@notebench/contracts)", () => {
   describe("Zod Enums and Schemas", () => {
     it("validates all 7 required settings pages in SettingsPageIdSchema", () => {
       const requiredPages = [

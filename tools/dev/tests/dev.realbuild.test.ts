@@ -29,7 +29,7 @@ it.skipIf(!runRealBuild)(
     await expect(
       defaultRunBuild(
         {
-          name: "@notebook/logger",
+          name: "@notebench/logger",
           dir: join(root, "packages", "logger"),
           distEntry: join("dist", "index.js"),
           srcDir: join(root, "packages", "logger", "src"),
@@ -55,7 +55,7 @@ it.skipIf(!runRealBuild)(
  * SERVER_DEP_ORDER, so the inventory can never silently drift again.
  */
 const FRESHNESS_EXCLUSIONS: Readonly<Record<string, string>> = {
-  "@notebook/tsconfig": "build-time tsconfig base only; never imported at server runtime",
+  "@notebench/tsconfig": "build-time tsconfig base only; never imported at server runtime",
 };
 
 function serverDeclaredWorkspaceDeps(root: string): string[] {
@@ -68,12 +68,12 @@ function serverDeclaredWorkspaceDeps(root: string): string[] {
     ...Object.keys(manifest.devDependencies ?? {}),
   ]);
   return [...declared]
-    .filter((name) => name.startsWith("@notebook/") && !(name in FRESHNESS_EXCLUSIONS))
+    .filter((name) => name.startsWith("@notebench/") && !(name in FRESHNESS_EXCLUSIONS))
     .sort();
 }
 
 describe("ticket 03: freshness inventory matches the server manifests (T3.1)", () => {
-  it("covers every @notebook/* server dependency (or names it in the exclusion set)", () => {
+  it("covers every @notebench/* server dependency (or names it in the exclusion set)", () => {
     const root = process.cwd();
     const covered = serverCompiledDeps(root)
       .map((dep) => dep.name)
@@ -94,8 +94,8 @@ describe("ticket 03: freshness inventory matches the server manifests (T3.1)", (
       expect(dep.distEntry.replaceAll("\\", "/")).toBe((declaredEntry ?? "").replace(/^\.\//, ""));
     }
     const distByPackage = new Map(deps.map((dep) => [dep.name, dep.distEntry]));
-    expect(distByPackage.get("@notebook/infra-llm")).toBe("dist/index.mjs");
-    expect(distByPackage.get("@notebook/infra-vault")).toBe("dist/index.mjs");
+    expect(distByPackage.get("@notebench/infra-llm")).toBe("dist/index.mjs");
+    expect(distByPackage.get("@notebench/infra-vault")).toBe("dist/index.mjs");
   });
 });
 
@@ -119,14 +119,14 @@ function setMtimeMs(path: string, mtimeMs: number): void {
   utimesSync(path, new Date(mtimeMs), new Date(mtimeMs));
 }
 
-/** Runtime @notebook/* deps of the server: one fixture package dir each. */
+/** Runtime @notebench/* deps of the server: one fixture package dir each. */
 function serverDeclaredDepDirNames(root: string): string[] {
   const manifest = JSON.parse(readFileSync(join(root, "apps", "server", "package.json"), "utf-8")) as {
     dependencies?: Record<string, string>;
   };
   return Object.keys(manifest.dependencies ?? {})
-    .filter((name) => name.startsWith("@notebook/"))
-    .map((name) => name.slice("@notebook/".length));
+    .filter((name) => name.startsWith("@notebench/"))
+    .map((name) => name.slice("@notebench/".length));
 }
 
 function createFreshnessFixtureRoot(): string {
@@ -144,7 +144,7 @@ function createFreshnessFixtureRoot(): string {
     inputs.push(join(srcDir, "index.ts"), join(nestedDir, "deep.ts"));
     writeFileSync(
       join(dir, "package.json"),
-      `${JSON.stringify({ name: `@notebook/${dirName}`, main, exports: { ".": { import: main } } }, null, 2)}\n`
+      `${JSON.stringify({ name: `@notebench/${dirName}`, main, exports: { ".": { import: main } } }, null, 2)}\n`
     );
     inputs.push(join(dir, "package.json"));
     if (dirName !== "infra-llm") {
@@ -180,7 +180,7 @@ describe("ticket 03: freshness inputs include build configs (T3.14)", () => {
     setMtimeMs(configFile, FIXTURE_STALE_MTIME_MS);
     built.length = 0;
     const second = await ensureServerFreshness(root, { runBuild });
-    expect(second.rebuilt).toEqual(["@notebook/logger"]);
+    expect(second.rebuilt).toEqual(["@notebench/logger"]);
   });
 });
 
@@ -196,7 +196,7 @@ describe("ticket 03: freshness notices deletions and enumeration failures (T3.22
     rmSync(join(root, "packages", "contracts", "src", "nested", "deep.ts"));
     built.length = 0;
     const second = await ensureServerFreshness(root, { runBuild });
-    expect(second.rebuilt).toEqual(["@notebook/contracts"]);
+    expect(second.rebuilt).toEqual(["@notebench/contracts"]);
   });
 
   it("invalidates when a direct source file is deleted", async () => {
@@ -210,7 +210,7 @@ describe("ticket 03: freshness notices deletions and enumeration failures (T3.22
     rmSync(join(root, "packages", "logger", "src", "index.ts"));
     built.length = 0;
     const second = await ensureServerFreshness(root, { runBuild });
-    expect(second.rebuilt).toEqual(["@notebook/logger"]);
+    expect(second.rebuilt).toEqual(["@notebench/logger"]);
   });
 
   it("rebuilds a package whose source tree cannot be enumerated", async () => {
@@ -219,7 +219,7 @@ describe("ticket 03: freshness notices deletions and enumeration failures (T3.22
     const result = await ensureServerFreshness(root, {
       runBuild: () => {},
     });
-    expect(result.rebuilt).toEqual(["@notebook/domain-ops"]);
+    expect(result.rebuilt).toEqual(["@notebench/domain-ops"]);
     expect(result.skipped).toHaveLength(serverDeclaredDepDirNames(process.cwd()).length - 1);
   });
 

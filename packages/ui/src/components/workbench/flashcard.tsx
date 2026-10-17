@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { FlashcardItem } from "@notebook/contracts";
+import type { FlashcardItem } from "@notebench/contracts";
 import {
   Badge,
   Button,

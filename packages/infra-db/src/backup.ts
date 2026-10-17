@@ -7,8 +7,8 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import Database from "better-sqlite3";
-import { InvarianceViolationError, NotFoundError } from "@notebook/contracts";
-import type { Logger } from "@notebook/logger";
+import { InvarianceViolationError, NotFoundError } from "@notebench/contracts";
+import type { Logger } from "@notebench/logger";
 
 // Canonical layout: matches createSqliteDatabase (.notebook/db/app.sqlite)
 // and the pre-migration default backup dir (.notebook/db/backups).

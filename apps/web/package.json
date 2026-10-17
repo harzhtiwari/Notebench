@@ -1,5 +1,5 @@
 {
-  "name": "@notebook/web",
+  "name": "@notebench/web",
   "version": "0.1.0",
   "description": "Next.js Web UI for Notebench",
   "private": true,
@@ -11,14 +11,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@notebook/contracts": "workspace:*",
-    "@notebook/ui": "workspace:*",
+    "@notebench/contracts": "workspace:*",
+    "@notebench/ui": "workspace:*",
     "next": "^16.4.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
-    "@notebook/tsconfig": "workspace:*",
+    "@notebench/tsconfig": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^26.6.5",

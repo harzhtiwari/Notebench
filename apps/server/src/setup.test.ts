@@ -3,15 +3,15 @@ import { existsSync, rmSync, mkdirSync, readFileSync } from "node:fs";
 import { Writable } from "node:stream";
 import { resolve, join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { createLogger } from "@notebook/logger";
-import { createSqliteDatabase, SqliteAccountRepository } from "@notebook/infra-db";
-import { SetupAlreadyCompletedError, type PasscodeHasher } from "@notebook/contracts";
+import { createLogger } from "@notebench/logger";
+import { createSqliteDatabase, SqliteAccountRepository } from "@notebench/infra-db";
+import { SetupAlreadyCompletedError, type PasscodeHasher } from "@notebench/contracts";
 import {
   OwnerSetupService,
   Argon2PasscodeHasher,
   DEFAULT_ARGON2_CONFIG,
   FakePasscodeHasher,
-} from "@notebook/domain-account";
+} from "@notebench/domain-account";
 import { buildServer } from "./app.js";
 
 const TEST_DIR = resolve(`.tmp/test/test-server-setup-${process.env["VITEST_WORKER_ID"] ?? "0"}`);

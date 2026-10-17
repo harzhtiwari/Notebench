@@ -1,5 +1,5 @@
 {
-  "name": "@notebook/infra-vectorstore",
+  "name": "@notebench/infra-vectorstore",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,12 +17,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@notebook/contracts": "workspace:*",
+    "@notebench/contracts": "workspace:*",
     "better-sqlite3": "13.0.3",
     "sqlite-vec": "^0.1.9"
   },
   "devDependencies": {
-    "@notebook/tsconfig": "workspace:*",
+    "@notebench/tsconfig": "workspace:*",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.5",
     "tsdown": "^0.23.1",

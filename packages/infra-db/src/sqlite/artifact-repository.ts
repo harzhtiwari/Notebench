@@ -5,7 +5,7 @@ import type {
   ArtifactVersion,
   ArtifactVersionRepositoryPort,
   CreateArtifactVersionParams,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import { sqliteSchema } from "../schema/index.js";
 
 /**

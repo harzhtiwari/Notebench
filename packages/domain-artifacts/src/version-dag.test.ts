@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   InvarianceViolationError,
   type DocumentContent,
-} from "@notebook/contracts";
+} from "@notebench/contracts";
 import {
   ArtifactVersionDagService,
   InMemoryArtifactVersionRepository,

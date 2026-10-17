@@ -4,13 +4,13 @@ import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { createLogger, type Logger } from "@notebook/logger";
-import type { NotebookErrorCode, DocWorkerProbe, NotebookRepositoryPort } from "@notebook/contracts";
-import type { SqliteHealthProbeTarget } from "@notebook/domain-ops";
-import { OwnerSetupService, Argon2PasscodeHasher, SessionService } from "@notebook/domain-account";
-import { NotebookService } from "@notebook/domain-notebooks";
-import { EncryptedVault, resolveMasterKey } from "@notebook/infra-vault";
-import type { ProviderAdapter, ProviderId } from "@notebook/infra-llm";
+import { createLogger, type Logger } from "@notebench/logger";
+import type { NotebookErrorCode, DocWorkerProbe, NotebookRepositoryPort } from "@notebench/contracts";
+import type { SqliteHealthProbeTarget } from "@notebench/domain-ops";
+import { OwnerSetupService, Argon2PasscodeHasher, SessionService } from "@notebench/domain-account";
+import { NotebookService } from "@notebench/domain-notebooks";
+import { EncryptedVault, resolveMasterKey } from "@notebench/infra-vault";
+import type { ProviderAdapter, ProviderId } from "@notebench/infra-llm";
 import {
   createSqliteDatabase,
   SqliteAccountRepository,
@@ -20,7 +20,7 @@ import {
   SqliteVaultKeyRepository,
   initializeSqliteSchema,
   type SqliteDatabaseInstance,
-} from "@notebook/infra-db";
+} from "@notebench/infra-db";
 import { setupRoutes } from "./routes/setup.js";
 import { sessionRoutes } from "./routes/session.js";
 import { providersRoutes, type ModelSelectionStore } from "./routes/providers.js";

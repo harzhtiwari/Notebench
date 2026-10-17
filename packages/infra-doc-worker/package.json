@@ -1,5 +1,5 @@
 {
-  "name": "@notebook/infra-doc-worker",
+  "name": "@notebench/infra-doc-worker",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,11 +17,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@notebook/contracts": "workspace:*",
-    "@notebook/logger": "workspace:*"
+    "@notebench/contracts": "workspace:*",
+    "@notebench/logger": "workspace:*"
   },
   "devDependencies": {
-    "@notebook/tsconfig": "workspace:*",
+    "@notebench/tsconfig": "workspace:*",
     "@types/node": "^26.6.5",
     "typescript": "^7.0.2",
     "vitest": "^5.0.4"

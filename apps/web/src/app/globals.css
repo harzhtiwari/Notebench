@@ -4,8 +4,8 @@
 @source "../../../../packages/ui/dist";
 @source "../../packages/ui/src";
 @source "../../packages/ui/dist";
-@import "@notebook/ui/tokens.css";
-@import "@notebook/ui/tokens.theme.css";
+@import "@notebench/ui/tokens.css";
+@import "@notebench/ui/tokens.theme.css";
 
 @layer base {
   *, *::before, *::after {
