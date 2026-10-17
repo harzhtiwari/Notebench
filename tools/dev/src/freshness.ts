@@ -1,5 +1,5 @@
 import { execFile as nodeExecFile } from "node:child_process";
-import type { Dirent } from "node:fs";
+import { readFileSync } from "node:fs";
 import { readdir as fsReaddir, stat as fsStat } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -33,13 +33,55 @@ const SERVER_DEP_ORDER: ReadonlyArray<{ name: string; dirName: string }> = [
   { name: "@notebook/domain-notebooks", dirName: "domain-notebooks" },
   { name: "@notebook/infra-db", dirName: "infra-db" },
   { name: "@notebook/infra-doc-worker", dirName: "infra-doc-worker" },
+  { name: "@notebook/infra-llm", dirName: "infra-llm" },
+  { name: "@notebook/infra-vault", dirName: "infra-vault" },
 ];
+
+/**
+ * Build configuration consumed by each package's `tsdown` build: editing one
+ * changes the compiled output, so it is a freshness input. A package without
+ * one (e.g. infra-llm uses tsdown defaults) simply stats as missing.
+ */
+const BUILD_CONFIG_FILES = ["tsdown.config.ts", "tsconfig.json"] as const;
+
+/**
+ * Resolve the compiled root entry a package exposes, from its own manifest:
+ * `exports["."].import`, else `main`. Returned relative to the package dir
+ * (leading `./` stripped) so bundler-specific extensions like `dist/index.mjs`
+ * stay correct. Unreadable or entry-less manifests fall back to the
+ * conventional `dist/index.js`; a missing dist still forces a rebuild.
+ */
+function resolveDistEntry(dir: string): string {
+  try {
+    const manifest = JSON.parse(readFileSync(join(dir, "package.json"), "utf-8")) as {
+      exports?: unknown;
+      main?: unknown;
+    };
+    const rootExport =
+      typeof manifest.exports === "object" && manifest.exports !== null
+        ? (manifest.exports as Record<string, unknown>)["."]
+        : manifest.exports;
+    const importTarget =
+      typeof rootExport === "object" && rootExport !== null
+        ? (rootExport as Record<string, unknown>)["import"]
+        : rootExport;
+    const entry = typeof importTarget === "string" && importTarget.length > 0 ? importTarget : manifest.main;
+    if (typeof entry === "string" && entry.length > 0) {
+      return entry.replace(/^\.\//, "");
+    }
+  } catch {
+    // Unreadable manifest (e.g. bare fixture root): use the conventional entry.
+  }
+  return "dist/index.js";
+}
 
 /**
  * Inventory the compiled workspace outputs the server consumes, in
  * dependency order (dependees first) so a rebuild cascade stays correct.
- * Every entry resolves to `dist/index.js`, matching each package's
- * `main`/`exports` map.
+ * Each entry's compiled path is resolved from the package's own manifest
+ * (`exports["."].import` / `main`). This list must stay in lockstep with the
+ * server's workspace dependencies; `dev.realbuild.test.ts` cross-checks it
+ * against `apps/server/package.json`.
  */
 export function serverCompiledDeps(root: string): CompiledDep[] {
   return SERVER_DEP_ORDER.map((dep) => {
@@ -47,7 +89,7 @@ export function serverCompiledDeps(root: string): CompiledDep[] {
     return {
       name: dep.name,
       dir,
-      distEntry: join("dist", "index.js"),
+      distEntry: resolveDistEntry(dir),
       srcDir: join(dir, "src"),
     };
   });
@@ -73,22 +115,26 @@ async function defaultStatMtimeMs(path: string): Promise<number | null> {
   }
 }
 
+/**
+ * Enumerate every freshness input under `dir`: files plus directories. A
+ * directory mtime is an input because deleting an entry updates its parent
+ * directory's mtime, so deletions invalidate without persisted state. Any
+ * readdir failure rejects instead of returning a partial list — the walk
+ * could not prove freshness, and the caller must force a rebuild.
+ */
 async function defaultListFilesRecursive(dir: string): Promise<string[]> {
   const out: string[] = [];
   const stack: string[] = [dir];
   while (stack.length > 0) {
     const current = stack.pop() as string;
-    let dirents: Dirent[];
-    try {
-      dirents = await fsReaddir(current, { withFileTypes: true });
-    } catch {
-      return out;
-    }
+    const dirents = await fsReaddir(current, { withFileTypes: true });
     for (const dirent of dirents) {
       if (dirent.name === "node_modules" || dirent.name === "dist") continue;
       const full = join(current, dirent.name);
-      if (dirent.isDirectory()) stack.push(full);
-      else if (dirent.isFile()) out.push(full);
+      if (dirent.isDirectory()) {
+        out.push(full);
+        stack.push(full);
+      } else if (dirent.isFile()) out.push(full);
     }
   }
   return out;
@@ -124,6 +170,13 @@ export async function defaultRunBuild(dep: CompiledDep, root: string): Promise<v
   });
 }
 
+/**
+ * Fresh means the dist entry exists and every input is older than it. Inputs
+ * are the enumerated source tree (files and directories), the src root
+ * itself (deleting a direct child updates its mtime), package.json, and the
+ * build configs. An enumeration failure returns not-fresh: the walk could
+ * not prove freshness, so the package must rebuild.
+ */
 async function isDepFresh(
   dep: CompiledDep,
   statMtimeMs: (path: string) => Promise<number | null>,
@@ -131,8 +184,16 @@ async function isDepFresh(
 ): Promise<boolean> {
   const distMtime = await statMtimeMs(join(dep.dir, dep.distEntry));
   if (distMtime === null) return false;
-  const inputs = await listFilesRecursive(dep.srcDir);
-  inputs.push(join(dep.dir, "package.json"));
+  let inputs: string[];
+  try {
+    inputs = await listFilesRecursive(dep.srcDir);
+  } catch {
+    return false;
+  }
+  inputs.push(dep.srcDir, join(dep.dir, "package.json"));
+  for (const configFile of BUILD_CONFIG_FILES) {
+    inputs.push(join(dep.dir, configFile));
+  }
   for (const input of inputs) {
     const mtime = await statMtimeMs(input);
     if (mtime !== null && mtime > distMtime) return false;
