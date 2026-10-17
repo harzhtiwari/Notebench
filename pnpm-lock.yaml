@@ -845,6 +845,9 @@ importers:
 
   tools/dev:
     dependencies:
+      '@playwright/test':
+        specifier: ^1.64.0
+        version: 1.64.0
       get-port:
         specifier: ^7.2.0
         version: 7.2.0

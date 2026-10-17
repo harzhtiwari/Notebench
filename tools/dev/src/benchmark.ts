@@ -9,7 +9,7 @@ import { cpus } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startBackendPhase, startDefaultWebPhase } from "./composer.js";
-import type { ServerReadyContext } from "./composer.js";
+import type { BackendPhaseDeps, ServerReadyContext } from "./composer.js";
 import { resolveRunPaths } from "./paths.js";
 import { OrchestratorError } from "./types.js";
 import type { WarmupGateName, WarmupResult } from "./warmup.js";
@@ -145,12 +145,13 @@ function timingNamed(result: WarmupResult, name: WarmupGateName): { elapsedMs: n
   return found === undefined ? null : { elapsedMs: found.elapsedMs, attempts: found.attempts };
 }
 
-async function runOnce(
+export async function runOnce(
   root: string,
   namespace: string,
   warmup: "route" | "ui",
   mode: "cold" | "warm",
-  run: number
+  run: number,
+  deps?: { backend?: BackendPhaseDeps | undefined } | undefined
 ): Promise<RunTrace> {
   const paths = resolveRunPaths(root, namespace);
   if (mode === "cold") {
@@ -160,10 +161,15 @@ async function runOnce(
   let healthAttempts = 0;
   let warmupResult: WarmupResult | null = null;
   const wallStart = Date.now();
+  const logLine = (line: string): void => {
+    console.log(`[bench:${mode}:${run}] ${line}`);
+  };
   const handle = await startBackendPhase(
     { root, argv: ["--namespace", namespace, "--warmup", warmup], env: process.env },
     {
-      startWebPhase: (ctx: ServerReadyContext) => startDefaultWebPhase(ctx, undefined, process.env),
+      ...deps?.backend,
+      startWebPhase: (ctx: ServerReadyContext) =>
+        startDefaultWebPhase(ctx, { ...deps?.backend, logLine }, process.env),
       onServerReady: (ctx: ServerReadyContext) => {
         healthMs = ctx.timings.healthElapsedMs;
         healthAttempts = ctx.timings.healthAttempts;
@@ -171,9 +177,7 @@ async function runOnce(
       onWarmup: (result: WarmupResult) => {
         warmupResult = result;
       },
-      logLine: (line: string) => {
-        console.log(`[bench:${mode}:${run}] ${line}`);
-      },
+      logLine,
     }
   );
   try {

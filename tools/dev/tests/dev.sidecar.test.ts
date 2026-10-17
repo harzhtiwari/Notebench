@@ -4,10 +4,12 @@ import type { Server } from "node:http";
 import net from "node:net";
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import getPort from "get-port";
 import { makeTempRoot as createTempRoot, removeTempRoots } from "./temp-dir.js";
+import type { ServerReadyContext } from "../src/composer.js";
+import type { SpawnFn } from "../src/spawn.js";
 
 /**
  * Ticket 04 suites after the CLI cutover (open-design parity): the web
@@ -502,6 +504,26 @@ setTimeout(() => { console.error("server-fatal-error"); process.exit(1); }, 5000
 setInterval(() => {}, 1000);
 `;
 
+  // Passes the health gate immediately, then crashes ~1.2 s later: the
+  // crash lands while the web gate is still polling, before the sidecar
+  // ever listens.
+  const SERVER_DYING_DURING_WEB_GATE_SCRIPT = `
+const http = require("http");
+const port = Number(process.env["PORT"]);
+const host = process.env["HOST"] || "127.0.0.1";
+http.createServer((req, res) => {
+  if (req.url === "/healthz") {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ status: "ok" }));
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
+}).listen(port, host, () => {
+  setTimeout(() => { console.error("server-fatal-error"); process.exit(1); }, 1200);
+});
+`;
+
   function silentLogs(): { lines: string[]; logLine: (line: string) => void } {
     const lines: string[] = [];
     return { lines, logLine: (line: string) => lines.push(line) };
@@ -625,6 +647,61 @@ http.createServer((req, res) => {
     }
   }, 180_000);
 
+  it("registers shutdown handlers before any web record is observable", async () => {
+    const { runDevCommand } = await import("../src/composer.js");
+    const { resolveRunPaths } = await import("../src/paths.js");
+    const root = makeTempRoot();
+    const { lines, logLine } = silentLogs();
+    const paths = resolveRunPaths(root, "handler-ns");
+    const handlers = new Map<string, () => void>();
+    let probes = 0;
+    let releaseWarmup: () => void = () => undefined;
+    const warmupHeld = new Promise<boolean>((resolve) => {
+      releaseWarmup = () => resolve(true);
+    });
+
+    const runPromise = runDevCommand(
+      { root, argv: ["--namespace", "handler-ns"], env: {} },
+      {
+        logLine,
+        runBuild: () => undefined,
+        createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", SERVER_HEALTHY_SCRIPT] }),
+        createWebSpawn: () => ({ executable: process.execPath, argv: ["-e", WEB_HEALTHY_SCRIPT] }),
+        onSignal: (signal: string, handler: () => void) => {
+          handlers.set(signal, handler);
+        },
+        // Probe one is the web gate (passes immediately). Later probes are
+        // the warmup: they hang until the test releases them, so the web
+        // record below is observed while the run is still mid-startup.
+        probeWeb: () => {
+          probes += 1;
+          return probes === 1 ? Promise.resolve(true) : warmupHeld;
+        },
+      }
+    );
+    try {
+      const webPort = await pollPortFile(paths.webPortFile, 30_000);
+      expect(Number(webPort)).toBeGreaterThan(0);
+      // The record is observable; a signal at this instant must not be lost.
+      expect(handlers.has("SIGINT")).toBe(true);
+      expect(handlers.has("SIGTERM")).toBe(true);
+    } finally {
+      releaseWarmup();
+      // Let the run finish starting (its ready line), never signaling while
+      // startup is mid-flight, then stop it through its own handlers.
+      const deadline = Date.now() + 30_000;
+      while (
+        !handlers.has("SIGINT") ||
+        !lines.some((line) => line.startsWith("[dev] ready"))
+      ) {
+        if (Date.now() > deadline) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      handlers.get("SIGINT")?.();
+      await expect(runPromise).resolves.toBe(0);
+    }
+  }, 60_000);
+
   it("times out with exit 4, the tail, and no owned state when the sidecar never listens", async () => {
     const { runDevCommand } = await import("../src/composer.js");
     const { resolveRunPaths } = await import("../src/paths.js");
@@ -702,4 +779,204 @@ http.createServer((req, res) => {
     expect(existsSync(paths.serverPortFile)).toBe(false);
     expect(existsSync(paths.webPortFile)).toBe(false);
   }, 180_000);
+
+  it("exits 1 promptly when the server crashes while the web gate is waiting", async () => {
+    const { runDevCommand } = await import("../src/composer.js");
+    const root = makeTempRoot();
+    const { lines, logLine } = silentLogs();
+
+    const startedAt = Date.now();
+    const code = await runDevCommand(
+      { root, argv: ["--namespace", "gate-crash-ns"], env: {} },
+      {
+        logLine,
+        runBuild: () => undefined,
+        createServerSpawn: () => ({
+          executable: process.execPath,
+          argv: ["-e", SERVER_DYING_DURING_WEB_GATE_SCRIPT],
+        }),
+        createWebSpawn: () => ({
+          executable: process.execPath,
+          argv: ["-e", "setInterval(() => {}, 1000);"],
+        }),
+        webDeadlineMs: 8_000,
+        pollIntervalMs: 100,
+      }
+    );
+    const wallMs = Date.now() - startedAt;
+    expect(code).toBe(1);
+    expect(wallMs).toBeLessThan(5_000);
+    expect(lines.join("\n")).toContain("server-fatal-error");
+  }, 60_000);
+
+  it("never resurrects records when the web sidecar becomes ready after the server crash", async () => {
+    const { runDevCommand } = await import("../src/composer.js");
+    const { resolveRunPaths } = await import("../src/paths.js");
+    const root = makeTempRoot();
+    const { logLine } = silentLogs();
+    const paths = resolveRunPaths(root, "crash-record-ns");
+    const webListeningLate = `
+const http = require("http");
+const port = Number(process.env["PORT"]);
+const host = process.env["HOST"] || "127.0.0.1";
+setTimeout(() => {
+  http.createServer((req, res) => {
+    if (req.url === "/") {
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end("<html>web</html>");
+    } else {
+      res.writeHead(404);
+      res.end();
+    }
+  }).listen(port, host);
+}, 3500);
+setInterval(() => {}, 1000);
+`;
+
+    // Ordered existence transitions prove the record is never re-created
+    // after the crash teardown deleted it.
+    const transitions: string[] = [];
+    let identitySeen = existsSync(paths.identityFile);
+    const watcher = setInterval(() => {
+      const identityExists = existsSync(paths.identityFile);
+      if (identityExists !== identitySeen) {
+        identitySeen = identityExists;
+        transitions.push(identityExists ? "created" : "deleted");
+      }
+    }, 25);
+
+    let code = -1;
+    try {
+      code = await runDevCommand(
+        { root, argv: ["--namespace", "crash-record-ns"], env: {} },
+        {
+          logLine,
+          runBuild: () => undefined,
+          createServerSpawn: () => ({
+            executable: process.execPath,
+            argv: ["-e", SERVER_DYING_DURING_WEB_GATE_SCRIPT],
+          }),
+          createWebSpawn: () => ({ executable: process.execPath, argv: ["-e", webListeningLate] }),
+          webDeadlineMs: 8_000,
+          pollIntervalMs: 100,
+        }
+      );
+    } finally {
+      clearInterval(watcher);
+    }
+
+    expect(code).toBe(1);
+    const firstDeleted = transitions.indexOf("deleted");
+    expect(firstDeleted).toBeGreaterThanOrEqual(0);
+    expect(transitions.slice(firstDeleted + 1)).not.toContain("created");
+    for (const file of [
+      paths.serverPortFile,
+      paths.webPortFile,
+      paths.serverPidFile,
+      paths.webPidFile,
+      paths.identityFile,
+    ]) {
+      expect(existsSync(file)).toBe(false);
+    }
+  }, 60_000);
+
+  it("fails with the run-over cause when the run is already over as the web phase returns", async () => {
+    const { runDevCommand } = await import("../src/composer.js");
+    const { resolveRunPaths } = await import("../src/paths.js");
+    const root = makeTempRoot();
+    const { lines, logLine } = silentLogs();
+    const paths = resolveRunPaths(root, "late-web-ns");
+
+    const code = await runDevCommand(
+      { root, argv: ["--namespace", "late-web-ns"], env: {} },
+      {
+        logLine,
+        runBuild: () => undefined,
+        createServerSpawn: () => ({
+          executable: process.execPath,
+          argv: ["-e", SERVER_DYING_DURING_WEB_GATE_SCRIPT],
+        }),
+        // The injected web phase returns only after the run is over: the
+        // prepared sidecar must not have its records published post-settle.
+        isPidLive: () => false,
+        startWebPhase: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+          return {
+            pid: 99999,
+            startTimeMs: Date.now(),
+            exited: new Promise<never>(() => undefined),
+            logFile: paths.webLogFile,
+            port: 65000,
+          };
+        },
+      }
+    );
+    expect(code).toBe(1);
+    expect(lines.join("\n")).toContain("server exited while the web sidecar was starting");
+  }, 60_000);
+
+  it("keeps the live server's records when the web gate fails", async () => {
+    const { startDefaultWebPhase } = await import("../src/composer.js");
+    const { resolveRunPaths } = await import("../src/paths.js");
+    const root = makeTempRoot();
+    const paths = resolveRunPaths(root, "webfail-ns");
+    mkdirSync(paths.portsDir, { recursive: true });
+    mkdirSync(paths.pidsDir, { recursive: true });
+    mkdirSync(paths.runDir, { recursive: true });
+    const serverRecords: Array<[string, string]> = [
+      [paths.serverPortFile, "server-port-sentinel\n"],
+      [paths.serverPidFile, "server-pid-sentinel\n"],
+      [paths.identityFile, "identity-sentinel\n"],
+    ];
+    for (const [file, content] of serverRecords) {
+      writeFileSync(file, content, "utf-8");
+    }
+
+    // The gateway child is fake: it never exits, so the route gate runs out
+    // its deadline and the catch path runs its partial (web-only) teardown.
+    // Only the web records may go; the live server's records must survive.
+    // The fake pid reports dead so teardown never signals (or waits on) an
+    // OS process it does not own.
+    const fakeSpawnFn: SpawnFn = () => ({ pid: 99999, on: () => undefined });
+    const ctx: ServerReadyContext = {
+      root,
+      namespace: "webfail-ns",
+      runId: "webfail-run",
+      host: "127.0.0.1",
+      serverPort: 39999,
+      reservedWebPort: 39998,
+      paths,
+      serverChild: {
+        pid: 99998,
+        startTimeMs: 1,
+        service: "server",
+        namespace: "webfail-ns",
+        runId: "webfail-run",
+        logFile: paths.serverLogFile,
+        executable: process.execPath,
+        argv: [],
+        exited: new Promise<never>(() => undefined),
+      },
+      timings: { healthAttempts: 1, healthElapsedMs: 1 },
+      isRunOver: () => false,
+    };
+
+    await expect(
+      startDefaultWebPhase(
+        ctx,
+        {
+          logLine: () => undefined,
+          spawnFn: fakeSpawnFn,
+          isPidLive: () => false,
+          webDeadlineMs: 400,
+          pollIntervalMs: 50,
+        },
+        {}
+      )
+    ).rejects.toThrow("web readiness timed out");
+
+    for (const [file, content] of serverRecords) {
+      expect(readFileSync(file, "utf-8")).toBe(content);
+    }
+  }, 60_000);
 });

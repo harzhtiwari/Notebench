@@ -11,7 +11,11 @@ import { defaultPidExists } from "./identity.js";
  * Owned-only teardown for the dev orchestrator. Stops children in reverse
  * start order with a bounded graceful wait, force-kills only the owned
  * process tree (`taskkill /T /F` on Windows, process-group kill on POSIX),
- * and deletes only this run's port/PID/identity files.
+ * and deletes only the records of the children it stops: a server in the
+ * list removes `server.port`/`server.pid` plus `identity.json` (the run
+ * owner), a web child removes `web.port`/`web.pid`. A partial teardown
+ * (web only) never removes the server's records or `identity.json`, so a
+ * still-live server keeps the records needed for recovery.
  *
  * Stale-record rule: a PID is signaled only after the injected liveness
  * predicate verifies it (existence plus start-time match). Pass an
@@ -104,7 +108,7 @@ async function defaultUnlink(path: string): Promise<void> {
 /**
  * Stop every owned child in reverse start order, wait at most `graceMs` for
  * each graceful exit, force-kill the owned tree only when it is still
- * verified live, then remove exactly this run's port/PID/identity files.
+ * verified live, then remove the records owned by the children it stopped.
  * Idempotent: safe to run on every exit path.
  */
 export async function teardownOwnedRun(
@@ -146,13 +150,17 @@ export async function teardownOwnedRun(
     }
   }
 
-  const ownedFiles = [
-    paths.serverPortFile,
-    paths.webPortFile,
-    paths.serverPidFile,
-    paths.webPidFile,
-    paths.identityFile,
-  ];
+  // Record removal follows the children actually torn down: only the
+  // server (run owner) owns `identity.json`, and each service owns its own
+  // port/PID records. A web-only pass must leave a live server recoverable.
+  const ownedFiles: string[] = [];
+  const ownedServices = new Set(childrenInStartOrder.map((child) => child.service));
+  if (ownedServices.has("server")) {
+    ownedFiles.push(paths.serverPortFile, paths.serverPidFile, paths.identityFile);
+  }
+  if (ownedServices.has("web")) {
+    ownedFiles.push(paths.webPortFile, paths.webPidFile);
+  }
   for (const file of ownedFiles) {
     try {
       await unlink(file);

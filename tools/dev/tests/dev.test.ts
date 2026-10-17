@@ -850,9 +850,14 @@ describe("ticket 01: orchestrator args, paths, ports", () => {
       const mine = resolveRunPaths(process.cwd(), "mine-ns");
       const sibling = resolveRunPaths(process.cwd(), "sibling-ns");
       const unlinked: string[] = [];
+      // Both children: run-level teardown removes all five records of the
+      // namespace, never the sibling namespace's records.
       await teardownOwnedRun(
         mine,
-        [{ service: "server", pid: 4001, startTimeMs: 10 }],
+        [
+          { service: "server", pid: 4001, startTimeMs: 10 },
+          { service: "web", pid: 4002, startTimeMs: 20 },
+        ],
         {
           isPidLive: () => false,
           requestGracefulStop: () => undefined,
@@ -898,6 +903,26 @@ describe("ticket 01: orchestrator args, paths, ports", () => {
       expect(result.forceKilled).toEqual([]);
       expect(unlinked).toContain(p.identityFile);
       expect(unlinked).toContain(p.serverPortFile);
+    });
+
+    it("[web]-only teardown keeps the live server's records and identity", async () => {
+      const p = resolveRunPaths(process.cwd(), "web-only-ns");
+      const unlinked: string[] = [];
+      await teardownOwnedRun(
+        p,
+        [{ service: "web", pid: 5001, startTimeMs: 10 }],
+        {
+          isPidLive: () => false,
+          unlink: (path: string) => {
+            unlinked.push(path);
+          },
+        }
+      );
+      expect(unlinked).toContain(p.webPortFile);
+      expect(unlinked).toContain(p.webPidFile);
+      expect(unlinked).not.toContain(p.serverPortFile);
+      expect(unlinked).not.toContain(p.serverPidFile);
+      expect(unlinked).not.toContain(p.identityFile);
     });
   });
 

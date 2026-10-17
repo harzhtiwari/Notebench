@@ -127,6 +127,12 @@ export interface ServerReadyContext {
   paths: RunPaths;
   serverChild: SpawnedChild;
   timings: ServerReadyTimings;
+  /**
+   * True once any supervised child exited, shutdown began, or the run
+   * settled; the web gate aborts on it so a server crash mid-gate cannot
+   * run out the gate's deadline.
+   */
+  isRunOver: () => boolean;
 }
 
 export interface BackendHandle {
@@ -322,9 +328,16 @@ export function resolveWebBundler(env: Record<string, string | undefined>): WebD
 /**
  * Default web-phase starter: spawn the sidecar child from source with the
  * orchestrator-owned env, gate on a real route through it (route-ready),
- * and hand back supervision records. On gate failure the starter stops its
- * own child before throwing; the backend catch path then tears down the
- * server (teardown is idempotent, so the overlap is safe).
+ * and hand back supervision records. The gate also aborts when the run is
+ * already over (any supervised child exited, shutdown began, or the run
+ * settled), so a server crash mid-gate fails with the run-over cause
+ * instead of running out the web deadline. On gate failure the starter
+ * stops its own child before throwing; this partial teardown (web only)
+ * never removes the server's records or `identity.json` — identity is
+ * removed only when the server (run owner) is in the children list. The
+ * backend catch path then tears down the server; overlapping teardown
+ * passes stay safe because each pass touches only the records of the
+ * children it stops.
  */
 export async function startDefaultWebPhase(
   ctx: ServerReadyContext,
@@ -418,7 +431,7 @@ export async function startDefaultWebPhase(
         deadlineMs: webDeadlineMs,
         intervalMs: pollIntervalMs,
         probe: () => probeWeb(webUrl),
-        isChildExited: () => webExited,
+        isChildExited: () => webExited || ctx.isRunOver(),
         getLogTail: () => readFailureTail(ctx.paths.webLogFile, sleep),
       },
       { now: deps?.now ?? Date.now, sleep }
@@ -430,6 +443,9 @@ export async function startDefaultWebPhase(
       [{ service: "web", pid: webChild.pid, startTimeMs: webChild.startTimeMs }],
       { isPidLive }
     );
+    if (ctx.isRunOver()) {
+      throw new OrchestratorError("server exited while the web sidecar was starting", 1);
+    }
     throw error;
   }
 
@@ -661,6 +677,7 @@ export async function startBackendPhase(
       resolveExit(code);
     }
   };
+  const isRunOver = (): boolean => childExited || shuttingDown || settled;
 
   const shutdown = async (): Promise<number> => {
     if (settled) return settledCode;
@@ -722,6 +739,12 @@ export async function startBackendPhase(
     await flushOutput();
     await fsWriteFile(paths.serverPortFile, `${allocated.serverPort}\n`, "utf-8");
 
+    // Shutdown handlers must exist before any readiness record is
+    // observable: observers signal as soon as they see the record, and a
+    // signal delivered before registration would be silently dropped.
+    onSignal("SIGINT", handleSigint);
+    onSignal("SIGTERM", handleSigterm);
+
     const hook = deps?.onServerReady;
     const readyCtx: ServerReadyContext = {
       root,
@@ -733,6 +756,7 @@ export async function startBackendPhase(
       paths,
       serverChild,
       timings: { healthAttempts: ready.attempts, healthElapsedMs: ready.elapsedMs },
+      isRunOver,
     };
     if (hook !== undefined) {
       await hook(readyCtx);
@@ -754,6 +778,9 @@ export async function startBackendPhase(
       };
       owned.push(ownedWeb);
       exitPromises.push(web.exited);
+      if (isRunOver()) {
+        throw new OrchestratorError("server exited while the web sidecar was starting", 1);
+      }
       await fsWriteFile(paths.webPortFile, `${web.port}\n`, "utf-8");
       await fsWriteFile(paths.webPidFile, `${web.pid}\n`, "utf-8");
       identityRecord.children["web"] = { pid: web.pid, startTimeMs: web.startTimeMs };
@@ -800,8 +827,6 @@ export async function startBackendPhase(
         await onWarmup(warmup);
       }
     }
-    onSignal("SIGINT", handleSigint);
-    onSignal("SIGTERM", handleSigterm);
   } catch (error: unknown) {
     await flushOutput();
     await teardownOwnedRun(paths, owned, { isPidLive });
