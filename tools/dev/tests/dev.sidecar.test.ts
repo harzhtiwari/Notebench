@@ -799,9 +799,16 @@ http.createServer((req, res) => {
       }
     );
     const wallMs = Date.now() - startedAt;
+    const text = lines.join("\n");
     expect(code).toBe(1);
-    expect(wallMs).toBeLessThan(5_000);
-    expect(lines.join("\n")).toContain("server-fatal-error");
+    // The abort cause is the regression signal; wall-clock alone is load-
+    // sensitive (child teardown adds seconds under parallel-suite load).
+    // Without the fix the gate runs out its 8s deadline and reports the
+    // timeout cause instead of the crash cause.
+    expect(text).toContain("server exited while the web sidecar was starting");
+    expect(text).toContain("server-fatal-error");
+    // Coarse no-hang bound; the deadline path also fails the cause check.
+    expect(wallMs).toBeLessThan(30_000);
   }, 60_000);
 
   it("never resurrects records when the web sidecar becomes ready after the server crash", async () => {
