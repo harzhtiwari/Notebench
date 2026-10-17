@@ -10,7 +10,8 @@ import type { WarmupMode } from "./types.js";
  * - `ui` (opt-in via `--warmup ui`): route readiness first, then a
  *   headless-browser probe waits for the stable app-mounted marker plus a
  *   screen control. Ready is withheld until both pass; failure exits 5 with
- *   diagnostics naming the origin, the last probe state, and the timings.
+ *   diagnostics naming the origin, the last probe state, the timings, and
+ *   the failing service log tail (spec 7.6).
  *
  * Vocabulary: orchestrator, namespace, run identity (spec section 1).
  */
@@ -75,12 +76,52 @@ function describeUiProbe(result: UiProbeResult): string {
   return `mounted=${result.mounted}, screenControl=${result.screenControl ?? "(none)"}`;
 }
 
+type ProbeAttemptOutcome =
+  | { kind: "result"; result: UiProbeResult }
+  | { kind: "error"; message: string }
+  | { kind: "timeout" };
+
+/**
+ * Race one probe attempt against the ui gate's remaining budget so a slow
+ * attempt can never overshoot the deadline (P7): the winner decides the
+ * outcome, and the loser's late settlement is ignored either way.
+ */
+function probeWithinBudget(
+  probe: UiProbe,
+  webOrigin: string,
+  budgetMs: number
+): Promise<ProbeAttemptOutcome> {
+  return new Promise<ProbeAttemptOutcome>((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve({ kind: "timeout" });
+    }, budgetMs);
+    probe(webOrigin).then(
+      (result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ kind: "result", result });
+      },
+      (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ kind: "error", message: error instanceof Error ? error.message : String(error) });
+      }
+    );
+  });
+}
+
 /**
  * Verify the requested readiness level. Route mode polls the sidecar route
  * gate; ui mode verifies the route gate first, then withholds ready until
  * the browser probe observes the mounted marker plus a screen control.
  * Route-gate timeouts carry the sidecar-preparation exit code (4, spec 7.6);
- * ui-gate failures exit 5 with the origin, last probe state, and timings.
+ * ui-gate failures exit 5 with the origin, last probe state, timings, and
+ * the failing service log tail (spec 7.6).
  */
 export async function verifyWarmup(
   options: VerifyWarmupOptions,
@@ -127,6 +168,25 @@ export async function verifyWarmup(
   let attempts = 0;
   let last: UiProbeResult = { mounted: false, screenControl: null };
   let lastProbeError: string | null = null;
+
+  const uiFailure = async (): Promise<OrchestratorError> => {
+    const uiElapsedMs = now() - uiStart;
+    timings.push({ name: "ui-ready", elapsedMs: uiElapsedMs, attempts });
+    const probeState =
+      lastProbeError === null
+        ? `Last probe: ${describeUiProbe(last)}.`
+        : `Last probe error: ${lastProbeError}. Last state: ${describeUiProbe(last)}.`;
+    const tail = await getLogTail();
+    return new OrchestratorError(
+      `UI warm-up failed for ${options.webOrigin}: app-mounted marker and screen control ` +
+        `not observed within ${uiDeadlineMs}ms (${attempts} attempts). ` +
+        `${probeState} ` +
+        `Timings: routeReadyMs=${timings[0]?.elapsedMs ?? 0}, uiReadyMs=${uiElapsedMs}. ` +
+        `Log tail:\n${tailToText(tail)}`,
+      5
+    );
+  };
+
   for (;;) {
     attempts += 1;
     if (isChildExited()) {
@@ -137,30 +197,27 @@ export async function verifyWarmup(
         1
       );
     }
-    try {
-      last = await probeUi(options.webOrigin);
+    const remainingMs = uiDeadlineMs - (now() - uiStart);
+    if (remainingMs <= 0) {
+      throw await uiFailure();
+    }
+    const attempt = await probeWithinBudget(probeUi, options.webOrigin, remainingMs);
+    if (attempt.kind === "timeout") {
+      lastProbeError = `no probe observation within the remaining ${remainingMs}ms budget`;
+      throw await uiFailure();
+    }
+    if (attempt.kind === "error") {
+      lastProbeError = attempt.message;
+    } else {
+      last = attempt.result;
       lastProbeError = null;
-    } catch (error: unknown) {
-      lastProbeError = error instanceof Error ? error.message : String(error);
     }
     if (lastProbeError === null && last.mounted && last.screenControl !== null) {
       timings.push({ name: "ui-ready", elapsedMs: now() - uiStart, attempts });
       return { level: "ui", timings, totalElapsedMs: now() - start };
     }
     if (now() - uiStart >= uiDeadlineMs) {
-      const uiElapsedMs = now() - uiStart;
-      timings.push({ name: "ui-ready", elapsedMs: uiElapsedMs, attempts });
-      const probeState =
-        lastProbeError === null
-          ? `Last probe: ${describeUiProbe(last)}.`
-          : `Last probe error: ${lastProbeError}. Last state: ${describeUiProbe(last)}.`;
-      throw new OrchestratorError(
-        `UI warm-up failed for ${options.webOrigin}: app-mounted marker and screen control ` +
-          `not observed within ${uiDeadlineMs}ms (${attempts} attempts). ` +
-          `${probeState} ` +
-          `Timings: routeReadyMs=${timings[0]?.elapsedMs ?? 0}, uiReadyMs=${uiElapsedMs}.`,
-        5
-      );
+      throw await uiFailure();
     }
     if (sleep !== undefined) {
       await sleep(intervalMs);

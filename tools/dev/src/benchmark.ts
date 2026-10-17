@@ -57,29 +57,56 @@ export interface ParsedBenchmarkArgs {
 
 /**
  * Parse benchmark flags from an argv array (without the node/script prefix).
- * Accepts both `--flag=value` and `--flag value` forms; unknown warmup values
- * throw so a typo never silently benchmarks the wrong level.
+ * Accepts both `--flag=value` and `--flag value` forms. Unknown flags, stray
+ * positionals, missing values, and unknown warmup values throw so a typo
+ * never silently benchmarks the wrong level (P27; mirrors args.ts).
  */
+const BENCHMARK_FLAGS_WITH_VALUE = new Set(["--runs", "--namespace", "--warmup"]);
+
+interface RawBenchmarkFlags {
+  runs?: string | undefined;
+  namespace?: string | undefined;
+  warmup?: string | undefined;
+}
+
 export function parseBenchmarkArgs(argv: string[]): ParsedBenchmarkArgs {
-  const get = (name: string, fallback: string): string => {
-    const prefix = `--${name}=`;
-    for (let i = 0; i < argv.length; i += 1) {
-      const arg: string | undefined = argv[i];
-      if (arg === undefined) continue;
-      if (arg.startsWith(prefix)) {
-        const value = arg.slice(prefix.length);
-        if (value !== "") return value;
-      } else if (arg === `--${name}`) {
-        const next: string | undefined = argv[i + 1];
-        if (next !== undefined && next !== "" && next.startsWith("--") === false) return next;
-      }
+  const raw: RawBenchmarkFlags = {};
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i] ?? "";
+    const [head, ...rest] = arg.split("=");
+    const name = head ?? "";
+    if (!name.startsWith("--")) {
+      throw new OrchestratorError(
+        `Unexpected argument "${arg}": only documented --flags are accepted.`,
+        1
+      );
     }
-    return fallback;
-  };
-  const parsedRuns = Number.parseInt(get("runs", "5"), 10);
+    if (!BENCHMARK_FLAGS_WITH_VALUE.has(name)) {
+      throw new OrchestratorError(
+        `Unknown flag "${name}": expected one of ${[...BENCHMARK_FLAGS_WITH_VALUE].join(", ")}.`,
+        1
+      );
+    }
+    let value: string | undefined;
+    if (rest.length > 0) {
+      value = rest.join("=");
+    } else {
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith("--")) {
+        throw new OrchestratorError(`Flag "${name}" requires a value.`, 1);
+      }
+      value = next;
+      i += 1;
+    }
+    if (name === "--runs") raw.runs = value;
+    else if (name === "--namespace") raw.namespace = value;
+    else raw.warmup = value;
+  }
+  const runsRaw = raw.runs === undefined || raw.runs === "" ? "5" : raw.runs;
+  const parsedRuns = Number.parseInt(runsRaw, 10);
   const runsPerMode = Number.isNaN(parsedRuns) ? 5 : Math.max(1, parsedRuns);
-  const namespace = get("namespace", "bench");
-  const warmupFlag = get("warmup", "route");
+  const namespace = raw.namespace === undefined || raw.namespace === "" ? "bench" : raw.namespace;
+  const warmupFlag = raw.warmup === undefined || raw.warmup === "" ? "route" : raw.warmup;
   if (warmupFlag !== "route" && warmupFlag !== "ui") {
     throw new OrchestratorError(
       `Unknown --warmup "${warmupFlag}": expected "route" or "ui".`,
@@ -198,6 +225,33 @@ export async function runOnce(
   }
 }
 
+/** Map a failed run's error to the benchmark's process exit code (P27). */
+export function benchmarkFailureExitCode(error: unknown): number {
+  return error instanceof OrchestratorError ? error.exitCode : 1;
+}
+
+/**
+ * Run the cold batch then the warm batch, stopping at the first failed run so
+ * the caller can still write and print the report for every completed run
+ * (P27).
+ */
+export async function runBenchmarkBatches(
+  runsPerMode: number,
+  run: (mode: "cold" | "warm", run: number) => Promise<RunTrace>
+): Promise<{ runs: RunTrace[]; failure: unknown }> {
+  const runs: RunTrace[] = [];
+  for (const mode of ["cold", "warm"] as const) {
+    for (let n = 1; n <= runsPerMode; n += 1) {
+      try {
+        runs.push(await run(mode, n));
+      } catch (error: unknown) {
+        return { runs, failure: error };
+      }
+    }
+  }
+  return { runs, failure: null };
+}
+
 async function main(): Promise<number> {
   let args: ParsedBenchmarkArgs;
   try {
@@ -209,13 +263,9 @@ async function main(): Promise<number> {
   const { runsPerMode, namespace, warmup } = args;
   const here = dirname(fileURLToPath(import.meta.url));
   const root = dirname(dirname(dirname(here)));
-  const runs: RunTrace[] = [];
-  for (let run = 1; run <= runsPerMode; run += 1) {
-    runs.push(await runOnce(root, namespace, warmup, "cold", run));
-  }
-  for (let run = 1; run <= runsPerMode; run += 1) {
-    runs.push(await runOnce(root, namespace, warmup, "warm", run));
-  }
+  const { runs, failure } = await runBenchmarkBatches(runsPerMode, (mode, run) =>
+    runOnce(root, namespace, warmup, mode, run)
+  );
   const summary = { ...summarize(runs, "cold"), ...summarize(runs, "warm") };
   const report: BenchmarkReport = {
     tool: "tools/dev/src/benchmark.ts",
@@ -251,8 +301,14 @@ async function main(): Promise<number> {
   }
   lines.push("");
   await fsWriteFile(`${base}.md`, `${lines.join("\n")}\n`, "utf-8");
-  console.log(`Benchmark complete: ${base}.json`);
-  return 0;
+  if (failure === null) {
+    console.log(`Benchmark complete: ${base}.json`);
+    return 0;
+  }
+  const message = failure instanceof Error ? failure.message : String(failure);
+  console.error(`Benchmark aborted after ${runs.length} completed run(s): ${message}`);
+  console.log(`Partial benchmark report: ${base}.json`);
+  return benchmarkFailureExitCode(failure);
 }
 
 const invokedAsScript = (() => {

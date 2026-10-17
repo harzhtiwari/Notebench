@@ -31,9 +31,10 @@ export interface BrowserProbeOptions {
 
 /**
  * Drive headless Chromium at the web origin and observe the mounted marker
- * plus a screen control. Throws on launch/navigation failure (the warmup
- * gate converts it to exit-5 diagnostics); returns an unmounted observation
- * when the marker or control never appears in budget.
+ * plus a screen control. Throws on launch or non-timeout navigation failure
+ * (the warmup gate converts it to exit-5 diagnostics); a navigation or
+ * marker/control budget expiry is a fresh not-mounted observation, never a
+ * throw (P21). Cleanup close errors never mask the probe outcome.
  */
 export async function probeAppMounted(
   webOrigin: string,
@@ -45,8 +46,13 @@ export async function probeAppMounted(
   try {
     const page = await browser.newPage();
     try {
-      await page.goto(webOrigin, { timeout: timeoutMs });
-      await page.waitForSelector(APP_MOUNTED_SELECTOR, { timeout: timeoutMs });
+      try {
+        await page.goto(webOrigin, { timeout: timeoutMs });
+        await page.waitForSelector(APP_MOUNTED_SELECTOR, { timeout: timeoutMs });
+      } catch (error: unknown) {
+        if (isTimeoutError(error)) return { mounted: false, screenControl: null };
+        throw error;
+      }
       const control = await page.$(SCREEN_CONTROL_SELECTOR);
       if (control === null) return { mounted: true, screenControl: null };
       const testid = await control.getAttribute("data-testid");
@@ -60,9 +66,23 @@ export async function probeAppMounted(
       });
       return { mounted: true, screenControl: tag };
     } finally {
-      await page.close();
+      await closeQuietly(() => page.close());
     }
   } finally {
-    await browser.close();
+    await closeQuietly(() => browser.close());
+  }
+}
+
+/** Selector/navigation budget expiry is an observation, not a probe failure. */
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && error.name === "TimeoutError";
+}
+
+/** A failing close must never mask the probe outcome (P21). */
+async function closeQuietly(close: () => Promise<void>): Promise<void> {
+  try {
+    await close();
+  } catch {
+    return;
   }
 }

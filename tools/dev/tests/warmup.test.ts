@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { join } from "node:path";
 import getPort from "get-port";
 import { startBackendPhase } from "../src/composer.js";
@@ -8,6 +8,7 @@ import { OrchestratorError } from "../src/types.js";
 import {
   APP_MOUNTED_SELECTOR,
   SCREEN_CONTROL_SELECTOR,
+  probeAppMounted,
 } from "../src/warmup-browser.js";
 import {
   formatReadyLine,
@@ -15,6 +16,18 @@ import {
 } from "../src/warmup.js";
 import type { RouteProbe, UiProbeResult, WarmupGateTiming, WarmupResult } from "../src/warmup.js";
 import { makeTempRoot as createTempRoot, removeTempRoots, silentLogs } from "./temp-dir.js";
+
+/**
+ * The browser automation dependency is mocked so probe-contract tests never
+ * launch a real Chromium (warmup-browser imports it lazily at probe time).
+ */
+const playwrightMock = vi.hoisted(() => ({
+  launch: vi.fn(),
+}));
+
+vi.mock("@playwright/test", () => ({
+  chromium: { launch: playwrightMock.launch },
+}));
 
 /**
  * Ticket 07 RED suite (written before implementation).
@@ -47,6 +60,106 @@ describe("ticket 07: probe/marker contract", () => {
     expect(APP_MOUNTED_SELECTOR).toBe('[data-app-mounted="true"]');
     expect(SCREEN_CONTROL_SELECTOR).toBe(
       'form[data-testid="setup-form"], [data-testid="route-not-found"]'
+    );
+  });
+});
+
+describe("ticket 07: browser probe observation contract (P21)", () => {
+  interface FakePage {
+    goto: ReturnType<typeof vi.fn>;
+    waitForSelector: ReturnType<typeof vi.fn>;
+    $: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn>;
+  }
+
+  function makePage(overrides: Partial<FakePage> = {}): FakePage {
+    return {
+      goto: vi.fn().mockResolvedValue(undefined),
+      waitForSelector: vi.fn().mockResolvedValue(undefined),
+      $: vi.fn().mockResolvedValue(null),
+      close: vi.fn().mockResolvedValue(undefined),
+      ...overrides,
+    };
+  }
+
+  function makeBrowser(page: FakePage): {
+    newPage: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn>;
+  } {
+    return {
+      newPage: vi.fn().mockResolvedValue(page),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+  }
+
+  function timeoutError(message: string): Error {
+    return Object.assign(new Error(message), { name: "TimeoutError" });
+  }
+
+  it("returns an unmounted observation when the mount marker never appears in budget", async () => {
+    const page = makePage({
+      waitForSelector: vi.fn().mockRejectedValue(timeoutError("Timeout 30000ms exceeded.")),
+    });
+    const browser = makeBrowser(page);
+    playwrightMock.launch.mockResolvedValue(browser);
+    await expect(probeAppMounted("http://127.0.0.1:41002", { timeoutMs: 50 })).resolves.toEqual({
+      mounted: false,
+      screenControl: null,
+    });
+    expect(page.close).toHaveBeenCalledTimes(1);
+    expect(browser.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns an unmounted observation when navigation times out", async () => {
+    const page = makePage({
+      goto: vi.fn().mockRejectedValue(timeoutError("Timeout 30000ms exceeded.")),
+    });
+    const browser = makeBrowser(page);
+    playwrightMock.launch.mockResolvedValue(browser);
+    await expect(probeAppMounted("http://127.0.0.1:41002", { timeoutMs: 50 })).resolves.toEqual({
+      mounted: false,
+      screenControl: null,
+    });
+    expect(page.waitForSelector).not.toHaveBeenCalled();
+  });
+
+  it("a failing close never masks the primary probe error", async () => {
+    const primary = new Error("page crashed while waiting for the marker");
+    const page = makePage({
+      waitForSelector: vi.fn().mockRejectedValue(primary),
+      close: vi.fn().mockRejectedValue(new Error("page close failed")),
+    });
+    const browser = makeBrowser(page);
+    browser.close = vi.fn().mockRejectedValue(new Error("browser close failed"));
+    playwrightMock.launch.mockResolvedValue(browser);
+    const error = await probeAppMounted("http://127.0.0.1:41002", { timeoutMs: 50 }).then(
+      () => null,
+      (e: unknown) => e
+    );
+    expect(error).toBe(primary);
+  });
+
+  it("a failing close never discards a successful observation", async () => {
+    const page = makePage({
+      close: vi.fn().mockRejectedValue(new Error("page close failed")),
+    });
+    const browser = makeBrowser(page);
+    browser.close = vi.fn().mockRejectedValue(new Error("browser close failed"));
+    playwrightMock.launch.mockResolvedValue(browser);
+    await expect(probeAppMounted("http://127.0.0.1:41002", { timeoutMs: 50 })).resolves.toEqual({
+      mounted: true,
+      screenControl: null,
+    });
+  });
+
+  it("still throws a non-timeout navigation failure", async () => {
+    const page = makePage({
+      goto: vi.fn().mockRejectedValue(new Error("net::ERR_CONNECTION_REFUSED")),
+    });
+    const browser = makeBrowser(page);
+    playwrightMock.launch.mockResolvedValue(browser);
+    await expect(probeAppMounted("http://127.0.0.1:41002", { timeoutMs: 50 })).rejects.toThrow(
+      "net::ERR_CONNECTION_REFUSED"
     );
   });
 });
@@ -213,6 +326,59 @@ describe("ticket 07: ui readiness level", () => {
     expect(error).toBeInstanceOf(OrchestratorError);
     expect((error as OrchestratorError).exitCode).toBe(5);
     expect((error as Error).message).toContain("within 900ms");
+  });
+
+  it("bounds each probe attempt by the remaining ui budget (P7)", async () => {
+    const started = Date.now();
+    const error = await verifyWarmup({
+      mode: "ui",
+      serverOrigin: "http://127.0.0.1:41001",
+      webOrigin: "http://127.0.0.1:41002",
+      probeRoute: () => true,
+      probeUi: () =>
+        new Promise<UiProbeResult>((resolve) => {
+          const timer = setTimeout(
+            () => resolve({ mounted: true, screenControl: "form" }),
+            3_000
+          );
+          timer.unref();
+        }),
+      deadlineMs: 35_000,
+      uiDeadlineMs: 150,
+      intervalMs: 20,
+    }).then(
+      () => null,
+      (e: unknown) => e
+    );
+    expect(error).toBeInstanceOf(OrchestratorError);
+    expect((error as OrchestratorError).exitCode).toBe(5);
+    expect((error as Error).message).toContain("within 150ms");
+    expect(Date.now() - started).toBeLessThan(1_500);
+  });
+
+  it("exit-5 failure carries the failing service log tail (P7, spec 7.6)", async () => {
+    const { now, sleep } = controllableTime();
+    const error = await verifyWarmup(
+      {
+        mode: "ui",
+        serverOrigin: "http://127.0.0.1:41001",
+        webOrigin: "http://127.0.0.1:41002",
+        probeRoute: () => true,
+        probeUi: async () => ({ mounted: false, screenControl: null }),
+        deadlineMs: 300,
+        intervalMs: 150,
+      },
+      { now, sleep, getLogTail: () => ["compiling / (1)…", "ready in 1200ms"] }
+    ).then(
+      () => null,
+      (e: unknown) => e
+    );
+    expect(error).toBeInstanceOf(OrchestratorError);
+    expect((error as OrchestratorError).exitCode).toBe(5);
+    const message = (error as Error).message;
+    expect(message).toContain("Log tail:\n");
+    expect(message).toContain("compiling / (1)…");
+    expect(message).toContain("ready in 1200ms");
   });
 
   it("ui mode without a browser probe fails fast instead of hanging", async () => {

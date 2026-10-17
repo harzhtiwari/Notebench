@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { parseBenchmarkArgs, runOnce, summarizeBenchmarkRuns } from "../src/benchmark.js";
+import {
+  benchmarkFailureExitCode,
+  parseBenchmarkArgs,
+  runBenchmarkBatches,
+  runOnce,
+  summarizeBenchmarkRuns,
+} from "../src/benchmark.js";
 import type { SpawnFn } from "../src/spawn.js";
+import { OrchestratorError } from "../src/types.js";
 import { makeTempRoot, removeTempRoots } from "./temp-dir.js";
 /**
  * Ticket 08 RED suite: the benchmark harness must accept both `--flag=value`
@@ -34,6 +41,42 @@ describe("ticket 08: benchmark flag parsing", () => {
   });
 });
 
+describe("ticket 08: benchmark flag strictness (P27)", () => {
+  it("rejects unknown flags instead of silently benchmarking another mode", () => {
+    let caught: unknown = null;
+    try {
+      parseBenchmarkArgs(["--warmup-ui"]);
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(OrchestratorError);
+    expect((caught as OrchestratorError).exitCode).toBe(1);
+    expect((caught as Error).message).toContain('Unknown flag "--warmup-ui"');
+  });
+
+  it("rejects stray positional arguments", () => {
+    let caught: unknown = null;
+    try {
+      parseBenchmarkArgs(["--runs", "2", "bench"]);
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(OrchestratorError);
+    expect((caught as Error).message).toContain('Unexpected argument "bench"');
+  });
+
+  it("rejects a flag whose value is missing", () => {
+    let caught: unknown = null;
+    try {
+      parseBenchmarkArgs(["--runs"]);
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(OrchestratorError);
+    expect((caught as Error).message).toContain('Flag "--runs" requires a value.');
+  });
+});
+
 describe("ticket 08: benchmark summary statistics", () => {
   it("reports median and p95 per metric and mode", () => {
     const summary = summarizeBenchmarkRuns(
@@ -45,6 +88,36 @@ describe("ticket 08: benchmark summary statistics", () => {
     );
     expect(summary["cold.healthMs"]).toEqual({ median: 200, p95: 300 });
     expect(summary["cold.routeMs"]).toEqual({ median: 100, p95: 150 });
+  });
+});
+
+describe("ticket 08: benchmark failure containment (P27)", () => {
+  it("stops at the first failed run and keeps the completed traces", async () => {
+    const failure = new OrchestratorError("web readiness timed out", 4);
+    const calls: string[] = [];
+    const result = await runBenchmarkBatches(2, async (mode, run) => {
+      calls.push(`${mode}:${run}`);
+      if (mode === "cold" && run === 2) throw failure;
+      return {
+        mode,
+        run,
+        healthMs: 100,
+        healthAttempts: 1,
+        routeMs: null,
+        routeAttempts: null,
+        uiMs: null,
+        totalMs: 200,
+      };
+    });
+    expect(calls).toEqual(["cold:1", "cold:2"]);
+    expect(result.runs.map((trace) => `${trace.mode}:${trace.run}`)).toEqual(["cold:1"]);
+    expect(result.failure).toBe(failure);
+  });
+
+  it("maps an OrchestratorError to its exit code and anything else to 1", () => {
+    expect(benchmarkFailureExitCode(new OrchestratorError("sidecar timeout", 4))).toBe(4);
+    expect(benchmarkFailureExitCode(new Error("boom"))).toBe(1);
+    expect(benchmarkFailureExitCode("boom")).toBe(1);
   });
 });
 
