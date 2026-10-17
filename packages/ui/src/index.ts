@@ -10,6 +10,7 @@ export * from "./hooks/use-countdown.js";
 export * from "./hooks/use-workspace-layout.js";
 export * from "./hooks/use-autosave.js";
 export * from "./tokens.js";
+export * from "./components/auth/lockscreen-modal.js";
 export * from "./components/chat/index.js";
 export * from "./components/dashboard/index.js";
 export * from "./components/health/index.js";

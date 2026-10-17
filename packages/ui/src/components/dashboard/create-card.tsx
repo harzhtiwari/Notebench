@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Plus } from "../primitives/icons.js";
+import { Plus, resolveIconProps } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
 export interface CreateCardProps
@@ -21,13 +21,13 @@ const CreateCard = React.forwardRef<HTMLButtonElement, CreateCardProps>(
         onCreate?.();
       }}
       className={cn(
-        "flex min-h-[170px] w-full cursor-pointer flex-col items-center justify-center rounded-[var(--nb-radius-card)] border-2 border-dashed border-[var(--nb-edge)] bg-transparent p-[var(--nb-space-6)] text-center transition-colors hover:border-[var(--nb-ink-2)] hover:bg-[var(--nb-well)]",
+        "flex min-h-[170px] w-full cursor-pointer flex-col items-center justify-center rounded-[var(--nb-radius-card)] border-2 border-dashed border-[var(--nb-edge)] bg-transparent p-[var(--nb-space-6)] text-center transition-colors duration-[var(--nb-dur-fast)] ease-[var(--nb-ease)] motion-reduce:transition-none hover:border-[var(--nb-ink-2)] hover:bg-[var(--nb-well)] focus-visible:outline-[var(--nb-ring-width)] focus-visible:outline-solid focus-visible:outline-[var(--nb-focus)] focus-visible:outline-offset-[var(--nb-ring-offset)]",
         className
       )}
       {...props}
     >
-      <span className="mb-[var(--nb-space-2)] grid h-10 w-10 place-items-center rounded-[var(--nb-radius-full)] bg-[var(--nb-sheet)] text-[var(--nb-ink)]">
-        <Plus size={20} weight="bold" aria-hidden="true" />
+      <span className="mb-[var(--nb-space-2)] grid h-[var(--nb-size-logo)] w-[var(--nb-size-logo)] place-items-center rounded-[var(--nb-radius-chip)] bg-[var(--nb-sheet)] text-[var(--nb-ink)]">
+        <Plus {...resolveIconProps({ size: "md", weight: "bold" })} />
       </span>
       <span className="text-sm font-semibold text-[var(--nb-ink)]">
         + Create New Notebook

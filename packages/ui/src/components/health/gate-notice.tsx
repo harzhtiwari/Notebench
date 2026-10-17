@@ -2,6 +2,7 @@ import * as React from "react";
 
 import { Banner } from "../primitives/banners.js";
 import { Button } from "../primitives/button.js";
+import { Checkbox } from "../primitives/fields.js";
 import { Download } from "../primitives/icons.js";
 
 export interface GateNoticeProps {
@@ -101,15 +102,13 @@ export function GateNotice({
         </div>
       ) : null}
       {onAcknowledgeChange ? (
-        <label className="flex cursor-pointer items-center gap-[var(--nb-space-2)] text-[length:var(--nb-text-xs)] text-[var(--nb-ink-2)]">
-          <input
-            type="checkbox"
-            checked={acknowledged}
-            onChange={(event) => onAcknowledgeChange(event.target.checked)}
-            className="rounded-[var(--nb-radius-xs)] border-[length:var(--nb-border-1)] border-[var(--nb-hairline)]"
-          />
-          <span>I have already backed up this data or do not require an export</span>
-        </label>
+        <Checkbox
+          checked={acknowledged}
+          onChange={(event) => onAcknowledgeChange(event.target.checked)}
+          className="text-[length:var(--nb-text-xs)] text-[var(--nb-ink-2)]"
+        >
+          I have already backed up this data or do not require an export
+        </Checkbox>
       ) : null}
       {children}
     </Banner>

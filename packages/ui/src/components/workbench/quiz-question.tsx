@@ -1,6 +1,15 @@
 import * as React from "react";
 import type { QuizOption, QuizQuestion as QuizQuestionData } from "@notebook/contracts";
-import { Button } from "../primitives/button.js";
+import {
+  Badge,
+  Button,
+  Card,
+  FormField,
+  IconButton,
+  Input,
+  Textarea,
+  Well,
+} from "../primitives/index.js";
 import {
   CheckCircle,
   XCircle,
@@ -97,42 +106,32 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
 
     if (isEditing) {
       return (
-        <div
+        <Card
           ref={ref}
           role="region"
           aria-label="Edit quiz question"
-          className={cn(
-            "grid gap-[var(--nb-space-4)] rounded-[var(--nb-radius-card)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-[var(--nb-space-4)] text-[var(--nb-ink)]",
-            className
-          )}
+          className={cn("grid gap-[var(--nb-space-4)]", className)}
           {...props}
         >
           <div className="flex items-center justify-between border-b border-[var(--nb-hairline)] pb-[var(--nb-space-2)]">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--nb-ink-3)]">
+            <span className="text-xs font-semibold text-[var(--nb-ink-3)]">
               Edit Question
             </span>
             {onEditToggle !== undefined ? (
-              <Button variant="ghost" size="sm" onClick={onEditToggle}>
+              <Button variant="nb_btn_ghost" size="nb_btn_sm" onClick={onEditToggle}>
                 Cancel
               </Button>
             ) : null}
           </div>
 
-          <div className="grid gap-[var(--nb-space-2)]">
-            <label
-              htmlFor={`quiz-prompt-${question.id}`}
-              className="text-xs font-medium text-[var(--nb-ink-2)]"
-            >
-              Question prompt
-            </label>
-            <textarea
+          <FormField label="Question prompt">
+            <Textarea
               id={`quiz-prompt-${question.id}`}
               value={editPrompt}
               onChange={(e) => setEditPrompt(e.target.value)}
               rows={3}
-              className="w-full rounded-[var(--nb-radius-well)] border border-[var(--nb-hairline)] bg-[var(--nb-well)] p-[var(--nb-space-2)] font-[var(--nb-font-ui)] text-sm text-[var(--nb-ink)] focus:outline-none focus:ring-[var(--nb-ring-width)] focus:ring-[var(--nb-focus)]"
             />
-          </div>
+          </FormField>
 
           <div className="grid gap-[var(--nb-space-2)]">
             <div className="flex items-center justify-between">
@@ -141,12 +140,11 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
               </span>
               {editOptions.length < 6 ? (
                 <Button
-                  variant="ghost"
-                  size="sm"
+                  variant="nb_btn_ghost"
+                  size="nb_btn_sm"
                   onClick={handleAddOption}
-                  className="h-[var(--nb-size-control-sm)] gap-[var(--nb-space-1)] text-xs"
+                  leadingIcon={Plus}
                 >
-                  <Plus size={14} aria-hidden="true" />
                   Add option
                 </Button>
               ) : null}
@@ -161,82 +159,69 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
                     checked={editCorrectId === opt.id}
                     onChange={() => setEditCorrectId(opt.id)}
                     aria-label={`Mark option ${idx + 1} as correct`}
-                    className="h-[var(--nb-size-icon-sm)] w-[var(--nb-size-icon-sm)] cursor-pointer accent-[var(--nb-ok)]"
+                    className="m-0 h-[var(--nb-size-icon-lg)] w-[var(--nb-size-icon-lg)] shrink-0 cursor-pointer accent-[var(--nb-ink)]"
                   />
-                  <input
+                  <Input
                     type="text"
                     value={opt.text}
                     onChange={(e) => handleOptionTextChange(opt.id, e.target.value)}
                     aria-label={`Option ${idx + 1} text`}
-                    className="flex-1 rounded-[var(--nb-radius-well)] border border-[var(--nb-hairline)] bg-[var(--nb-well)] px-[var(--nb-space-2)] py-[var(--nb-space-1)] text-sm text-[var(--nb-ink)] focus:outline-none focus:ring-[var(--nb-ring-width)] focus:ring-[var(--nb-focus)]"
+                    className="flex-1"
                   />
                   {editOptions.length > 2 ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                    <IconButton
+                      variant="nb_btn_ghost"
+                      size="nb_btn_icon_sm"
+                      icon={Trash}
                       onClick={() => handleRemoveOption(opt.id)}
                       aria-label={`Remove option ${idx + 1}`}
-                      className="h-[var(--nb-size-control-sm)] w-[var(--nb-size-control-sm)] p-0 text-[var(--nb-danger)] hover:bg-[var(--nb-danger-wash)]"
-                    >
-                      <Trash size={14} aria-hidden="true" />
-                    </Button>
+                      className="text-[var(--nb-danger)] hover:bg-[var(--nb-danger-wash)]"
+                    />
                   ) : null}
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="grid gap-[var(--nb-space-2)]">
-            <label
-              htmlFor={`quiz-explanation-${question.id}`}
-              className="text-xs font-medium text-[var(--nb-ink-2)]"
-            >
-              Explanation
-            </label>
-            <textarea
+          <FormField label="Explanation">
+            <Textarea
               id={`quiz-explanation-${question.id}`}
               value={editExplanation}
               onChange={(e) => setEditExplanation(e.target.value)}
               rows={2}
-              className="w-full rounded-[var(--nb-radius-well)] border border-[var(--nb-hairline)] bg-[var(--nb-well)] p-[var(--nb-space-2)] font-[var(--nb-font-ui)] text-sm text-[var(--nb-ink)] focus:outline-none focus:ring-[var(--nb-ring-width)] focus:ring-[var(--nb-focus)]"
             />
-          </div>
+          </FormField>
 
           <div className="flex items-center justify-end gap-[var(--nb-space-2)] pt-[var(--nb-space-2)]">
-            <Button variant="default" size="sm" onClick={handleSave}>
+            <Button variant="nb_btn_primary" size="nb_btn_sm" onClick={handleSave}>
               Save question
             </Button>
           </div>
-        </div>
+        </Card>
       );
     }
 
     return (
-      <div
+      <Card
         ref={ref}
         role="region"
         aria-label="Quiz question"
-        className={cn(
-          "grid gap-[var(--nb-space-4)] rounded-[var(--nb-radius-card)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-[var(--nb-space-4)] text-[var(--nb-ink)]",
-          className
-        )}
+        className={cn("grid gap-[var(--nb-space-4)]", className)}
         {...props}
       >
         {/* Header: Prompt and Edit Affordance */}
         <div className="flex items-start justify-between gap-[var(--nb-space-2)]">
-          <h3 className="font-[var(--nb-font-ui)] text-[var(--nb-text-md)] font-semibold leading-[var(--nb-leading-ui)] text-[var(--nb-ink)]">
+          <h3 className="font-[family-name:var(--nb-font-ui)] text-[length:var(--nb-text-md)] font-semibold leading-[var(--nb-leading-ui)] text-[var(--nb-ink)]">
             {question.prompt}
           </h3>
           {onEditToggle !== undefined ? (
-            <Button
-              variant="ghost"
-              size="sm"
+            <IconButton
+              variant="nb_btn_ghost"
+              size="nb_btn_icon_sm"
+              icon={PencilSimple}
               onClick={onEditToggle}
               aria-label="Edit question"
-              className="h-[var(--nb-size-control-sm)] w-[var(--nb-size-control-sm)] p-0"
-            >
-              <PencilSimple size={14} aria-hidden="true" />
-            </Button>
+            />
           ) : null}
         </div>
 
@@ -280,7 +265,7 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
                 disabled={isChecked}
                 onClick={() => onSelectOption?.(opt.id)}
                 className={cn(
-                  "flex items-center justify-between rounded-[var(--nb-radius-well)] border p-[var(--nb-space-3)] text-left text-sm font-medium transition-colors duration-[var(--nb-dur-fast)] focus-visible:outline-[var(--nb-ring-width)] focus-visible:outline-[var(--nb-focus)]",
+                  "flex items-center justify-between rounded-[var(--nb-radius-well)] border p-[var(--nb-space-3)] text-left text-sm font-medium transition-colors duration-[var(--nb-dur-fast)] ease-[var(--nb-ease)] motion-reduce:transition-none focus-visible:outline-solid focus-visible:outline-[length:var(--nb-ring-width)] focus-visible:outline-[var(--nb-focus)]",
                   optionStyle
                 )}
               >
@@ -297,8 +282,8 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
         <div className="flex flex-wrap items-center justify-between gap-[var(--nb-space-2)] pt-[var(--nb-space-2)]">
           {!isChecked ? (
             <Button
-              variant="default"
-              size="sm"
+              variant="nb_btn_primary"
+              size="nb_btn_sm"
               disabled={selectedOptionId === undefined}
               onClick={onCheckAnswer}
             >
@@ -307,15 +292,13 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
           ) : (
             <div className="flex items-center gap-[var(--nb-space-2)]">
               {isCorrect ? (
-                <span className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-chip)] bg-[var(--nb-ok-wash)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-xs font-semibold text-[var(--nb-ok)]">
-                  <CheckCircle size={14} weight="fill" aria-hidden="true" />
+                <Badge variant="ok" icon={<CheckCircle size={16} weight="fill" aria-hidden="true" />}>
                   Correct!
-                </span>
+                </Badge>
               ) : (
-                <span className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-chip)] bg-[var(--nb-danger-wash)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-xs font-semibold text-[var(--nb-danger)]">
-                  <XCircle size={14} weight="fill" aria-hidden="true" />
+                <Badge variant="danger" icon={<XCircle size={16} weight="fill" aria-hidden="true" />}>
                   Incorrect
-                </span>
+                </Badge>
               )}
               {scoreLabel !== undefined ? (
                 <span className="text-xs font-semibold text-[var(--nb-ink-2)]">
@@ -328,12 +311,12 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
 
         {/* Explanation well after check */}
         {isChecked && question.explanation ? (
-          <div className="rounded-[var(--nb-radius-well)] border border-[var(--nb-hairline)] bg-[var(--nb-well)] p-[var(--nb-space-3)] text-xs text-[var(--nb-ink-2)]">
+          <Well bordered className="p-[var(--nb-space-3)] text-xs text-[var(--nb-ink-2)]">
             <span className="font-semibold text-[var(--nb-ink)]">Explanation: </span>
             {question.explanation}
-          </div>
+          </Well>
         ) : null}
-      </div>
+      </Card>
     );
   }
 );

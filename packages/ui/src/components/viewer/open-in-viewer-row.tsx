@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Button } from "../primitives/button.js";
 import { BookOpen, CaretRight } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
@@ -16,23 +17,22 @@ const OpenInViewerRow = React.forwardRef<
   HTMLButtonElement,
   OpenInViewerRowProps
 >(({ className, onOpen, type = "button", ...props }, ref) => (
-  <button
+  <Button
     ref={ref}
     type={type}
+    variant="nb_btn_ghost"
+    size="nb_btn_sm"
     aria-label="Open in Source Viewer"
+    leadingIcon={BookOpen}
+    trailingIcon={CaretRight}
     onClick={() => {
       onOpen?.();
     }}
-    className={cn(
-      "inline-flex min-h-[var(--nb-size-control-sm)] w-full cursor-pointer items-center gap-[var(--nb-space-2)] rounded-[var(--nb-radius-control)] px-[var(--nb-space-3)] text-xs font-semibold text-[var(--nb-ink)] hover:bg-[var(--nb-well-hover)]",
-      className
-    )}
+    className={cn("w-full", className)}
     {...props}
   >
-    <BookOpen size={16} aria-hidden="true" className="shrink-0" />
     <span className="grow text-left">Open in Source Viewer</span>
-    <CaretRight size={16} aria-hidden="true" className="shrink-0" />
-  </button>
+  </Button>
 ));
 OpenInViewerRow.displayName = "OpenInViewerRow";
 

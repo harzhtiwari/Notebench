@@ -2,7 +2,7 @@ import * as React from "react";
 import type { TargetMilestone } from "@notebook/contracts";
 
 import { Button } from "./button.js";
-import { VersionBadge } from "./version-badge.js";
+import { VersionBadge } from "./badges.js";
 import { cn } from "../../lib/utils.js";
 
 export interface EmptyStateItem {
@@ -98,7 +98,7 @@ export const EmptyStateDescription = React.forwardRef<
   <p
     ref={ref}
     className={cn(
-      "text-[length:var(--nb-text-sm)] leading-[var(--nb-leading-ui)] text-[var(--nb-ink-2)]",
+      "font-[family-name:var(--nb-font-ui)] text-[length:var(--nb-text-sm)] leading-[var(--nb-leading-ui)] text-[var(--nb-ink-2)]",
       className
     )}
     {...props}
@@ -172,7 +172,7 @@ export const EmptyState = React.forwardRef<HTMLDivElement, EmptyStateProps>(
       <div
         ref={ref}
         className={cn(
-          "empty grid justify-items-start gap-[var(--nb-space-3)] rounded-[var(--nb-radius-card)] bg-[var(--nb-well)] p-[var(--nb-space-6)] text-[var(--nb-ink)] sm:p-[var(--nb-space-8)]",
+          "empty grid justify-items-start gap-[var(--nb-space-3)] rounded-[var(--nb-radius-card)] bg-[var(--nb-well)] py-[var(--nb-space-8)] px-[var(--nb-space-6)] text-[var(--nb-ink)]",
           MAX_WIDTH_CLASS[maxWidth],
           className
         )}

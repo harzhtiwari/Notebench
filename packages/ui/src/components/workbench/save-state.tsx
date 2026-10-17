@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Button } from "../primitives/button.js";
+import { Button } from "../primitives/index.js";
 import { Check, CircleNotch, WarningCircle } from "../primitives/icons.js";
 import { autosavePolicy } from "../../lib/autosave-policy.js";
 import { useAutosave } from "../../hooks/use-autosave.js";
@@ -96,9 +96,10 @@ const SaveState = React.forwardRef<HTMLDivElement, SaveStateProps>(
         {status === "saving" && (
           <>
             <CircleNotch
-              size={14}
+              size={16}
+              weight="bold"
               aria-hidden="true"
-              className="animate-spin text-[var(--nb-ink-3)]"
+              className="animate-spin [animation-duration:var(--nb-dur-spin)] motion-reduce:animate-none text-[var(--nb-ink-3)]"
             />
             <span>Saving...</span>
           </>
@@ -106,20 +107,20 @@ const SaveState = React.forwardRef<HTMLDivElement, SaveStateProps>(
 
         {status === "saved" && (
           <>
-            <Check size={14} aria-hidden="true" className="text-[var(--nb-ok)]" />
+            <Check size={16} weight="bold" aria-hidden="true" className="text-[var(--nb-ok)]" />
             <span className="text-[var(--nb-ok)]">Saved</span>
           </>
         )}
 
         {status === "error" && (
           <div className="flex items-center gap-[var(--nb-space-2)] text-[var(--nb-danger)]">
-            <WarningCircle size={14} weight="fill" aria-hidden="true" />
+            <WarningCircle size={16} weight="fill" aria-hidden="true" />
             <span>{errorMessage}</span>
             <Button
-              variant="ghost"
-              size="sm"
+              variant="nb_btn_ghost"
+              size="nb_btn_sm"
               onClick={handleRetry}
-              className="h-6 px-[var(--nb-space-2)] text-xs text-[var(--nb-danger)] hover:bg-[var(--nb-danger-wash)]"
+              className="px-[var(--nb-space-2)] text-[var(--nb-danger)] hover:bg-[var(--nb-danger-wash)]"
             >
               Retry
             </Button>

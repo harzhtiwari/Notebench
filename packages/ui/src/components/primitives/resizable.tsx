@@ -34,13 +34,13 @@ const ResizableHandle = ({
 }: ResizableHandleProps) => (
   <PanelResizeHandle
     className={cn(
-      "relative flex w-2.5 items-center justify-center bg-transparent transition-colors hover:bg-[var(--nb-select)] focus-visible:outline-2 focus-visible:outline-[var(--nb-ink)] focus-visible:outline-offset-2 data-[panel-group-direction=vertical]:h-2.5 data-[panel-group-direction=vertical]:w-full",
+      "group relative flex w-[var(--nb-space-3)] items-center justify-center bg-transparent transition-colors duration-[var(--nb-dur-fast)] ease-[var(--nb-ease)] motion-reduce:transition-none hover:bg-[var(--nb-well-hover)] focus-visible:outline focus-visible:outline-[var(--nb-ring-width)] focus-visible:outline-[var(--nb-focus)] focus-visible:outline-offset-[var(--nb-ring-offset)] data-[panel-group-direction=vertical]:h-[var(--nb-space-3)] data-[panel-group-direction=vertical]:w-full",
       className
     )}
     {...props}
   >
     {withHandle && (
-      <div className="z-10 flex h-6 w-1 items-center justify-center rounded-xs bg-[var(--nb-edge)] transition-colors group-hover:bg-[var(--nb-ink)]" />
+      <div className="z-[var(--nb-z-raised)] flex h-[var(--nb-space-6)] w-[var(--nb-space-1)] items-center justify-center rounded-[var(--nb-radius-control)] bg-[var(--nb-edge)] transition-colors duration-[var(--nb-dur-fast)] ease-[var(--nb-ease)] motion-reduce:transition-none group-hover:bg-[var(--nb-ink)]" />
     )}
   </PanelResizeHandle>
 );

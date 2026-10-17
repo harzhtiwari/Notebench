@@ -1,5 +1,6 @@
 import * as React from "react";
 import type { NotebookSummary } from "@notebook/contracts";
+import { Button } from "../primitives/button.js";
 import { NotebookEmblem } from "./notebook-emblem.js";
 import { NotebookMeta } from "./notebook-meta.js";
 import { cn } from "../../lib/utils.js";
@@ -24,7 +25,7 @@ const NotebookCard = React.forwardRef<HTMLDivElement, NotebookCardProps>(
           onOpen?.(notebook.id);
         }}
       className={cn(
-        "flex min-h-[170px] cursor-pointer flex-col justify-between rounded-[var(--nb-radius-card)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-[var(--nb-space-4)] transition-colors hover:border-[var(--nb-edge)]",
+        "flex min-h-[170px] cursor-pointer flex-col justify-between rounded-[var(--nb-radius-card)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-[var(--nb-space-4)] transition-colors duration-[var(--nb-dur-fast)] ease-[var(--nb-ease)] motion-reduce:transition-none hover:border-[var(--nb-edge)]",
         className
       )}
       {...props}
@@ -41,15 +42,17 @@ const NotebookCard = React.forwardRef<HTMLDivElement, NotebookCardProps>(
         </div>
       </div>
       <div className="grid gap-[var(--nb-space-2)]">
-        <button
+        <Button
           type="button"
+          variant="nb_btn_link"
+          size="nb_btn_sm"
           onClick={() => {
             onOpen?.(notebook.id);
           }}
-          className="justify-self-start text-left text-sm font-semibold text-[var(--nb-ink)] hover:underline"
+          className="h-auto min-h-0 justify-self-start px-0 leading-[var(--nb-leading-ui)] text-sm text-[var(--nb-ink)]"
         >
           {notebook.title}
-        </button>
+        </Button>
         <NotebookMeta notebook={notebook} />
       </div>
     </div>

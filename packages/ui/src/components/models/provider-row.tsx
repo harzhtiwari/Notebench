@@ -1,5 +1,5 @@
 import * as React from "react";
-import { CloudDisclosureBadge } from "./cloud-disclosure-badge.js";
+import { CloudDisclosureBadge } from "../primitives/badges.js";
 import { Key } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 

@@ -2,11 +2,8 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
-import {
-  CitationChip,
-  CitationPopover,
-  HistoryRow,
-} from "./index.js";
+import { CitationPopover, HistoryRow } from "./index.js";
+import { CitationChip } from "../primitives/citations.js";
 
 afterEach(() => {
   cleanup();
@@ -174,6 +171,38 @@ describe("Citation and history patterns (ticket 11)", () => {
       const text = screen.getByText("Tell me about renewable trends");
       fireEvent.click(text);
       expect(handleSelect).toHaveBeenCalledWith("Tell me about renewable trends");
+    });
+
+    it("keeps the row and its action as separate, non-nested controls", () => {
+      const { container } = render(
+        <HistoryRow
+          question="Explain peak demand"
+          onSelect={() => {}}
+          onAction={() => {}}
+        />
+      );
+
+      // The action button must not live inside another interactive control.
+      expect(container.querySelector('[role="button"]')).toBeNull();
+    });
+
+    it("selects from the question control and fires the action independently", () => {
+      const handleSelect = vi.fn();
+      const handleAction = vi.fn();
+      render(
+        <HistoryRow
+          question="Pick me"
+          onSelect={handleSelect}
+          onAction={handleAction}
+        />
+      );
+
+      fireEvent.click(screen.getByText("Pick me"));
+      expect(handleSelect).toHaveBeenCalledWith("Pick me");
+
+      fireEvent.click(screen.getByRole("button", { name: "Reuse question" }));
+      expect(handleAction).toHaveBeenCalledWith("Pick me");
+      expect(handleSelect).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -2,11 +2,8 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
-import {
-  Composer,
-  KeywordFallbackChip,
-  RefusalEmpty,
-} from "./index.js";
+import { Composer, RefusalEmpty } from "./index.js";
+import { KeywordFallbackChip } from "../primitives/chips.js";
 
 afterEach(() => {
   cleanup();
@@ -83,6 +80,27 @@ describe("chat composer patterns (ticket 10)", () => {
         </Composer>
       );
       expect(screen.getByTestId("source-count").textContent).toBe("3 sources");
+    });
+
+    it("forwards div props to the root and keeps internal state when inputProps.onChange is supplied", () => {
+      const onSend = vi.fn();
+      const inputOnChange = vi.fn();
+      render(
+        <Composer
+          data-testid="composer-root"
+          inputProps={{ onChange: inputOnChange }}
+          onSend={onSend}
+        />
+      );
+
+      expect(screen.getByTestId("composer-root")).toBeDefined();
+
+      const input = screen.getByRole("textbox");
+      fireEvent.change(input, { target: { value: "Hello" } });
+
+      expect((input as HTMLInputElement).value).toBe("Hello");
+      expect(inputOnChange).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("button", { name: "Send" }).hasAttribute("disabled")).toBe(false);
     });
   });
 

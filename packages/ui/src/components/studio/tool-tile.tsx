@@ -1,6 +1,6 @@
 import * as React from "react";
 import type { TargetMilestone } from "@notebook/contracts";
-import { VersionBadge } from "../primitives/version-badge.js";
+import { VersionBadge } from "../primitives/badges.js";
 import {
   Cards,
   FileText,
@@ -223,7 +223,7 @@ export const ToolTile = React.forwardRef<HTMLButtonElement, ToolTileProps>(
         aria-disabled={isDisabled ? "true" : undefined}
         onClick={handleClick}
         className={cn(
-          "tool flex items-center gap-[var(--nb-space-3)] min-h-[var(--nb-size-control-lg)] px-[var(--nb-space-3)] py-[var(--nb-space-2)] bg-[var(--nb-well)] hover:bg-[var(--nb-well-hover)] text-[var(--nb-ink)] rounded-[var(--nb-radius-well)] font-[var(--nb-font-ui)] text-sm font-medium text-left w-full border-0 transition-colors disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[var(--nb-well)] focus-visible:outline-none focus-visible:ring-[var(--nb-ring-width)] focus-visible:ring-[var(--nb-focus)] focus-visible:ring-offset-[var(--nb-ring-offset)]",
+          "tool flex items-center gap-[var(--nb-space-3)] min-h-[var(--nb-size-control-lg)] px-[var(--nb-space-3)] py-[var(--nb-space-2)] bg-[var(--nb-well)] hover:bg-[var(--nb-well-hover)] text-[var(--nb-ink)] rounded-[var(--nb-radius-well)] font-[family-name:var(--nb-font-ui)] text-sm font-medium leading-[var(--nb-leading-ui)] text-left w-full border-0 transition-colors duration-[var(--nb-dur-fast)] ease-[var(--nb-ease)] motion-reduce:transition-none disabled:cursor-not-allowed disabled:bg-[var(--nb-disabled-bg)] disabled:text-[var(--nb-disabled-fg)] disabled:hover:bg-[var(--nb-disabled-bg)] focus-visible:outline-[var(--nb-ring-width)] focus-visible:outline-solid focus-visible:outline-[var(--nb-focus)] focus-visible:outline-offset-[var(--nb-ring-offset)]",
           className
         )}
         {...props}

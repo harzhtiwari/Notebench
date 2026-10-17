@@ -3,7 +3,8 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
 import { ProgressStages, type ProgressStage } from "./index.js";
-import { StatusBadge, CancelButton } from "../primitives/index.js";
+import { CancelButton } from "../primitives/index.js";
+import { StatusBadge } from "../primitives/badges.js";
 
 afterEach(() => {
   cleanup();

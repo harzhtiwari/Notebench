@@ -30,7 +30,7 @@ const STEP_ICONS: Record<StepStatus, React.ReactElement> = {
     <CircleNotch
       size={20}
       aria-hidden="true"
-      className="animate-spin text-[var(--nb-ink)] shrink-0 mt-[var(--nb-space-0-5)]"
+      className="animate-spin [animation-duration:var(--nb-dur-spin)] motion-reduce:animate-none text-[var(--nb-ink)] shrink-0 mt-[var(--nb-space-0-5)]"
     />
   ),
   waiting: (
@@ -79,7 +79,7 @@ const StepsList = React.forwardRef<HTMLOListElement, StepsListProps>(
                 </div>
                 {item.status === "running" && item.progress !== undefined ? (
                   <div
-                    className="progress mt-[var(--nb-space-1)] h-[var(--nb-size-progress)] w-full overflow-hidden rounded-[var(--nb-radius-full)] bg-[var(--nb-well)]"
+                    className="progress mt-[var(--nb-space-1)] h-[var(--nb-size-progress)] w-full overflow-hidden rounded-[var(--nb-radius-chip)] bg-[var(--nb-well)]"
                     role="progressbar"
                     aria-label={item.progressLabel ?? item.name}
                     aria-valuenow={item.progress}
@@ -87,7 +87,7 @@ const StepsList = React.forwardRef<HTMLOListElement, StepsListProps>(
                     aria-valuemax={100}
                   >
                     <i
-                      className="block h-full rounded-[var(--nb-radius-full)] bg-[var(--nb-ink)] transition-all"
+                      className="block h-full rounded-[var(--nb-radius-chip)] bg-[var(--nb-ink)] transition-all duration-[var(--nb-dur-base)] ease-[var(--nb-ease)] motion-reduce:transition-none"
                       style={{ width: `${Math.min(100, Math.max(0, item.progress))}%` }}
                     />
                   </div>

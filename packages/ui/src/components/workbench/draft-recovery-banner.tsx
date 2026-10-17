@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { Banner } from "../primitives/banners.js";
+import { Banner } from "../primitives/index.js";
 import { ClockCounterClockwise } from "../primitives/icons.js";
 
 export interface DraftRecoveryBannerProps

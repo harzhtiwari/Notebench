@@ -34,8 +34,9 @@ const ViewToggle = React.forwardRef<HTMLDivElement, ViewToggleProps>(
       >
         <Button
           type="button"
-          variant="ghost"
-          size="sm"
+          variant="nb_btn_ghost"
+          size="nb_btn_sm"
+          leadingIcon={GridFour}
           aria-label="Grid view"
           aria-pressed={value === "grid"}
           onClick={() => {
@@ -43,13 +44,13 @@ const ViewToggle = React.forwardRef<HTMLDivElement, ViewToggleProps>(
           }}
           className={cn("gap-[var(--nb-space-2)]", optionClass(value === "grid"))}
         >
-          <GridFour size={16} aria-hidden="true" />
           Grid
         </Button>
         <Button
           type="button"
-          variant="ghost"
-          size="sm"
+          variant="nb_btn_ghost"
+          size="nb_btn_sm"
+          leadingIcon={List}
           aria-label="List view"
           aria-pressed={value === "list"}
           onClick={() => {
@@ -57,7 +58,6 @@ const ViewToggle = React.forwardRef<HTMLDivElement, ViewToggleProps>(
           }}
           className={cn("gap-[var(--nb-space-2)]", optionClass(value === "list"))}
         >
-          <List size={16} aria-hidden="true" />
           List
         </Button>
       </div>

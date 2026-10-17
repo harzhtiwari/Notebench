@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Circle, Sparkle, CheckCircle, WarningCircle } from "../primitives/icons.js";
-import { StatusBadge, type GenerationStatus } from "../primitives/status-badge.js";
+import { StatusBadge } from "../primitives/badges.js";
 import { CancelButton } from "../primitives/cancel-button.js";
 import { cn } from "../../lib/utils.js";
 
@@ -48,7 +48,7 @@ function StageLeadingIcon({ status }: { status: StageStatus }): React.JSX.Elemen
           size={20}
           weight="fill"
           aria-hidden="true"
-          className="shrink-0 text-[var(--nb-ai)] animate-pulse"
+          className="shrink-0 text-[var(--nb-ai)] animate-pulse motion-reduce:animate-none"
         />
       );
     case "error":
@@ -101,12 +101,12 @@ const ProgressStages = React.forwardRef<HTMLOListElement, ProgressStagesProps>(
               aria-valuenow={overallProgress}
               aria-valuemin={0}
               aria-valuemax={100}
-              className="h-[var(--nb-size-progress)] w-full overflow-hidden rounded-[var(--nb-radius-full)] bg-[var(--nb-well)]"
+              className="h-[var(--nb-size-progress)] w-full overflow-hidden rounded-[var(--nb-radius-chip)] bg-[var(--nb-well)]"
             >
               <i
                 aria-hidden="true"
                 style={{ width: `${Math.min(100, Math.max(0, overallProgress))}%` }}
-                className="block h-full rounded-[var(--nb-radius-full)] bg-[var(--nb-ink)] transition-all duration-[var(--nb-dur-base)]"
+                className="block h-full rounded-[var(--nb-radius-chip)] bg-[var(--nb-ink)] transition-all duration-[var(--nb-dur-base)] ease-[var(--nb-ease)] motion-reduce:transition-none"
               />
             </div>
           </div>
@@ -141,7 +141,7 @@ const ProgressStages = React.forwardRef<HTMLOListElement, ProgressStagesProps>(
                     <span className="step-name text-sm font-semibold text-[var(--nb-ink)]">
                       {stage.name}
                     </span>
-                    <StatusBadge status={stage.status as GenerationStatus} />
+                    <StatusBadge status={stage.status} />
                   </div>
 
                   {helperText !== undefined ? (
@@ -159,14 +159,14 @@ const ProgressStages = React.forwardRef<HTMLOListElement, ProgressStagesProps>(
                       aria-valuenow={stage.progress}
                       aria-valuemin={0}
                       aria-valuemax={100}
-                      className="h-[var(--nb-size-progress)] w-full overflow-hidden rounded-[var(--nb-radius-full)] bg-[var(--nb-well)]"
+                      className="h-[var(--nb-size-progress)] w-full overflow-hidden rounded-[var(--nb-radius-chip)] bg-[var(--nb-well)]"
                     >
                       <i
                         aria-hidden="true"
                         style={{
                           width: `${Math.min(100, Math.max(0, stage.progress))}%`,
                         }}
-                        className="block h-full rounded-[var(--nb-radius-full)] bg-[var(--nb-ink)] transition-all duration-[var(--nb-dur-base)]"
+                        className="block h-full rounded-[var(--nb-radius-chip)] bg-[var(--nb-ink)] transition-all duration-[var(--nb-dur-base)] ease-[var(--nb-ease)] motion-reduce:transition-none"
                       />
                     </div>
                   ) : null}

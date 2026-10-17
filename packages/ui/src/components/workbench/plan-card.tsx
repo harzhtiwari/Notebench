@@ -1,7 +1,7 @@
 import * as React from "react";
-import { Button } from "../primitives/button.js";
-import { DiffView } from "./diff-view.js";
+import { Button, Card, IconButton } from "../primitives/index.js";
 import { ArrowUp, ArrowDown, PencilSimple } from "../primitives/icons.js";
+import { DiffView } from "./diff-view.js";
 import { cn } from "../../lib/utils.js";
 
 export interface PlanStepItem {
@@ -49,16 +49,16 @@ const PlanCard = React.forwardRef<HTMLDivElement, PlanCardProps>(
     ref
   ) => {
     return (
-      <div
+      <Card
         ref={ref}
         className={cn(
-          "plan w-full max-w-[var(--nb-layout-modal-md)] overflow-hidden rounded-[var(--nb-radius-card)] border border-[var(--nb-edge)] bg-[var(--nb-sheet)] text-[var(--nb-ink)]",
+          "plan w-full max-w-[var(--nb-layout-modal-md)] overflow-hidden border-[var(--nb-edge)] p-0",
           className
         )}
         {...props}
       >
         <div className="plan-head p-[var(--nb-space-4)]">
-          <h4 className="font-[var(--nb-font-ui)] text-base font-bold leading-[var(--nb-leading-ui)] text-[var(--nb-ink)]">
+          <h4 className="font-[family-name:var(--nb-font-ui)] text-[length:var(--nb-text-md)] font-bold leading-[var(--nb-leading-ui)] text-[var(--nb-ink)]">
             {title}
           </h4>
           {description !== undefined ? (
@@ -87,26 +87,22 @@ const PlanCard = React.forwardRef<HTMLDivElement, PlanCardProps>(
                   {item.actions ?? (
                     <>
                       {item.onMoveUp !== undefined ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-[var(--nb-size-control-sm)] w-[var(--nb-size-control-sm)] rounded-[var(--nb-radius-control)]"
+                        <IconButton
+                          variant="nb_btn_ghost"
+                          size="nb_btn_icon_sm"
+                          icon={ArrowUp}
                           onClick={item.onMoveUp}
                           aria-label={`Move step ${index + 1} up`}
-                        >
-                          <ArrowUp size={14} aria-hidden="true" />
-                        </Button>
+                        />
                       ) : null}
                       {item.onMoveDown !== undefined ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-[var(--nb-size-control-sm)] w-[var(--nb-size-control-sm)] rounded-[var(--nb-radius-control)]"
+                        <IconButton
+                          variant="nb_btn_ghost"
+                          size="nb_btn_icon_sm"
+                          icon={ArrowDown}
                           onClick={item.onMoveDown}
                           aria-label={`Move step ${index + 1} down`}
-                        >
-                          <ArrowDown size={14} aria-hidden="true" />
-                        </Button>
+                        />
                       ) : null}
                     </>
                   )}
@@ -123,19 +119,19 @@ const PlanCard = React.forwardRef<HTMLDivElement, PlanCardProps>(
           {actions ?? (
             <>
               {onEdit !== undefined ? (
-                <Button variant="ghost" onClick={onEdit}>
+                <Button variant="nb_btn_ghost" onClick={onEdit}>
                   {editLabel}
                 </Button>
               ) : null}
               {onApprove !== undefined ? (
-                <Button variant="default" onClick={onApprove}>
+                <Button variant="nb_btn_primary" onClick={onApprove}>
                   {approveLabel}
                 </Button>
               ) : null}
             </>
           )}
         </div>
-      </div>
+      </Card>
     );
   }
 );
@@ -187,15 +183,15 @@ const ReviewCard = React.forwardRef<HTMLDivElement, ReviewCardProps>(
     ref
   ) => {
     return (
-      <div
+      <Card
         ref={ref}
         className={cn(
-          "review w-full max-w-[var(--nb-layout-modal-md)] overflow-hidden rounded-[var(--nb-radius-card)] border border-[var(--nb-edge)] bg-[var(--nb-sheet)] text-[var(--nb-ink)]",
+          "review w-full max-w-[var(--nb-layout-modal-md)] overflow-hidden border-[var(--nb-edge)] p-0",
           className
         )}
         {...props}
       >
-        <div className="review-head flex items-center gap-[var(--nb-space-2)] px-[var(--nb-space-4)] py-[var(--nb-space-3)] font-[var(--nb-font-ui)] text-sm font-bold text-[var(--nb-ink)]">
+        <div className="review-head flex items-center gap-[var(--nb-space-2)] px-[var(--nb-space-4)] py-[var(--nb-space-3)] font-[family-name:var(--nb-font-ui)] text-sm font-bold text-[var(--nb-ink)]">
           {icon ?? <PencilSimple size={16} weight="fill" aria-hidden="true" />}
           <span>{title}</span>
         </div>
@@ -242,19 +238,19 @@ const ReviewCard = React.forwardRef<HTMLDivElement, ReviewCardProps>(
           {actions ?? (
             <>
               {onKeep !== undefined ? (
-                <Button variant="default" onClick={onKeep}>
+                <Button variant="nb_btn_primary" onClick={onKeep}>
                   {keepLabel}
                 </Button>
               ) : null}
               {onUndo !== undefined ? (
-                <Button variant="secondary" onClick={onUndo}>
+                <Button variant="nb_btn_secondary" onClick={onUndo}>
                   {undoLabel}
                 </Button>
               ) : null}
             </>
           )}
         </div>
-      </div>
+      </Card>
     );
   }
 );

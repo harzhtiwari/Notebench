@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Sparkle, PencilSimple, Lock, Warning } from "../primitives/icons.js";
+import { Badge, type BadgeVariant } from "../primitives/index.js";
 import { cn } from "../../lib/utils.js";
 
 export type ArtifactPartState = "ai" | "you" | "locked" | "stale";
@@ -22,17 +23,17 @@ const DEFAULT_STATE_LABELS: Record<ArtifactPartState, string> = {
 };
 
 const STATE_ICONS: Record<ArtifactPartState, React.ReactElement> = {
-  ai: <Sparkle size={14} weight="fill" aria-hidden="true" />,
-  you: <PencilSimple size={14} weight="fill" aria-hidden="true" />,
-  locked: <Lock size={14} weight="fill" aria-hidden="true" />,
-  stale: <Warning size={14} weight="fill" aria-hidden="true" />,
+  ai: <Sparkle size={16} weight="fill" aria-hidden="true" />,
+  you: <PencilSimple size={16} weight="fill" aria-hidden="true" />,
+  locked: <Lock size={16} weight="fill" aria-hidden="true" />,
+  stale: <Warning size={16} weight="fill" aria-hidden="true" />,
 };
 
-const STATE_BADGE_CLASSES: Record<ArtifactPartState, string> = {
-  ai: "bg-[var(--nb-ai-wash)] text-[var(--nb-ai)] border-transparent",
-  you: "bg-[var(--nb-you-wash)] text-[var(--nb-you)] border-transparent",
-  locked: "bg-[var(--nb-well)] text-[var(--nb-ink)] border-[var(--nb-hairline)]",
-  stale: "bg-[var(--nb-warn-wash)] text-[var(--nb-warn)] border-transparent",
+const STATE_VARIANTS: Record<ArtifactPartState, BadgeVariant> = {
+  ai: "ai",
+  you: "you",
+  locked: "default",
+  stale: "warn",
 };
 
 const RAIL_CLASSES: Record<ArtifactPartState, string> = {
@@ -71,7 +72,7 @@ const ArtifactPart = React.forwardRef<HTMLElement, ArtifactPartProps>(
         data-state={state}
         data-block-id={blockId}
         className={cn(
-          "part relative min-w-0 rounded-[var(--nb-radius-card)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] pl-[var(--nb-space-6)] text-[var(--nb-ink)] transition-colors",
+          "part relative min-w-0 rounded-[var(--nb-radius-card)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] pl-[var(--nb-space-6)] text-[var(--nb-ink)] transition-colors duration-[var(--nb-dur-fast)] ease-[var(--nb-ease)] motion-reduce:transition-none",
           className
         )}
         {...props}
@@ -89,16 +90,14 @@ const ArtifactPart = React.forwardRef<HTMLElement, ArtifactPartProps>(
 
         <div className="part-head flex flex-wrap items-center gap-x-[var(--nb-space-3)] gap-y-[var(--nb-space-2)] pb-[var(--nb-space-2)] pr-[var(--nb-space-3)] pt-[var(--nb-space-2)]">
           {/* State label: icon + label always */}
-          <span
+          <Badge
             data-slot="state-label"
-            className={cn(
-              "state-label inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-chip)] border px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-xs font-semibold leading-[var(--nb-leading-none)]",
-              STATE_BADGE_CLASSES[state]
-            )}
+            variant={STATE_VARIANTS[state]}
+            icon={STATE_ICONS[state]}
+            className="state-label"
           >
-            {STATE_ICONS[state]}
-            <span>{labelText}</span>
-          </span>
+            {labelText}
+          </Badge>
 
           {meta !== undefined ? (
             <span className="part-meta text-xs text-[var(--nb-ink-3)]">{meta}</span>
@@ -118,7 +117,7 @@ const ArtifactPart = React.forwardRef<HTMLElement, ArtifactPartProps>(
           aria-multiline={editable ? "true" : undefined}
           {...bodyProps}
           className={cn(
-            "part-body max-w-[var(--nb-layout-measure)] pb-[var(--nb-space-4)] pr-[var(--nb-space-4)] pt-[var(--nb-space-1)] font-[var(--nb-font-read)] text-[var(--nb-text-lg)] leading-[var(--nb-leading-read)]",
+            "part-body max-w-[var(--nb-layout-measure)] pb-[var(--nb-space-4)] pr-[var(--nb-space-4)] pt-[var(--nb-space-1)] font-[family-name:var(--nb-font-read)] text-[length:var(--nb-text-lg)] leading-[var(--nb-leading-read)]",
             editable && "hover:rounded-[var(--nb-radius-well)] hover:bg-[var(--nb-well)]",
             bodyProps?.className
           )}

@@ -1,14 +1,17 @@
 import * as React from "react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   Dialog,
-  DialogOverlay,
-  DialogPortal,
+  DialogBody,
+  DialogClose,
+  DialogCloseButton,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
   DialogTitle,
-} from "../primitives/dialog.js";
+} from "../primitives/overlays.js";
 import { Button } from "../primitives/button.js";
-import { Download, X } from "../primitives/icons.js";
-import { FormatOptionRow } from "./format-option-row.js";
+import { Download } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
 export interface ExportDialogFormatOption {
@@ -27,6 +30,127 @@ export interface ExportDialogFormatOption {
   value?: string | undefined;
   name?: string | undefined;
 }
+
+export interface FormatOptionRowProps
+  extends Omit<
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
+    "role" | "aria-checked"
+  > {
+  /** Format icon component or React element (Archive, FileZip, FileDoc, etc.). */
+  icon?:
+    | React.ReactNode
+    | React.ComponentType<{
+        size?: number | string;
+        className?: string;
+        "aria-hidden"?: boolean | "true" | "false";
+      }>
+    | undefined;
+  /** Primary label for the format (e.g. "ZIP archive", "DOCX"). */
+  label?: React.ReactNode | undefined;
+  /** Explanatory description below the label. */
+  description?: React.ReactNode | undefined;
+  /** Whether this format option is currently selected. */
+  selected?: boolean | undefined;
+  /** Alias for selected. */
+  checked?: boolean | undefined;
+  /** Callback when option is selected. */
+  onSelect?: (() => void) | undefined;
+}
+
+function renderIcon(icon: FormatOptionRowProps["icon"]) {
+  if (!icon) return null;
+  if (React.isValidElement(icon)) return icon;
+  if (typeof icon === "function" || typeof icon === "object") {
+    const IconComp = icon as React.ComponentType<{
+      size?: number | string;
+      className?: string;
+      "aria-hidden"?: boolean | "true" | "false";
+    }>;
+    return <IconComp size={20} aria-hidden="true" />;
+  }
+  return null;
+}
+
+/**
+ * Format option row (ticket 19): selectable row showing format icon,
+ * label, description, and selection radio indicator.
+ */
+const FormatOptionRow = React.forwardRef<
+  HTMLButtonElement,
+  FormatOptionRowProps
+>(
+  (
+    {
+      className,
+      icon,
+      label,
+      description,
+      selected,
+      checked,
+      onSelect,
+      onClick,
+      disabled,
+      children,
+      ...props
+    },
+    ref
+  ) => {
+    const isSelected = Boolean(selected ?? checked);
+    const displayLabel = label ?? children;
+
+    return (
+      <button
+        ref={ref}
+        type="button"
+        role="radio"
+        aria-checked={isSelected}
+        disabled={disabled}
+        onClick={(event) => {
+          onClick?.(event);
+          onSelect?.();
+        }}
+        className={cn(
+          "grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[var(--nb-space-3)] rounded-[var(--nb-radius-well)] border p-[var(--nb-space-3)] text-left transition-colors duration-[var(--nb-dur-fast)] ease-[var(--nb-ease)] motion-reduce:transition-none focus-visible:outline-[var(--nb-ring-width)] focus-visible:outline-solid focus-visible:outline-[var(--nb-focus)] focus-visible:outline-offset-[var(--nb-ring-offset)] disabled:cursor-not-allowed disabled:border-[var(--nb-hairline)] disabled:bg-[var(--nb-disabled-bg)] disabled:text-[var(--nb-disabled-fg)]",
+          isSelected
+            ? "border-[var(--nb-ink)] bg-[var(--nb-well)] text-[var(--nb-ink)]"
+            : "border-[var(--nb-hairline)] bg-[var(--nb-sheet)] text-[var(--nb-ink)] hover:bg-[var(--nb-well-hover)]",
+          className
+        )}
+        {...props}
+      >
+        {icon ? (
+          <span className="grid h-[var(--nb-size-tile-icon)] w-[var(--nb-size-tile-icon)] shrink-0 place-items-center rounded-[var(--nb-radius-menu)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] text-[var(--nb-ink-2)]">
+            {renderIcon(icon)}
+          </span>
+        ) : null}
+        <div className="grid min-w-0 gap-[var(--nb-space-0-5)]">
+          <div className="truncate text-sm font-semibold text-[var(--nb-ink)]">
+            {displayLabel}
+          </div>
+          {description !== undefined ? (
+            <div className="text-xs text-[var(--nb-ink-3)]">
+              {description}
+            </div>
+          ) : null}
+        </div>
+        <span
+          aria-hidden="true"
+          className={cn(
+            "grid h-[var(--nb-size-icon-sm)] w-[var(--nb-size-icon-sm)] shrink-0 place-items-center rounded-[var(--nb-radius-control)] border transition-colors duration-[var(--nb-dur-fast)] ease-[var(--nb-ease)] motion-reduce:transition-none",
+            isSelected
+              ? "border-[var(--nb-ink)] bg-[var(--nb-sheet)]"
+              : "border-[var(--nb-edge)] bg-[var(--nb-sheet)]"
+          )}
+        >
+          {isSelected ? (
+            <span className="h-[var(--nb-space-2)] w-[var(--nb-space-2)] rounded-[var(--nb-radius-control)] bg-[var(--nb-ink)]" />
+          ) : null}
+        </span>
+      </button>
+    );
+  }
+);
+FormatOptionRow.displayName = "FormatOptionRow";
 
 export interface ExportDialogProps {
   open: boolean;
@@ -63,7 +187,7 @@ export interface ExportDialogProps {
  * a preselected default format and an Export action.
  */
 const ExportDialog = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ElementRef<typeof DialogContent>,
   ExportDialogProps
 >(
   (
@@ -120,90 +244,76 @@ const ExportDialog = React.forwardRef<
 
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogPortal>
-          <DialogOverlay />
-          <DialogPrimitive.Content
-            ref={ref}
-            aria-describedby={
-              description ? "export-dialog-description" : undefined
-            }
-            className={cn(
-              "fixed left-[50%] top-[50%] z-50 grid w-[min(var(--nb-layout-modal-sm),calc(100%-var(--nb-space-8)))] translate-x-[-50%] translate-y-[-50%] gap-[var(--nb-space-4)] rounded-[var(--nb-radius-modal)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-[var(--nb-space-5)] text-[var(--nb-ink)] shadow-[var(--nb-shadow-modal)]",
-              className
-            )}
-            {...props}
+        <DialogContent
+          ref={ref}
+          size="sm"
+          aria-describedby={
+            description ? "export-dialog-description" : undefined
+          }
+          className={className}
+          {...props}
+        >
+          <DialogHeader>
+            <div className="grid min-w-0 gap-[var(--nb-space-1)]">
+              <DialogTitle>{title}</DialogTitle>
+              {description ? (
+                <DialogDescription id="export-dialog-description">
+                  {description}
+                </DialogDescription>
+              ) : null}
+            </div>
+            <DialogCloseButton />
+          </DialogHeader>
+
+          <DialogBody
+            role="radiogroup"
+            aria-label={title}
+            className="gap-[var(--nb-space-2)]"
           >
-            <div className="dlg-head flex items-start justify-between gap-[var(--nb-space-3)]">
-              <div className="grid gap-[var(--nb-space-1)]">
-                <DialogTitle>{title}</DialogTitle>
-                {description ? (
-                  <p
-                    id="export-dialog-description"
-                    className="text-xs text-[var(--nb-ink-2)]"
-                  >
-                    {description}
-                  </p>
-                ) : null}
-              </div>
-              <DialogPrimitive.Close
-                aria-label="Close"
-                className="inline-flex min-h-[var(--nb-size-control-sm)] min-w-[var(--nb-size-control-sm)] items-center justify-center rounded-[var(--nb-radius-control)] text-[var(--nb-ink-2)] hover:bg-[var(--nb-well-hover)] focus-visible:outline-[2px] focus-visible:outline-[var(--nb-ink)]"
-              >
-                <X size={16} aria-hidden="true" />
-              </DialogPrimitive.Close>
-            </div>
+            {formatList.map((item) => {
+              const itemId = item.id ?? item.value ?? "";
+              const itemLabel = item.label ?? item.name ?? "";
+              return (
+                <FormatOptionRow
+                  key={itemId}
+                  icon={item.icon}
+                  label={itemLabel}
+                  description={item.description}
+                  selected={activeFormat === itemId}
+                  disabled={item.disabled}
+                  onSelect={() => handleSelect(itemId)}
+                />
+              );
+            })}
+            {children}
+          </DialogBody>
 
-            <div
-              role="radiogroup"
-              aria-label={title}
-              className="dlg-body grid gap-[var(--nb-space-2)]"
-            >
-              {formatList.map((item) => {
-                const itemId = item.id ?? item.value ?? "";
-                const itemLabel = item.label ?? item.name ?? "";
-                return (
-                  <FormatOptionRow
-                    key={itemId}
-                    icon={item.icon}
-                    label={itemLabel}
-                    description={item.description}
-                    selected={activeFormat === itemId}
-                    disabled={item.disabled}
-                    onSelect={() => handleSelect(itemId)}
-                  />
-                );
-              })}
-              {children}
-            </div>
-
-            <div className="dlg-foot flex items-center justify-end gap-[var(--nb-space-2)] pt-[var(--nb-space-2)]">
-              <DialogPrimitive.Close asChild>
-                <Button type="button" variant="ghost" size="sm">
-                  {cancelLabel}
-                </Button>
-              </DialogPrimitive.Close>
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                disabled={!activeFormat || isExporting}
-                onClick={() => {
-                  if (activeFormat) {
-                    onExport?.(activeFormat);
-                  }
-                }}
-                className="gap-[var(--nb-space-2)]"
-              >
-                <Download size={14} aria-hidden="true" />
-                <span>{exportLabel}</span>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="nb_btn_ghost" size="nb_btn_sm">
+                {cancelLabel}
               </Button>
-            </div>
-          </DialogPrimitive.Content>
-        </DialogPortal>
+            </DialogClose>
+            <Button
+              type="button"
+              variant="nb_btn_primary"
+              size="nb_btn_sm"
+              leadingIcon={Download}
+              disabled={!activeFormat || isExporting}
+              onClick={() => {
+                if (activeFormat) {
+                  onExport?.(activeFormat);
+                }
+              }}
+            >
+              {exportLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     );
   }
 );
 ExportDialog.displayName = "ExportDialog";
 
-export { ExportDialog };
+export { ExportDialog, FormatOptionRow };

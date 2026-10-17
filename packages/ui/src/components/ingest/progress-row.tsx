@@ -1,5 +1,6 @@
 import * as React from "react";
-import { FilePdf, FileText, Globe, CheckCircle } from "../primitives/icons.js";
+import { FilePdf, FileText, Globe, CheckCircle, resolveIconProps } from "../primitives/icons.js";
+import { Badge } from "../primitives/badges.js";
 import { cn } from "../../lib/utils.js";
 
 export type IngestFormat = "pdf" | "docx" | "txt" | "md" | "web" | "note";
@@ -60,12 +61,12 @@ const ProgressRow = React.forwardRef<HTMLDivElement, ProgressRowProps>(
           aria-valuenow={value}
           aria-valuemin={0}
           aria-valuemax={100}
-          className="h-[var(--nb-size-progress)] w-full overflow-hidden rounded-[var(--nb-radius-full)] bg-[var(--nb-sheet)]"
+          className="h-[var(--nb-size-progress)] w-full overflow-hidden rounded-[var(--nb-radius-chip)] bg-[var(--nb-sheet)]"
         >
           <i
             aria-hidden="true"
             style={{ width: `${value}%` }}
-            className="block h-full rounded-[var(--nb-radius-full)] bg-[var(--nb-ink)]"
+            className="block h-full rounded-[var(--nb-radius-chip)] bg-[var(--nb-ink)]"
           />
         </div>
         {state === "failed" && error !== undefined ? (
@@ -74,10 +75,12 @@ const ProgressRow = React.forwardRef<HTMLDivElement, ProgressRowProps>(
       </div>
       <span className="grid justify-items-end">
         {state === "ready" ? (
-          <span className="inline-flex items-center gap-[var(--nb-space-1)] whitespace-nowrap rounded-[var(--nb-radius-chip)] bg-[var(--nb-ok-wash)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-xs font-semibold leading-[var(--nb-leading-ui)] text-[var(--nb-ok)]">
-            <CheckCircle size={14} aria-hidden="true" className="shrink-0" />
+          <Badge
+            variant="ok"
+            icon={<CheckCircle {...resolveIconProps({ size: "sm", weight: "fill" })} />}
+          >
             Indexed
-          </span>
+          </Badge>
         ) : (
           <span className="text-xs capitalize text-[var(--nb-ink-2)]">
             {state}

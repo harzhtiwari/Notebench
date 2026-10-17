@@ -6,7 +6,7 @@ import {
   ArrowClockwise,
   XCircle,
 } from "../primitives/icons.js";
-import { Button } from "../primitives/button.js";
+import { Button } from "../primitives/index.js";
 import { cn } from "../../lib/utils.js";
 
 export interface AutosaveDotProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -82,24 +82,24 @@ export const AutosaveDot = React.forwardRef<HTMLDivElement, AutosaveDotProps>(
       >
         <span
           className={cn(
-            "h-[var(--nb-space-2)] w-[var(--nb-space-2)] rounded-[var(--nb-radius-full)] transition-colors duration-[var(--nb-dur-base)]",
+            "h-[var(--nb-space-2)] w-[var(--nb-space-2)] rounded-[var(--nb-radius-chip)] transition-colors duration-[var(--nb-dur-base)] ease-[var(--nb-ease)] motion-reduce:transition-none",
             config.dotClass
           )}
           aria-hidden="true"
         />
         <Icon
-          size={14}
+          size={16}
           weight="fill"
           aria-hidden="true"
-          className={spin ? "animate-spin" : undefined}
+          className={spin ? "animate-spin [animation-duration:var(--nb-dur-spin)] motion-reduce:animate-none" : undefined}
         />
         <span>{config.label}</span>
         {status === "error" && onRetry !== undefined ? (
           <Button
-            variant="ghost"
-            size="sm"
+            variant="nb_btn_ghost"
+            size="nb_btn_sm"
             onClick={onRetry}
-            className="h-[var(--nb-size-control-sm)] px-[var(--nb-space-2)] text-xs text-[var(--nb-danger)] hover:bg-[var(--nb-danger-wash)]"
+            className="px-[var(--nb-space-2)] text-[var(--nb-danger)] hover:bg-[var(--nb-danger-wash)]"
           >
             {retryLabel}
           </Button>

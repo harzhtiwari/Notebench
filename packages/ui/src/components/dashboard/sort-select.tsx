@@ -28,7 +28,7 @@ const SortSelect = React.forwardRef<HTMLSelectElement, SortSelectProps>(
         onChange?.(event.target.value as DashboardSortKey);
       }}
       className={cn(
-        "h-9 rounded-[var(--nb-radius-input)] border border-[var(--nb-edge)] bg-[var(--nb-sheet)] px-3 text-sm text-[var(--nb-ink)]",
+        "min-h-[var(--nb-size-control-md)] rounded-[var(--nb-radius-input)] border border-[var(--nb-edge)] bg-[var(--nb-well)] px-[var(--nb-space-3)] text-sm text-[var(--nb-ink)] focus-visible:outline-solid focus-visible:outline-[length:var(--nb-ring-width)] focus-visible:outline-[var(--nb-focus)] focus-visible:outline-offset-[var(--nb-ring-offset)]",
         className
       )}
       {...props}

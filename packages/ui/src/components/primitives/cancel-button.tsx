@@ -1,10 +1,13 @@
 import * as React from "react";
-import { Button, type ButtonProps } from "./button.js";
+import {
+  Button,
+  type ButtonVariant,
+  type StandardButtonProps,
+} from "./button.js";
 import { XCircle } from "./icons.js";
-import { cn } from "../../lib/utils.js";
 
 export interface CancelButtonProps
-  extends Omit<ButtonProps, "children"> {
+  extends Omit<StandardButtonProps, "children" | "variant" | "size"> {
   /** Optional AbortController whose abort() will be called on click. */
   controller?: AbortController | undefined;
   /** Optional AbortSignal to track external cancellation. */
@@ -15,13 +18,20 @@ export interface CancelButtonProps
   label?: string | undefined;
   /** Custom label when aborted/cancelled. Defaults to "Cancelled". */
   cancelledLabel?: string | undefined;
+  /** Button style variant. Defaults to canonical "nb_btn_secondary". */
+  variant?: ButtonVariant | undefined;
+  /** Button height/padding size. Defaults to "nb_btn_sm". */
+  size?: "nb_btn_sm" | "nb_btn_md" | "nb_btn_lg" | undefined;
   children?: React.ReactNode | undefined;
 }
 
 /**
  * Reusable cancellation button for streaming generation/jobs (Ticket 13).
  * Integrates with AbortController / AbortSignal, disables on abort, and maintains
- * accessible icon + label pairs (never color-alone).
+ * accessible icon + label pairs (never color-alone). Composes the canonical
+ * Button (`nb_btn_secondary` / `nb_btn_sm`; board `.btn`) and routes the icon
+ * through the `leadingIcon` channel so the board icon canon applies
+ * (`--nb-size-icon-sm`, bold at the small size).
  */
 const CancelButton = React.forwardRef<HTMLButtonElement, CancelButtonProps>(
   (
@@ -32,11 +42,12 @@ const CancelButton = React.forwardRef<HTMLButtonElement, CancelButtonProps>(
       onCancel,
       onClick,
       disabled = false,
-      variant = "secondary",
-      size = "sm",
+      variant = "nb_btn_secondary",
+      size = "nb_btn_sm",
       label = "Cancel",
       cancelledLabel = "Cancelled",
       children,
+      "aria-label": ariaLabel,
       ...props
     },
     ref
@@ -68,9 +79,9 @@ const CancelButton = React.forwardRef<HTMLButtonElement, CancelButtonProps>(
       onClick?.(e);
     };
 
-    const displayText = isAborted
-      ? cancelledLabel
-      : (children ?? label);
+    const displayText = isAborted ? cancelledLabel : (children ?? label);
+    const resolvedAriaLabel =
+      ariaLabel ?? (isAborted ? "Generation cancelled" : "Cancel generation");
 
     return (
       <Button
@@ -78,14 +89,14 @@ const CancelButton = React.forwardRef<HTMLButtonElement, CancelButtonProps>(
         type="button"
         variant={variant}
         size={size}
+        leadingIcon={XCircle}
         disabled={disabled || isAborted}
         onClick={handleClick}
-        aria-label={isAborted ? "Generation cancelled" : "Cancel generation"}
-        className={cn("gap-[var(--nb-space-1)]", className)}
+        className={className}
+        aria-label={resolvedAriaLabel}
         {...props}
       >
-        <XCircle size={14} weight="fill" aria-hidden="true" className="shrink-0" />
-        <span>{displayText}</span>
+        {displayText}
       </Button>
     );
   }

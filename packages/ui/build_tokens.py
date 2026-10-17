@@ -210,7 +210,71 @@ module.exports = {{
 """
 (HERE / "tailwind.preset.cjs").write_text(preset, encoding="utf-8")
 
+# -------------------------------------------------------- tokens.theme.css (Tailwind v4)
+theme_lines = [
+    "/*",
+    "  GENERATED FILE. Do not edit. Source: tokens.json, build: build_tokens.py",
+    "",
+    "  Tailwind CSS v4 @theme configuration.",
+    "  Maps canonical --nb-* design tokens directly into Tailwind utility classes.",
+    "*/",
+    "",
+    "@theme {",
+    "  /* Colors */",
+]
+for k in T["color"]["light"]:
+    theme_lines.append(f"  --color-{slug(k)}: var({var(k)});")
+
+theme_lines.append("\n  /* Spacing */")
+for k in T["space"]:
+    theme_lines.append(f"  --spacing-{slug(k)}: var({var('space-' + k)});")
+
+theme_lines.append("\n  /* Border Radius */")
+theme_lines.append("  --radius-none: 0;")
+all_radius = {**T["radius"], **T["radius-role"]}
+for k in all_radius:
+    theme_lines.append(f"  --radius-{slug(k)}: var({var('radius-' + k)});")
+
+theme_lines.append("\n  /* Typography - Fonts */")
+for k in T["font"]:
+    theme_lines.append(f"  --font-{slug(k)}: var({var('font-' + k)});")
+
+theme_lines.append("\n  /* Typography - Font Sizes */")
+for k in T["text"]:
+    theme_lines.append(f"  --text-{slug(k)}: var({var('text-' + k)});")
+
+theme_lines.append("\n  /* Typography - Font Weights */")
+for k in T["weight"]:
+    theme_lines.append(f"  --font-weight-{slug(k)}: var({var('weight-' + k)});")
+
+theme_lines.append("\n  /* Typography - Line Heights */")
+for k in T["leading"]:
+    theme_lines.append(f"  --leading-{slug(k)}: var({var('leading-' + k)});")
+
+theme_lines.append("\n  /* Typography - Letter Spacing */")
+for k in T["tracking"]:
+    theme_lines.append(f"  --tracking-{slug(k)}: var({var('tracking-' + k)});")
+
+theme_lines.append("\n  /* Shadows */")
+theme_lines.append("  --shadow-none: none;")
+for k in T["shadow"]["light"]:
+    theme_lines.append(f"  --shadow-{slug(k)}: var({var('shadow-' + k)});")
+
+theme_lines.append("\n  /* Transitions & Motion */")
+theme_lines.append(f"  --ease-default: var({var('ease')});")
+theme_lines.append(f"  --duration-fast: var({var('dur-fast')});")
+theme_lines.append(f"  --duration-base: var({var('dur-base')});")
+theme_lines.append(f"  --duration-slow: var({var('dur-slow')});")
+
+theme_lines.append("\n  /* Breakpoints */")
+for k, v in T["breakpoint"].items():
+    theme_lines.append(f"  --breakpoint-{k}: {v};")
+
+theme_lines.append("}\n")
+(HERE / "tokens.theme.css").write_text("\n".join(theme_lines), encoding="utf-8")
+
 n_color = len(T["color"]["light"])
 assert set(T["color"]["light"]) == set(T["color"]["dark"]), "light and dark must define the same names"
 assert set(T["shadow"]["light"]) == set(T["shadow"]["dark"])
-print(f"tokens.css, tokens.media.css, tokens.ts, tailwind.preset.cjs written. {n_color} colors x 2 themes.")
+print(f"tokens.css, tokens.theme.css, tokens.media.css, tokens.ts, tailwind.preset.cjs written. {n_color} colors x 2 themes.")
+

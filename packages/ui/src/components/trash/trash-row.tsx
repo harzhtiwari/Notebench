@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Button } from "../primitives/button.js";
+import { Badge } from "../primitives/badges.js";
 import {
   ArrowCounterClockwise,
   ClockCounterClockwise,
@@ -36,7 +37,7 @@ export interface TrashRowProps
 }
 
 const CELL_CLASS =
-  "px-[var(--nb-space-3)] py-[var(--nb-space-2)] text-sm text-[var(--nb-ink)] align-middle";
+  "px-[var(--nb-space-3)] py-[var(--nb-space-2)] text-[length:var(--nb-text-sm)] text-[var(--nb-ink)] align-middle";
 
 function normalizeTrashedEpochMs(trashedAt: string | Date | number): number {
   if (typeof trashedAt === "number") {
@@ -122,7 +123,7 @@ const TrashRow = React.forwardRef<HTMLTableRowElement, TrashRowProps>(
       <tr
         ref={ref}
         className={cn(
-          "transition-colors hover:bg-[var(--nb-well)] border-b border-[var(--nb-hairline)]",
+          "transition-colors duration-[var(--nb-dur-fast)] ease-[var(--nb-ease)] motion-reduce:transition-none hover:bg-[var(--nb-well)] border-b border-[var(--nb-hairline)]",
           className
         )}
         {...props}
@@ -137,7 +138,7 @@ const TrashRow = React.forwardRef<HTMLTableRowElement, TrashRowProps>(
                 <FileText size={16} aria-hidden="true" />
               )}
             </span>
-            <span className="font-medium text-[var(--nb-ink)] truncate max-w-[20rem]">
+            <span className="font-[number:var(--nb-weight-medium)] text-[var(--nb-ink)] truncate max-w-[var(--nb-layout-title-min)]">
               {effectiveTitle}
             </span>
           </div>
@@ -145,14 +146,14 @@ const TrashRow = React.forwardRef<HTMLTableRowElement, TrashRowProps>(
 
         {/* Item Type */}
         <td className={CELL_CLASS}>
-          <span className="inline-flex items-center rounded-[var(--nb-radius-full)] border border-[var(--nb-hairline)] bg-[var(--nb-well)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-[var(--nb-text-2xs)] font-medium text-[var(--nb-ink-2)] capitalize select-none">
+          <Badge variant="default" className="capitalize">
             {effectiveType}
-          </span>
+          </Badge>
         </td>
 
         {/* Trashed Timestamp */}
         <td className={CELL_CLASS}>
-          <span className="text-xs text-[var(--nb-ink-3)] tabular-nums">
+          <span className="text-[length:var(--nb-text-xs)] text-[var(--nb-ink-3)] tabular-nums">
             {formatTrashedTime(effectiveTrashedAt)}
           </span>
         </td>
@@ -160,21 +161,19 @@ const TrashRow = React.forwardRef<HTMLTableRowElement, TrashRowProps>(
         {/* Days Remaining (30-day Countdown) */}
         <td className={CELL_CLASS}>
           {isUrgent ? (
-            <span className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-full)] border border-[var(--nb-warn)] bg-[var(--nb-warn-wash)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-xs font-medium text-[var(--nb-warn)] select-none">
-              <Warning size={14} weight="fill" aria-hidden="true" />
-              <span>
-                {effectiveDaysRemaining}{" "}
-                {effectiveDaysRemaining === 1 ? "day" : "days"} remaining
-              </span>
-            </span>
+            <Badge
+              variant="warn"
+              icon={<Warning size={14} weight="fill" aria-hidden="true" />}
+            >
+              {effectiveDaysRemaining} {effectiveDaysRemaining === 1 ? "day" : "days"} remaining
+            </Badge>
           ) : (
-            <span className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-full)] border border-[var(--nb-hairline)] bg-[var(--nb-well)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-xs font-medium text-[var(--nb-ink-2)] select-none">
-              <ClockCounterClockwise size={14} aria-hidden="true" />
-              <span>
-                {effectiveDaysRemaining}{" "}
-                {effectiveDaysRemaining === 1 ? "day" : "days"} remaining
-              </span>
-            </span>
+            <Badge
+              variant="default"
+              icon={<ClockCounterClockwise size={14} aria-hidden="true" />}
+            >
+              {effectiveDaysRemaining} {effectiveDaysRemaining === 1 ? "day" : "days"} remaining
+            </Badge>
           )}
         </td>
 
@@ -188,37 +187,28 @@ const TrashRow = React.forwardRef<HTMLTableRowElement, TrashRowProps>(
           >
             <Button
               type="button"
-              variant="outline"
-              size="sm"
+              variant="nb_btn_secondary"
+              size="nb_btn_sm"
               disabled={disabled || isRestoring || isPurging}
               onClick={() => {
                 onRestore?.(effectiveId);
               }}
               aria-label="Restore"
+              leadingIcon={ArrowCounterClockwise}
             >
-              <ArrowCounterClockwise
-                size={14}
-                aria-hidden="true"
-                className="mr-1 shrink-0"
-              />
               Restore
             </Button>
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              className="border-[var(--nb-danger)] text-[var(--nb-danger)] hover:bg-[var(--nb-danger-wash)] hover:text-[var(--nb-danger)]"
+              variant="nb_btn_danger"
+              size="nb_btn_sm"
               disabled={disabled || isRestoring || isPurging}
               onClick={() => {
                 onPurge?.(effectiveId);
               }}
               aria-label="Delete permanently"
+              leadingIcon={Trash}
             >
-              <Trash
-                size={14}
-                aria-hidden="true"
-                className="mr-1 shrink-0"
-              />
               Delete permanently
             </Button>
           </div>

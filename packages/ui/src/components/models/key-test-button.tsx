@@ -1,7 +1,6 @@
 import * as React from "react";
 import { Button } from "../primitives/button.js";
 import { CheckCircle, Key, WarningCircle } from "../primitives/icons.js";
-import { cn } from "../../lib/utils.js";
 
 export type KeyTestState = "idle" | "testing" | "ok" | "fail";
 
@@ -24,51 +23,41 @@ export interface KeyTestButtonProps
 /**
  * Key-test action with four states. Icon + label always (state is never
  * color-alone). Clicks re-run the test in every state except `testing`.
+ * The `testing` state uses the primitive's built-in spinner via `loading`.
  */
 const KeyTestButton = React.forwardRef<HTMLButtonElement, KeyTestButtonProps>(
-  ({ className, state, latencyMs, message, onTest, ...props }, ref) => (
-    <Button
-      ref={ref}
-      type="button"
-      variant="outline"
-      size="sm"
-      disabled={state === "testing"}
-      onClick={() => {
-        if (state !== "testing") {
-          onTest?.();
-        }
-      }}
-      className={cn("gap-[var(--nb-space-2)]", className)}
-      {...props}
-    >
-      {state === "idle" ? (
-        <>
-          <Key size={16} aria-hidden="true" />
-          Test Key
-        </>
-      ) : state === "testing" ? (
-        <>
-          <span
-            aria-hidden="true"
-            className="h-4 w-4 rounded-[var(--nb-radius-full)] border-2 border-current border-r-transparent motion-safe:animate-spin"
-          />
-          Testing…
-        </>
-      ) : state === "ok" ? (
-        <>
-          <CheckCircle size={16} aria-hidden="true" />
-          {latencyMs !== undefined
+  ({ className, state, latencyMs, message, onTest, ...props }, ref) => {
+    const LeadingIcon =
+      state === "ok" ? CheckCircle : state === "fail" ? WarningCircle : Key;
+
+    return (
+      <Button
+        ref={ref}
+        type="button"
+        variant="nb_btn_secondary"
+        size="nb_btn_sm"
+        loading={state === "testing"}
+        loadingLabel="Testing…"
+        leadingIcon={LeadingIcon}
+        disabled={state === "testing"}
+        onClick={() => {
+          if (state !== "testing") {
+            onTest?.();
+          }
+        }}
+        className={className}
+        {...props}
+      >
+        {state === "ok"
+          ? latencyMs !== undefined
             ? `Verified Connected (latency: ${latencyMs}ms)`
-            : "Verified Connected"}
-        </>
-      ) : (
-        <>
-          <WarningCircle size={16} aria-hidden="true" />
-          {message ?? "Test failed."}
-        </>
-      )}
-    </Button>
-  )
+            : "Verified Connected"
+          : state === "fail"
+            ? (message ?? "Test failed.")
+            : "Test Key"}
+      </Button>
+    );
+  }
 );
 KeyTestButton.displayName = "KeyTestButton";
 

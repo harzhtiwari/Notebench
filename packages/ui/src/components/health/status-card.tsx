@@ -1,6 +1,7 @@
 import * as React from "react";
 import type { HealthProbeResult, HealthProbeStatus } from "@notebook/contracts";
 import { Button } from "../primitives/button.js";
+import { Badge, type BadgeVariant } from "../primitives/badges.js";
 import {
   ArrowClockwise,
   CheckCircle,
@@ -20,21 +21,21 @@ export interface StatusCardProps extends React.HTMLAttributes<HTMLElement> {
 
 const STATUS_META: Record<
   HealthProbeStatus,
-  { label: string; className: string; Icon: typeof CheckCircle }
+  { label: string; variant: BadgeVariant; Icon: typeof CheckCircle }
 > = {
   pass: {
     label: "Pass",
-    className: "bg-[var(--nb-ok-wash)] text-[var(--nb-ok)]",
+    variant: "ok",
     Icon: CheckCircle,
   },
   warn: {
     label: "Warning",
-    className: "bg-[var(--nb-warn-wash)] text-[var(--nb-warn)]",
+    variant: "warn",
     Icon: WarningCircle,
   },
   fail: {
     label: "Fail",
-    className: "bg-[var(--nb-danger-wash)] text-[var(--nb-danger)]",
+    variant: "danger",
     Icon: XCircle,
   },
 };
@@ -58,25 +59,31 @@ const StatusCard = React.forwardRef<HTMLElement, StatusCardProps>(
         {...props}
       >
         <div className="flex flex-wrap items-center justify-between gap-[var(--nb-space-2)]">
-          <h3 className="text-sm font-semibold leading-none">{probe.name}</h3>
-          <span
-            className={cn(
-              "inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-chip)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-xs font-semibold",
-              meta.className
-            )}
+          <h3 className="text-[length:var(--nb-text-sm)] font-[number:var(--nb-weight-semibold)] leading-[var(--nb-leading-none)]">
+            {probe.name}
+          </h3>
+          <Badge
+            variant={meta.variant}
+            icon={<Icon size={14} weight="fill" aria-hidden="true" />}
           >
-            <Icon size={14} weight="fill" aria-hidden="true" />
             {meta.label}
-          </span>
+          </Badge>
         </div>
-        <p className="text-xs text-[var(--nb-ink-2)]">{probe.message}</p>
+        <p className="text-[length:var(--nb-text-xs)] text-[var(--nb-ink-2)]">{probe.message}</p>
         {thresholdLabel !== undefined ? (
-          <p className="font-[var(--nb-font-mono)] text-xs text-[var(--nb-ink-3)]">{thresholdLabel}</p>
+          <p className="font-[family-name:var(--nb-font-mono)] text-[length:var(--nb-text-xs)] text-[var(--nb-ink-3)]">
+            {thresholdLabel}
+          </p>
         ) : null}
         {onRetry !== undefined ? (
           <div className="flex">
-            <Button variant="ghost" size="sm" onClick={onRetry}>
-              <ArrowClockwise size={14} aria-hidden="true" />
+            <Button
+              type="button"
+              variant="nb_btn_ghost"
+              size="nb_btn_sm"
+              onClick={onRetry}
+              leadingIcon={ArrowClockwise}
+            >
               {retryLabel}
             </Button>
           </div>

@@ -1,14 +1,15 @@
 import * as React from "react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   Dialog,
-  DialogOverlay,
-  DialogPortal,
+  DialogBody,
+  DialogCloseButton,
+  DialogContent,
+  DialogHeader,
   DialogTitle,
-} from "../primitives/dialog.js";
-import { Button } from "../primitives/button.js";
-import { CaretRight, X } from "../primitives/icons.js";
-import { cn } from "../../lib/utils.js";
+} from "../primitives/overlays.js";
+import { IconButton } from "../primitives/button.js";
+import { CitationHighlight, CitationPassage } from "../primitives/citations.js";
+import { CaretRight, resolveIconProps } from "../primitives/icons.js";
 
 export interface ViewerModalProps {
   open: boolean;
@@ -33,7 +34,7 @@ export interface ViewerModalProps {
  * only — page rendering, locators and downloads land with the parent ticket.
  */
 const ViewerModal = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ElementRef<typeof DialogContent>,
   ViewerModalProps
 >(
   (
@@ -53,72 +54,60 @@ const ViewerModal = React.forwardRef<
     const atLast = page >= pageCount;
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogPortal>
-          <DialogOverlay />
-          <DialogPrimitive.Content
-            ref={ref}
-            aria-describedby={undefined}
-            className={cn(
-              "fixed left-[50%] top-[50%] z-50 grid max-h-[calc(100%-var(--nb-space-8))] w-[min(1020px,calc(100%-var(--nb-space-8)))] translate-x-[-50%] translate-y-[-50%] gap-[var(--nb-space-3)] overflow-y-auto rounded-[var(--nb-radius-modal)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] text-[var(--nb-ink)] shadow-[var(--nb-shadow-modal)]"
-            )}
-          >
-            <div className="flex items-center justify-between gap-[var(--nb-space-3)] px-[var(--nb-space-5)] pb-[var(--nb-space-2)] pt-[var(--nb-space-5)]">
-              <DialogTitle>{title}</DialogTitle>
-              <div className="flex items-center gap-[var(--nb-space-1)]">
-                <span
-                  role="status"
-                  className="mr-[var(--nb-space-1)] text-xs tabular-nums text-[var(--nb-ink-2)]"
-                >
-                  Page {page} of {pageCount}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-label="Previous page"
-                  disabled={atFirst}
-                  onClick={() => {
-                    onPageChange?.(page - 1);
-                  }}
-                >
-                  <CaretRight
-                    size={16}
-                    aria-hidden="true"
-                    className="rotate-180"
-                  />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-label="Next page"
-                  disabled={atLast}
-                  onClick={() => {
-                    onPageChange?.(page + 1);
-                  }}
-                >
-                  <CaretRight size={16} aria-hidden="true" />
-                </Button>
-                <DialogPrimitive.Close
-                  aria-label="Close"
-                  className="inline-flex min-h-[var(--nb-size-control-sm)] min-w-[var(--nb-size-control-sm)] items-center justify-center rounded-[var(--nb-radius-control)] text-[var(--nb-ink-2)] hover:bg-[var(--nb-well-hover)]"
-                >
-                  <X size={16} aria-hidden="true" />
-                </DialogPrimitive.Close>
-              </div>
+        <DialogContent
+          ref={ref}
+          size="viewer"
+          aria-describedby={undefined}
+          className="max-h-[calc(100%-var(--nb-space-8))] gap-[var(--nb-space-3)] overflow-y-auto"
+        >
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            <div className="flex items-center gap-[var(--nb-space-1)]">
+              <span
+                role="status"
+                className="mr-[var(--nb-space-1)] text-xs tabular-nums text-[var(--nb-ink-2)]"
+              >
+                Page {page} of {pageCount}
+              </span>
+              <IconButton
+                type="button"
+                variant="nb_btn_ghost"
+                size="nb_btn_icon_sm"
+                aria-label="Previous page"
+                disabled={atFirst}
+                onClick={() => {
+                  onPageChange?.(page - 1);
+                }}
+              >
+                <CaretRight
+                  {...resolveIconProps({ size: "sm" })}
+                  className="rotate-180"
+                />
+              </IconButton>
+              <IconButton
+                type="button"
+                variant="nb_btn_ghost"
+                size="nb_btn_icon_sm"
+                aria-label="Next page"
+                disabled={atLast}
+                onClick={() => {
+                  onPageChange?.(page + 1);
+                }}
+              >
+                <CaretRight {...resolveIconProps({ size: "sm" })} />
+              </IconButton>
+              <DialogCloseButton />
             </div>
-            <div className="grid gap-[var(--nb-space-3)] px-[var(--nb-space-5)] pb-[var(--nb-space-5)]">
-              {children}
-              {citedPassage !== undefined ? (
-                <p className="rounded-[var(--nb-radius-well)] bg-[var(--nb-marker-wash)] px-[var(--nb-space-4)] py-[var(--nb-space-3)] font-[var(--nb-font-read)] leading-[var(--nb-leading-read)]">
-                  <mark className="bg-[var(--nb-marker-swipe)] px-[var(--nb-space-0-5)] text-[var(--nb-ink)] shadow-[inset_0_calc(var(--nb-border-2)*-1)_0_var(--nb-marker-text)]">
-                    {citedPassage}
-                  </mark>
-                </p>
-              ) : null}
-            </div>
-          </DialogPrimitive.Content>
-        </DialogPortal>
+          </DialogHeader>
+          <DialogBody className="pb-[var(--nb-space-5)]">
+            {children}
+            {citedPassage !== undefined ? (
+              <CitationPassage>
+                <CitationHighlight>{citedPassage}</CitationHighlight>
+              </CitationPassage>
+            ) : null}
+          </DialogBody>
+        </DialogContent>
       </Dialog>
     );
   }

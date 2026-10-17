@@ -25,8 +25,8 @@ const MetricRow = React.forwardRef<HTMLDivElement, MetricRowProps>(
           className={cn("flex justify-between text-xs", className)}
           {...props}
         >
-          <span className="text-[var(--nb-ink-2)]">{label}</span>
-          <span className="font-semibold text-[var(--nb-ink)]">{value}</span>
+          <span className="font-ui text-[var(--nb-ink-2)]">{label}</span>
+          <span className="font-ui font-semibold text-[var(--nb-ink)]">{value}</span>
         </div>
       );
     }
@@ -37,16 +37,16 @@ const MetricRow = React.forwardRef<HTMLDivElement, MetricRowProps>(
     return (
       <div ref={ref} className={cn("grid gap-[var(--nb-space-1)]", className)} {...props}>
         <div className="flex justify-between text-xs">
-          <span className="text-[var(--nb-ink-2)]">{label}</span>
-          <span className="font-semibold text-[var(--nb-ink)]">{value}</span>
+          <span className="font-ui text-[var(--nb-ink-2)]">{label}</span>
+          <span className="font-ui font-semibold text-[var(--nb-ink)]">{value}</span>
         </div>
         <div
           role="img"
           aria-label={`${label}: ${percent}%`}
-          className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--nb-well)]"
+          className="h-[var(--nb-size-progress)] w-full overflow-hidden rounded-[var(--nb-radius-chip)] bg-[var(--nb-well)]"
         >
           <div
-            className="h-full bg-[var(--nb-ink-2)]"
+            className="h-full rounded-[var(--nb-radius-chip)] bg-[var(--nb-ink)]"
             style={{ width: `${percent}%` }}
           />
         </div>

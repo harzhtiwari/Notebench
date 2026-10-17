@@ -22,7 +22,7 @@ const DropOverlay = React.forwardRef<HTMLDivElement, DropOverlayProps>(
         ref={ref}
         role="status"
         className={cn(
-          "absolute inset-0 z-10 grid place-items-center rounded-[var(--nb-radius-modal)] bg-[var(--nb-scrim)] p-[var(--nb-space-4)]",
+          "absolute inset-0 z-[var(--nb-z-raised)] grid place-items-center rounded-[var(--nb-radius-modal)] bg-[var(--nb-scrim)] p-[var(--nb-space-4)]",
           className
         )}
         {...props}

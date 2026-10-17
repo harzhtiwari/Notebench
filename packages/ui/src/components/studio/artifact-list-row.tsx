@@ -1,11 +1,14 @@
 import * as React from "react";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import {
   ArrowClockwise,
   CheckCircle,
+  resolveIconProps,
   Sparkle,
   Warning,
   WarningCircle,
 } from "../primitives/icons.js";
+import { Badge, type BadgeVariant } from "../primitives/badges.js";
 import { formatRelativeTime } from "../../lib/formatters.js";
 import { cn } from "../../lib/utils.js";
 import { getStudioToolIcon, STUDIO_TOOL_CATALOG } from "./tool-tile.js";
@@ -40,13 +43,9 @@ function formatTypeBadge(type: string): string {
 }
 
 interface StatusConfig {
-  icon: React.ComponentType<{
-    size?: number | undefined;
-    className?: string | undefined;
-    "aria-hidden"?: boolean | "true" | "false" | undefined;
-  }>;
+  icon: PhosphorIcon;
   label: string;
-  colorClass: string;
+  variant: BadgeVariant;
   spin?: boolean | undefined;
 }
 
@@ -59,32 +58,32 @@ function getStatusConfig(
       return {
         icon: ArrowClockwise,
         label: customLabel ?? "Generating...",
-        colorClass: "text-[var(--nb-ai)]",
+        variant: "ai",
         spin: true,
       };
     case "ready":
       return {
         icon: CheckCircle,
         label: customLabel ?? "Ready",
-        colorClass: "text-[var(--nb-ok)]",
+        variant: "ok",
       };
     case "failed":
       return {
         icon: WarningCircle,
         label: customLabel ?? "Failed",
-        colorClass: "text-[var(--nb-danger)]",
+        variant: "danger",
       };
     case "stale":
       return {
         icon: Warning,
         label: customLabel ?? "Source changed",
-        colorClass: "text-[var(--nb-warn)]",
+        variant: "warn",
       };
     default:
       return {
         icon: Sparkle,
         label: customLabel ?? String(status),
-        colorClass: "text-[var(--nb-ink-2)]",
+        variant: "default",
       };
   }
 }
@@ -156,23 +155,23 @@ export const ArtifactListRow = React.forwardRef<
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         className={cn(
-          "output flex items-center gap-[var(--nb-space-3)] px-[var(--nb-space-3)] py-[var(--nb-space-2)] rounded-[var(--nb-radius-well)] hover:bg-[var(--nb-well)] transition-colors text-[var(--nb-ink)] w-full text-left",
-          isInteractive && "cursor-pointer focus-visible:outline-none focus-visible:ring-[var(--nb-ring-width)] focus-visible:ring-[var(--nb-focus)] focus-visible:ring-offset-[var(--nb-ring-offset)]",
+          "output flex items-center gap-[var(--nb-space-3)] px-[var(--nb-space-3)] py-[var(--nb-space-2)] rounded-[var(--nb-radius-well)] hover:bg-[var(--nb-well)] transition-colors duration-[var(--nb-dur-fast)] ease-[var(--nb-ease)] motion-reduce:transition-none text-[var(--nb-ink)] w-full text-left",
+          isInteractive && "cursor-pointer focus-visible:outline-[var(--nb-ring-width)] focus-visible:outline-solid focus-visible:outline-[var(--nb-focus)] focus-visible:outline-offset-[var(--nb-ring-offset)]",
           className
         )}
         {...props}
       >
         <span className="flex shrink-0 items-center justify-center text-[var(--nb-ink-2)]">
-          <TypeIcon size={18} aria-hidden="true" />
+          <TypeIcon size={20} aria-hidden="true" />
         </span>
 
         <span className="truncate font-medium text-sm text-[var(--nb-ink)] flex-1 min-w-0">
           {title}
         </span>
 
-        <span className="inline-flex shrink-0 items-center px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] rounded-[var(--nb-radius-full)] text-[var(--nb-text-2xs)] font-medium bg-[var(--nb-well)] text-[var(--nb-ink-2)] border border-[var(--nb-edge)] select-none">
+        <Badge variant="default" className="shrink-0">
           {formatTypeBadge(type)}
-        </span>
+        </Badge>
 
         <time
           dateTime={isoString}
@@ -181,20 +180,15 @@ export const ArtifactListRow = React.forwardRef<
           {relativeTime}
         </time>
 
-        <span
-          role="status"
-          className={cn(
-            "inline-flex shrink-0 items-center gap-[var(--nb-space-1)] text-xs font-medium",
-            statusCfg.colorClass
-          )}
-        >
+        <Badge role="status" variant={statusCfg.variant} className="shrink-0">
           <StatusIcon
-            size={14}
-            aria-hidden="true"
-            {...(statusCfg.spin ? { className: "animate-spin" } : {})}
+            {...resolveIconProps({ size: "sm", weight: "fill" })}
+            className={
+              statusCfg.spin ? "animate-spin motion-reduce:animate-none" : undefined
+            }
           />
           <span>{statusCfg.label}</span>
-        </span>
+        </Badge>
 
         {actions !== undefined ? (
           <div

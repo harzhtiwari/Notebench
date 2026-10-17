@@ -66,6 +66,73 @@ describe("session lockout patterns (ticket 05)", () => {
     );
   });
 
+  it("cannot be dismissed with Escape while unlocked", () => {
+    const onOpenChange = vi.fn();
+    render(
+      <LockscreenModal open onOpenChange={onOpenChange} onUnlock={() => {}} />
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("cannot be dismissed with Escape while locked", () => {
+    const onOpenChange = vi.fn();
+    render(
+      <LockscreenModal
+        open
+        lockedSecondsRemaining={30}
+        onOpenChange={onOpenChange}
+        onUnlock={() => {}}
+      />
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("ignores outside pointer downs", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <LockscreenModal open onOpenChange={onOpenChange} onUnlock={() => {}} />
+    );
+    // Radix registers its pointerdown listener on the next macrotask and
+    // defers the outside event to the following click.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    fireEvent.pointerDown(document.body, { button: 0 });
+    fireEvent.click(document.body);
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("does not call onUnlock while the lockout is active", () => {
+    const onUnlock = vi.fn();
+    const { baseElement } = render(
+      <LockscreenModal open lockedSecondsRemaining={30} onUnlock={onUnlock} />
+    );
+    const form = baseElement.querySelector("form");
+    expect(form).not.toBeNull();
+    if (form) {
+      fireEvent.submit(form);
+    }
+    expect(onUnlock).not.toHaveBeenCalled();
+  });
+
+  it("clears the passcode when the lockscreen closes and reopens", () => {
+    const { rerender } = render(<LockscreenModal open onUnlock={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Passcode"), {
+      target: { value: "hunter2" },
+    });
+    rerender(<LockscreenModal open={false} onUnlock={() => {}} />);
+    rerender(<LockscreenModal open onUnlock={() => {}} />);
+    const input = screen.getByLabelText("Passcode") as HTMLInputElement;
+    expect(input.value).toBe("");
+  });
+
+  it("shows the remaining attempts hint when the server reports it", () => {
+    render(<LockscreenModal open attemptsRemaining={2} onUnlock={() => {}} />);
+    expect(screen.getByText("2 attempts remaining.")).toBeDefined();
+  });
+
   it("useCountdown ticks down whole seconds and clamps at zero", () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000_000);

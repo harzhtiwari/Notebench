@@ -7,8 +7,9 @@ import {
   Warning,
   Question,
 } from "../primitives/icons.js";
-import { CitationPopover } from "./citation-popover.js";
-import { CitationChip } from "./citation-chip.js";
+import { CitationPopover } from "../primitives/overlays.js";
+import { CitationChip } from "../primitives/citations.js";
+import { Badge } from "../primitives/badges.js";
 import { cn } from "../../lib/utils.js";
 
 export type TimelineEventState =
@@ -80,9 +81,20 @@ export function getTimelineTimestamp(dateStr: string | undefined | null): number
   const trimmed = dateStr ? dateStr.trim() : "";
   if (/^-?\d{1,4}$/.test(trimmed)) {
     const year = parseInt(trimmed, 10);
-    return Date.UTC(year, 0, 1);
+    return yearOnlyTimestamp(year);
   }
   return Date.parse(trimmed);
+}
+
+/**
+ * Jan 1 UTC of a year-only token. `Date.UTC` remaps years 0-99 to 1900-1999,
+ * so the year is applied with `setUTCFullYear` to keep it literal.
+ */
+function yearOnlyTimestamp(year: number): number {
+  const date = new Date(0);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCFullYear(year, 0, 1);
+  return date.getTime();
 }
 
 /**
@@ -127,16 +139,16 @@ export function sortTimelineEvents<T extends { date?: string | undefined | null 
   events: readonly T[],
   direction: "asc" | "desc" = "asc"
 ): T[] {
-  return [...events].sort((a, b) => {
-    const timeA = getTimelineTimestamp(a.date);
-    const timeB = getTimelineTimestamp(b.date);
+  return events
+    .map((event, index) => ({ event, index, time: getTimelineTimestamp(event.date) }))
+    .sort((a, b) => {
+      if (a.time === null && b.time === null) return a.index - b.index;
+      if (a.time === null) return 1;
+      if (b.time === null) return -1;
 
-    if (timeA === null && timeB === null) return 0;
-    if (timeA === null) return 1;
-    if (timeB === null) return -1;
-
-    return direction === "asc" ? timeA - timeB : timeB - timeA;
-  });
+      return direction === "asc" ? a.time - b.time : b.time - a.time;
+    })
+    .map((entry) => entry.event);
 }
 
 export interface TimelineEventProps
@@ -180,7 +192,7 @@ export const TimelineEvent = React.forwardRef<HTMLLIElement, TimelineEventProps>
       tools,
       dateFormatOptions,
       unknownDateLabel = "Date unknown",
-      isLast = false,
+      isLast = true,
       children,
       ...props
     },
@@ -212,7 +224,7 @@ export const TimelineEvent = React.forwardRef<HTMLLIElement, TimelineEventProps>
           {marker ?? (
             <div
               data-slot="timeline-marker"
-              className="flex h-[var(--nb-size-control-sm)] w-[var(--nb-size-control-sm)] items-center justify-center rounded-[var(--nb-radius-full)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] text-[var(--nb-ink-2)]"
+              className="flex h-[var(--nb-size-control-sm)] w-[var(--nb-size-control-sm)] items-center justify-center rounded-[var(--nb-radius-control)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] text-[var(--nb-ink-2)]"
             >
               {icon ?? <GitBranch size={16} aria-hidden="true" />}
             </div>
@@ -227,70 +239,71 @@ export const TimelineEvent = React.forwardRef<HTMLLIElement, TimelineEventProps>
               {isDated ? (
                 <time
                   dateTime={date ? date.trim() : undefined}
-                  className="text-xs font-semibold uppercase tracking-[var(--nb-tracking-tight)] text-[var(--nb-ink-3)]"
+                  className="text-[length:var(--nb-text-xs)] font-[number:var(--nb-weight-semibold)] uppercase tracking-[var(--nb-tracking-tight)] text-[var(--nb-ink-3)]"
                 >
                   {formattedDate}
                 </time>
               ) : (
-                <span
+                <Badge
                   data-slot="date-badge"
-                  className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-tag)] border border-[var(--nb-hairline)] bg-[var(--nb-well)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-[var(--nb-text-2xs)] font-medium text-[var(--nb-ink-3)]"
+                  variant="default"
+                  icon={<Question size={12} aria-hidden="true" className="shrink-0" />}
+                  className="rounded-[var(--nb-radius-tag)] border border-[var(--nb-hairline)] text-[length:var(--nb-text-2xs)] font-[number:var(--nb-weight-medium)] text-[var(--nb-ink-3)]"
                 >
-                  <Question size={12} aria-hidden="true" className="shrink-0" />
-                  <span>{unknownDateLabel}</span>
-                </span>
+                  {unknownDateLabel}
+                </Badge>
               )}
 
               {/* State Badge (Never color-alone: icon + label) */}
               {state === "milestone" ? (
-                <span
+                <Badge
                   data-slot="state-badge"
-                  className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-tag)] border border-[var(--nb-ai)] bg-[var(--nb-ai-wash)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-[var(--nb-text-2xs)] font-medium text-[var(--nb-ai)]"
+                  variant="ai"
+                  icon={<GitBranch size={12} aria-hidden="true" />}
                 >
-                  <GitBranch size={12} aria-hidden="true" className="shrink-0" />
-                  <span>Milestone</span>
-                </span>
+                  Milestone
+                </Badge>
               ) : null}
 
               {state === "ai" ? (
-                <span
+                <Badge
                   data-slot="state-badge"
-                  className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-tag)] border border-[var(--nb-ai)] bg-[var(--nb-ai-wash)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-[var(--nb-text-2xs)] font-medium text-[var(--nb-ai)]"
+                  variant="ai"
+                  icon={<Sparkle size={12} aria-hidden="true" />}
                 >
-                  <Sparkle size={12} aria-hidden="true" className="shrink-0" />
-                  <span>AI</span>
-                </span>
+                  AI
+                </Badge>
               ) : null}
 
               {state === "you" ? (
-                <span
+                <Badge
                   data-slot="state-badge"
-                  className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-tag)] border border-[var(--nb-you)] bg-[var(--nb-you-wash)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-[var(--nb-text-2xs)] font-medium text-[var(--nb-you)]"
+                  variant="you"
+                  icon={<PencilSimple size={12} aria-hidden="true" />}
                 >
-                  <PencilSimple size={12} aria-hidden="true" className="shrink-0" />
-                  <span>You</span>
-                </span>
+                  You
+                </Badge>
               ) : null}
 
               {state === "stale" ? (
-                <span
+                <Badge
                   data-slot="state-badge"
-                  className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-tag)] border border-[var(--nb-warn)] bg-[var(--nb-warn-wash)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-[var(--nb-text-2xs)] font-medium text-[var(--nb-warn)]"
+                  variant="warn"
+                  icon={<Warning size={12} aria-hidden="true" />}
                 >
-                  <Warning size={12} aria-hidden="true" className="shrink-0" />
-                  <span>Stale</span>
-                </span>
+                  Stale
+                </Badge>
               ) : null}
 
               {/* Locked Badge (Never color-alone: icon + label) */}
               {locked ? (
-                <span
+                <Badge
                   data-slot="locked-badge"
-                  className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-tag)] border border-[var(--nb-hairline)] bg-[var(--nb-well)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-[var(--nb-text-2xs)] font-medium text-[var(--nb-ink-3)]"
+                  variant="default"
+                  icon={<Lock size={12} aria-hidden="true" />}
                 >
-                  <Lock size={12} aria-hidden="true" className="shrink-0" />
-                  <span>Locked</span>
-                </span>
+                  Locked
+                </Badge>
               ) : null}
 
               {badge}
@@ -300,11 +313,11 @@ export const TimelineEvent = React.forwardRef<HTMLLIElement, TimelineEventProps>
           </div>
 
           {/* Title */}
-          <h4 className="text-sm font-semibold text-[var(--nb-ink)]">{title}</h4>
+          <h4 className="text-[length:var(--nb-text-sm)] font-[number:var(--nb-weight-semibold)] text-[var(--nb-ink)]">{title}</h4>
 
           {/* Description */}
           {description ? (
-            <div className="mt-[var(--nb-space-1)] text-sm leading-[var(--nb-leading-ui)] text-[var(--nb-ink-2)]">
+            <div className="mt-[var(--nb-space-1)] text-[length:var(--nb-text-sm)] leading-[var(--nb-leading-ui)] text-[var(--nb-ink-2)]">
               {description}
             </div>
           ) : null}
@@ -396,7 +409,11 @@ export const TimelineTrack = React.forwardRef<HTMLOListElement, TimelineTrackPro
           resolvedEvents.map((event, index) => {
             const isLast = index === resolvedEvents.length - 1;
             if (renderEvent) {
-              return renderEvent(event, index, isLast);
+              return (
+                <React.Fragment key={event.id}>
+                  {renderEvent(event, index, isLast)}
+                </React.Fragment>
+              );
             }
             return (
               <TimelineEvent

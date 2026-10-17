@@ -11,7 +11,6 @@ import {
 } from "../primitives/dropdown-menu.js";
 import { Button } from "../primitives/button.js";
 import { Download } from "../primitives/icons.js";
-import { cn } from "../../lib/utils.js";
 
 export type ExportFormat = "markdown" | "text" | "json" | "csv" | "anki";
 
@@ -150,13 +149,13 @@ export function ExportMenu({
   const triggerNode = trigger ?? children ?? (
     <Button
       type="button"
-      variant="secondary"
-      size="sm"
+      variant="nb_btn_secondary"
+      size="nb_btn_sm"
+      leadingIcon={Download}
       disabled={disabled}
-      className={cn("gap-[var(--nb-space-2)]", triggerClassName)}
+      className={triggerClassName}
     >
-      <Download size={16} aria-hidden="true" />
-      <span>{buttonLabel}</span>
+      {buttonLabel}
     </Button>
   );
 

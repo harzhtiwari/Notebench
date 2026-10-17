@@ -199,6 +199,14 @@ describe("timeline patterns (ticket 17)", () => {
 
       expect(screen.getByRole("button", { name: "Edit Event" })).toBeDefined();
     });
+
+    it("renders no trailing connector spine for a standalone event", () => {
+      const { container } = render(
+        <TimelineEvent id="solo" date="2024-01-01" title="Solo event" />
+      );
+
+      expect(container.querySelector('li > span[aria-hidden="true"]')).toBeNull();
+    });
   });
 
   describe("Icon Centralization & GitBranch", () => {
@@ -301,6 +309,15 @@ describe("timeline patterns (ticket 17)", () => {
 
       const sorted = sortTimelineEvents(items);
       expect(sorted.map((item) => item.id)).toEqual(["3", "5", "2", "1", "4"]);
+    });
+
+    it("orders year-only dates below 100 before later centuries", () => {
+      const sorted = sortTimelineEvents([
+        { id: "1900", date: "1900-01-01" },
+        { id: "50", date: "50" },
+      ]);
+
+      expect(sorted.map((item) => item.id)).toEqual(["50", "1900"]);
     });
   });
 });

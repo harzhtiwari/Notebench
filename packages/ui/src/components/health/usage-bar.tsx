@@ -85,12 +85,12 @@ export function UsageBar({
             className="text-[var(--nb-ink-2)]"
             aria-hidden="true"
           />
-          <h3 className="font-semibold text-[var(--nb-ink)] text-[var(--nb-text-md)]">
+          <h3 className="font-[number:var(--nb-weight-semibold)] text-[var(--nb-ink)] text-[length:var(--nb-text-md)]">
             {title}
           </h3>
         </div>
-        <div className="flex items-center gap-[var(--nb-space-2)] text-[var(--nb-text-sm)]">
-          <span className="font-semibold text-[var(--nb-ink)]">
+        <div className="flex items-center gap-[var(--nb-space-2)] text-[length:var(--nb-text-sm)]">
+          <span className="font-[number:var(--nb-weight-semibold)] text-[var(--nb-ink)]">
             {formatBytes(computedTotal)}
           </span>
           <span className="text-[var(--nb-ink-3)]">
@@ -107,7 +107,7 @@ export function UsageBar({
           aria-valuemin={0}
           aria-valuemax={capBytes}
           aria-label={`${title}: ${formatBytes(computedTotal)} of ${formatBytes(capBytes)} used (${percentage}%)`}
-          className="relative flex h-[var(--nb-size-icon-md)] w-full overflow-hidden rounded-[var(--nb-radius-xs)] border border-[var(--nb-hairline)] bg-[var(--nb-well)]"
+          className="relative flex h-[var(--nb-size-icon-md)] w-full overflow-hidden rounded-[var(--nb-radius-tag)] border border-[var(--nb-hairline)] bg-[var(--nb-well)]"
         >
           {categories.map((cat, idx) => {
             if (cat.bytes <= 0 || capBytes <= 0) return null;
@@ -117,7 +117,7 @@ export function UsageBar({
             return (
               <span
                 key={cat.id}
-                className={cn("chart-bar h-full transition-all", seriesClass)}
+                className={cn("chart-bar h-full transition-[width] duration-[var(--nb-dur-base)] ease-[var(--nb-ease)] motion-reduce:transition-none", seriesClass)}
                 style={{
                   width: `${catPct}%`,
                   backgroundColor: cat.color ?? tokenColor,
@@ -140,12 +140,12 @@ export function UsageBar({
           const tokenColor = CHART_SERIES_TOKENS[idx % CHART_SERIES_TOKENS.length];
           return (
             <div key={cat.id} className="chart-row">
-              <span className="truncate font-medium text-[var(--nb-ink)] text-[var(--nb-text-sm)]">
+              <span className="truncate font-[number:var(--nb-weight-medium)] text-[var(--nb-ink)] text-[length:var(--nb-text-sm)]">
                 {cat.label}
               </span>
-              <div className="h-[var(--nb-size-icon-md)] w-full overflow-hidden rounded-[var(--nb-radius-xs)] bg-[var(--nb-well)]">
+              <div className="h-[var(--nb-size-icon-md)] w-full overflow-hidden rounded-[var(--nb-radius-tag)] bg-[var(--nb-well)]">
                 <span
-                  className={cn("chart-bar block h-full", seriesClass)}
+                  className={cn("chart-bar block h-full rounded-[var(--nb-radius-tag)]", seriesClass)}
                   style={{
                     width: `${catPct}%`,
                     backgroundColor: cat.color ?? tokenColor,
@@ -153,7 +153,7 @@ export function UsageBar({
                   aria-hidden="true"
                 />
               </div>
-              <span className="num mono text-right font-mono text-[var(--nb-ink-2)] text-[var(--nb-text-xs)]">
+              <span className="num mono text-right font-[family-name:var(--nb-font-mono)] text-[var(--nb-ink-2)] text-[length:var(--nb-text-xs)]">
                 {formatBytes(cat.bytes)}
               </span>
             </div>

@@ -1,9 +1,14 @@
 import * as React from "react";
-import { Button } from "../primitives/button.js";
+import { IconButton } from "../primitives/button.js";
+import { Input } from "../primitives/fields.js";
 import { PaperPlaneRight } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
-export interface ComposerProps {
+export interface ComposerProps
+  extends Omit<
+    React.HTMLAttributes<HTMLDivElement>,
+    "onChange" | "onKeyDown" | "onSubmit" | "children"
+  > {
   value?: string | undefined;
   defaultValue?: string | undefined;
   placeholder?: string | undefined;
@@ -22,7 +27,7 @@ export interface ComposerProps {
   footer?: React.ReactNode | undefined;
 }
 
-export interface ComposerRowProps extends React.HTMLAttributes<HTMLDivElement> {}
+export type ComposerRowProps = React.HTMLAttributes<HTMLDivElement>;
 
 export const ComposerRow = React.forwardRef<HTMLDivElement, ComposerRowProps>(
   ({ className, ...props }, ref) => (
@@ -35,16 +40,14 @@ export const ComposerRow = React.forwardRef<HTMLDivElement, ComposerRowProps>(
 );
 ComposerRow.displayName = "ComposerRow";
 
-export interface ComposerInputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {}
+export type ComposerInputProps = React.InputHTMLAttributes<HTMLInputElement>;
 
 export const ComposerInput = React.forwardRef<HTMLInputElement, ComposerInputProps>(
-  ({ className, disabled, ...props }, ref) => (
-    <input
+  ({ className, ...props }, ref) => (
+    <Input
       ref={ref}
-      disabled={disabled}
       className={cn(
-        "composer-input flex-1 min-w-[var(--nb-size-composer-min)] bg-transparent border-0 text-[var(--nb-ink)] font-inherit text-[length:var(--nb-text-md)] min-h-[var(--nb-size-control-md)] placeholder:text-[var(--nb-ink-3)] placeholder:opacity-100 focus-visible:outline-none disabled:cursor-not-allowed disabled:text-[var(--nb-disabled-fg)]",
+        "composer-input flex-1 min-w-[var(--nb-size-composer-min)] rounded-none border-0 bg-transparent px-0 py-0 font-[family-name:var(--nb-font-ui)] text-[length:var(--nb-text-md)] text-[var(--nb-ink)] placeholder:text-[var(--nb-ink-3)] placeholder:opacity-100 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-transparent disabled:text-[var(--nb-disabled-fg)]",
         className
       )}
       {...props}
@@ -54,7 +57,7 @@ export const ComposerInput = React.forwardRef<HTMLInputElement, ComposerInputPro
 ComposerInput.displayName = "ComposerInput";
 
 /**
- * Board `.composer` pattern (docs/ui/board.test.html:541-546).
+ * Board `.composer` pattern (board.test.html:541-546).
  * Grounded chat input with send button, Enter-to-submit, and secondary slot.
  */
 export const Composer = React.forwardRef<HTMLDivElement, ComposerProps>(
@@ -83,6 +86,7 @@ export const Composer = React.forwardRef<HTMLDivElement, ComposerProps>(
     const isControlled = value !== undefined;
     const [internalValue, setInternalValue] = React.useState(defaultValue ?? "");
     const currentValue = isControlled ? value : internalValue;
+    const { onChange: inputOnChange, ...restInputProps } = inputProps ?? {};
 
     const trimmed = currentValue.trim();
     const canSend = !disabled && (allowEmpty || trimmed.length > 0);
@@ -102,6 +106,7 @@ export const Composer = React.forwardRef<HTMLDivElement, ComposerProps>(
       }
       onChange?.(e);
       onValueChange?.(e.target.value);
+      inputOnChange?.(e);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -121,7 +126,7 @@ export const Composer = React.forwardRef<HTMLDivElement, ComposerProps>(
       <div
         ref={ref}
         className={cn(
-          "composer grid gap-[var(--nb-space-2)] bg-[var(--nb-sheet)] border border-[var(--nb-edge)] rounded-[var(--nb-radius-composer)] p-[var(--nb-space-3)] pl-[var(--nb-space-5)] shadow-[var(--nb-shadow-float)] focus-within:outline focus-within:outline-[length:var(--nb-ring-width)] focus-within:outline-[var(--nb-focus)] focus-within:outline-offset-[var(--nb-ring-offset)]",
+          "composer grid gap-[var(--nb-space-2)] bg-[var(--nb-sheet)] border border-[var(--nb-edge)] rounded-[var(--nb-radius-composer)] p-[var(--nb-space-3)] pl-[var(--nb-space-5)] shadow-[var(--nb-shadow-float)] focus-within:outline-solid focus-within:outline-[length:var(--nb-ring-width)] focus-within:outline-[var(--nb-focus)] focus-within:outline-offset-[var(--nb-ring-offset)]",
           disabled && "opacity-60",
           className
         )}
@@ -136,18 +141,17 @@ export const Composer = React.forwardRef<HTMLDivElement, ComposerProps>(
             disabled={disabled}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            {...inputProps}
+            {...restInputProps}
           />
-          <Button
+          <IconButton
             type="button"
-            variant="default"
-            size="icon"
+            variant="nb_btn_primary"
+            size="nb_btn_icon_md"
             aria-label={sendAriaLabel}
             disabled={!canSend}
             onClick={handleSend}
-          >
-            <PaperPlaneRight size={16} weight="bold" />
-          </Button>
+            icon={PaperPlaneRight}
+          />
         </ComposerRow>
         {secondaryContent ? <ComposerRow>{secondaryContent}</ComposerRow> : null}
       </div>

@@ -8,3 +8,4 @@ export * from "./notebook-meta.js";
 export * from "./notebook-row.js";
 export * from "./sort-select.js";
 export * from "./view-toggle.js";
+export { SearchInput } from "../primitives/fields.js";

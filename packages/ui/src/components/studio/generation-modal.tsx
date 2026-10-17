@@ -1,16 +1,17 @@
 import * as React from "react";
 import {
   Dialog,
+  DialogBody,
+  DialogCloseButton,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "../primitives/dialog.js";
+} from "../primitives/overlays.js";
 import { Button } from "../primitives/button.js";
 import { AlertBanner } from "../primitives/banners.js";
-import { FileText } from "../primitives/icons.js";
-import { cn } from "../../lib/utils.js";
+import { FileText, resolveIconProps } from "../primitives/icons.js";
 import type { StudioToolItem } from "./tool-tile.js";
 
 export interface SourceSummaryItem {
@@ -70,21 +71,19 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className={cn(
-          "max-w-[var(--nb-layout-modal-md)] rounded-[var(--nb-radius-modal)] border border-[var(--nb-edge)] bg-[var(--nb-sheet)] text-[var(--nb-ink)] p-[var(--nb-space-6)] shadow-[var(--nb-shadow-modal)]",
-          className
-        )}
-      >
+      <DialogContent size="md" className={className}>
         <DialogHeader>
-          <DialogTitle>Generate {toolTitle}</DialogTitle>
-          <DialogDescription>
-            {tool?.description ??
-              "Synthesize your selected notebook sources into a structured deliverable."}
-          </DialogDescription>
+          <div className="grid min-w-0 gap-[var(--nb-space-1)]">
+            <DialogTitle>Generate {toolTitle}</DialogTitle>
+            <DialogDescription>
+              {tool?.description ??
+                "Synthesize your selected notebook sources into a structured deliverable."}
+            </DialogDescription>
+          </div>
+          <DialogCloseButton />
         </DialogHeader>
 
-        <div className="grid gap-[var(--nb-space-4)] py-[var(--nb-space-2)]">
+        <DialogBody className="gap-[var(--nb-space-4)]">
           {!hasSources ? (
             <AlertBanner
               tone="warn"
@@ -106,8 +105,7 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
                       className="flex items-center gap-[var(--nb-space-2)] px-[var(--nb-space-2)] py-[var(--nb-space-1)] text-sm text-[var(--nb-ink)]"
                     >
                       <FileText
-                        size={16}
-                        aria-hidden="true"
+                        {...resolveIconProps({ size: "sm" })}
                         className="shrink-0 text-[var(--nb-ink-2)]"
                       />
                       <span className="truncate">{src.title}</span>
@@ -119,12 +117,12 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
           )}
 
           {children}
-        </div>
+        </DialogBody>
 
-        <DialogFooter className="flex flex-row items-center justify-end gap-[var(--nb-space-2)] pt-[var(--nb-space-2)]">
+        <DialogFooter>
           <Button
             type="button"
-            variant="ghost"
+            variant="nb_btn_ghost"
             onClick={() => onOpenChange(false)}
             disabled={isGenerating}
           >
@@ -132,7 +130,7 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
           </Button>
           <Button
             type="button"
-            variant="default"
+            variant="nb_btn_primary"
             disabled={!hasSources || isGenerating}
             onClick={onGenerate}
           >

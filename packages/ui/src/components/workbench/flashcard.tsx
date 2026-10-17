@@ -1,6 +1,13 @@
 import * as React from "react";
 import type { FlashcardItem } from "@notebook/contracts";
-import { Button } from "../primitives/button.js";
+import {
+  Badge,
+  Button,
+  Card,
+  FormField,
+  IconButton,
+  Textarea,
+} from "../primitives/index.js";
 import {
   FlipHorizontal,
   CheckCircle,
@@ -73,89 +80,72 @@ export const Flashcard = React.forwardRef<HTMLDivElement, FlashcardProps>(
 
     if (isEditing) {
       return (
-        <div
+        <Card
           ref={ref}
           role="region"
           aria-label="Edit flashcard"
-          className={cn(
-            "grid gap-[var(--nb-space-3)] rounded-[var(--nb-radius-card)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-[var(--nb-space-4)] text-[var(--nb-ink)]",
-            className
-          )}
+          className={cn("grid gap-[var(--nb-space-3)]", className)}
           {...props}
         >
           <div className="flex items-center justify-between border-b border-[var(--nb-hairline)] pb-[var(--nb-space-2)]">
-            <span className="text-xs font-semibold text-[var(--nb-ink-3)] uppercase tracking-wider">
+            <span className="text-xs font-semibold text-[var(--nb-ink-3)]">
               Edit Card
             </span>
             {onDelete !== undefined ? (
               <Button
-                variant="ghost"
-                size="sm"
+                variant="nb_btn_ghost"
+                size="nb_btn_sm"
                 onClick={onDelete}
                 aria-label="Delete card"
-                className="h-[var(--nb-size-control-sm)] text-[var(--nb-danger)] hover:bg-[var(--nb-danger-wash)]"
+                leadingIcon={Trash}
+                className="text-[var(--nb-danger)] hover:bg-[var(--nb-danger-wash)]"
               >
-                <Trash size={14} aria-hidden="true" />
                 Delete
               </Button>
             ) : null}
           </div>
 
-          <div className="grid gap-[var(--nb-space-2)]">
-            <label
-              htmlFor={`flashcard-front-${card.id}`}
-              className="text-xs font-medium text-[var(--nb-ink-2)]"
-            >
-              Front
-            </label>
-            <textarea
+          <FormField label="Front">
+            <Textarea
               id={`flashcard-front-${card.id}`}
               value={editFront}
               onChange={(e) => setEditFront(e.target.value)}
               rows={3}
-              className="w-full rounded-[var(--nb-radius-well)] border border-[var(--nb-hairline)] bg-[var(--nb-well)] p-[var(--nb-space-2)] font-[var(--nb-font-ui)] text-sm text-[var(--nb-ink)] focus:outline-none focus:ring-[var(--nb-ring-width)] focus:ring-[var(--nb-focus)]"
             />
-          </div>
+          </FormField>
 
-          <div className="grid gap-[var(--nb-space-2)]">
-            <label
-              htmlFor={`flashcard-back-${card.id}`}
-              className="text-xs font-medium text-[var(--nb-ink-2)]"
-            >
-              Back
-            </label>
-            <textarea
+          <FormField label="Back">
+            <Textarea
               id={`flashcard-back-${card.id}`}
               value={editBack}
               onChange={(e) => setEditBack(e.target.value)}
               rows={3}
-              className="w-full rounded-[var(--nb-radius-well)] border border-[var(--nb-hairline)] bg-[var(--nb-well)] p-[var(--nb-space-2)] font-[var(--nb-font-ui)] text-sm text-[var(--nb-ink)] focus:outline-none focus:ring-[var(--nb-ring-width)] focus:ring-[var(--nb-focus)]"
             />
-          </div>
+          </FormField>
 
           <div className="flex items-center justify-end gap-[var(--nb-space-2)] pt-[var(--nb-space-2)]">
             {onEditToggle !== undefined ? (
-              <Button variant="ghost" size="sm" onClick={onEditToggle}>
+              <Button variant="nb_btn_ghost" size="nb_btn_sm" onClick={onEditToggle}>
                 Cancel
               </Button>
             ) : null}
-            <Button variant="default" size="sm" onClick={handleSave}>
+            <Button variant="nb_btn_primary" size="nb_btn_sm" onClick={handleSave}>
               Save
             </Button>
           </div>
-        </div>
+        </Card>
       );
     }
 
     return (
-      <div
+      <Card
         ref={ref}
         role="region"
         tabIndex={0}
         aria-label={`Flashcard: ${flipped ? "Back side" : "Front side"}`}
         onKeyDown={handleKeyDown}
         className={cn(
-          "grid min-h-[var(--nb-size-composer-min)] grid-rows-[auto_1fr_auto] gap-[var(--nb-space-3)] rounded-[var(--nb-radius-card)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-[var(--nb-space-4)] text-[var(--nb-ink)] transition-shadow duration-[var(--nb-dur-base)] hover:border-[var(--nb-edge)] focus-visible:outline-[var(--nb-ring-width)] focus-visible:outline-[var(--nb-focus)]",
+          "grid min-h-[var(--nb-size-composer-min)] grid-rows-[auto_1fr_auto] gap-[var(--nb-space-3)] transition-shadow duration-[var(--nb-dur-base)] hover:border-[var(--nb-edge)] focus-visible:outline-solid focus-visible:outline-[length:var(--nb-ring-width)] focus-visible:outline-[var(--nb-focus)]",
           className
         )}
         {...props}
@@ -163,34 +153,32 @@ export const Flashcard = React.forwardRef<HTMLDivElement, FlashcardProps>(
         {/* Top Header: Side Indicator + Status + Edit Affordance */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-[var(--nb-space-2)]">
-            <span className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-chip)] bg-[var(--nb-well)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-xs font-semibold text-[var(--nb-ink-2)]">
-              <FlipHorizontal size={14} aria-hidden="true" />
+            <Badge
+              variant="default"
+              icon={<FlipHorizontal size={16} weight="bold" aria-hidden="true" />}
+            >
               {flipped ? "Back" : "Front"}
-            </span>
+            </Badge>
             {isKnown === true ? (
-              <span className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-chip)] bg-[var(--nb-ok-wash)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-xs font-semibold text-[var(--nb-ok)]">
-                <CheckCircle size={14} weight="fill" aria-hidden="true" />
+              <Badge variant="ok" icon={<CheckCircle size={16} weight="fill" aria-hidden="true" />}>
                 Known
-              </span>
+              </Badge>
             ) : isKnown === false ? (
-              <span className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-chip)] bg-[var(--nb-warn-wash)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] text-xs font-semibold text-[var(--nb-warn)]">
-                <XCircle size={14} weight="fill" aria-hidden="true" />
+              <Badge variant="warn" icon={<XCircle size={16} weight="fill" aria-hidden="true" />}>
                 Still learning
-              </span>
+              </Badge>
             ) : null}
           </div>
 
           <div className="flex items-center gap-[var(--nb-space-1)]">
             {onEditToggle !== undefined ? (
-              <Button
-                variant="ghost"
-                size="sm"
+              <IconButton
+                variant="nb_btn_ghost"
+                size="nb_btn_icon_sm"
+                icon={PencilSimple}
                 onClick={onEditToggle}
                 aria-label="Edit card"
-                className="h-[var(--nb-size-control-sm)] w-[var(--nb-size-control-sm)] p-0"
-              >
-                <PencilSimple size={14} aria-hidden="true" />
-              </Button>
+              />
             ) : null}
           </div>
         </div>
@@ -200,7 +188,7 @@ export const Flashcard = React.forwardRef<HTMLDivElement, FlashcardProps>(
           onClick={onFlip}
           className="flex cursor-pointer flex-col items-center justify-center p-[var(--nb-space-4)] text-center select-none"
         >
-          <p className="font-[var(--nb-font-read)] text-[var(--nb-text-lg)] leading-[var(--nb-leading-read)] text-[var(--nb-ink)]">
+          <p className="font-[family-name:var(--nb-font-read)] text-[length:var(--nb-text-lg)] leading-[var(--nb-leading-read)] text-[var(--nb-ink)]">
             {flipped ? card.back : card.front}
           </p>
         </div>
@@ -210,25 +198,25 @@ export const Flashcard = React.forwardRef<HTMLDivElement, FlashcardProps>(
           <div className="flex items-center gap-[var(--nb-space-2)]">
             {onMarkUnknown !== undefined ? (
               <Button
-                variant="ghost"
-                size="sm"
+                variant="nb_btn_ghost"
+                size="nb_btn_sm"
                 onClick={onMarkUnknown}
                 aria-label="Mark as unknown"
-                className="h-[var(--nb-size-control-sm)] px-[var(--nb-space-2)] text-xs text-[var(--nb-warn)] hover:bg-[var(--nb-warn-wash)]"
+                leadingIcon={XCircle}
+                className="text-[var(--nb-warn)] hover:bg-[var(--nb-warn-wash)]"
               >
-                <XCircle size={14} aria-hidden="true" />
                 Still learning
               </Button>
             ) : null}
             {onMarkKnown !== undefined ? (
               <Button
-                variant="ghost"
-                size="sm"
+                variant="nb_btn_ghost"
+                size="nb_btn_sm"
                 onClick={onMarkKnown}
                 aria-label="Mark as known"
-                className="h-[var(--nb-size-control-sm)] px-[var(--nb-space-2)] text-xs text-[var(--nb-ok)] hover:bg-[var(--nb-ok-wash)]"
+                leadingIcon={CheckCircle}
+                className="text-[var(--nb-ok)] hover:bg-[var(--nb-ok-wash)]"
               >
-                <CheckCircle size={14} aria-hidden="true" />
                 Mark as known
               </Button>
             ) : null}
@@ -236,18 +224,17 @@ export const Flashcard = React.forwardRef<HTMLDivElement, FlashcardProps>(
 
           {onFlip !== undefined ? (
             <Button
-              variant="outline"
-              size="sm"
+              variant="nb_btn_secondary"
+              size="nb_btn_sm"
               onClick={onFlip}
               aria-label="Flip card"
-              className="h-[var(--nb-size-control-sm)] gap-[var(--nb-space-1)] text-xs"
+              leadingIcon={FlipHorizontal}
             >
-              <FlipHorizontal size={14} aria-hidden="true" />
               Flip
             </Button>
           ) : null}
         </div>
-      </div>
+      </Card>
     );
   }
 );

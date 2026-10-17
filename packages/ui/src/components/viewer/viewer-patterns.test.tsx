@@ -3,7 +3,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
 import { ViewerModal, CheckboxRow, OpenInViewerRow } from "./index.js";
-import { CitationTooltip } from "../chat/index.js";
+import { CitationTooltip } from "../primitives/citations.js";
 
 afterEach(() => {
   cleanup();

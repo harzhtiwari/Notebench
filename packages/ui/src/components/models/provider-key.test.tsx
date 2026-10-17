@@ -2,11 +2,8 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
-import {
-  ProviderRow,
-  KeyTestButton,
-  CloudDisclosureBadge,
-} from "./index.js";
+import { ProviderRow, KeyTestButton } from "./index.js";
+import { CloudDisclosureBadge } from "../primitives/badges.js";
 
 afterEach(() => {
   cleanup();

@@ -1,21 +1,22 @@
 import * as React from "react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import type { DeletionLevel } from "@notebook/contracts";
 import { Button } from "../primitives/button.js";
-import { CheckboxRow } from "./checkbox-row.js";
+import { CheckboxRow } from "../primitives/fields.js";
 import {
   Dialog,
-  DialogOverlay,
-  DialogPortal,
-  DialogTitle,
+  DialogBody,
+  DialogCloseButton,
+  DialogContent,
   DialogDescription,
-} from "../primitives/dialog.js";
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../primitives/overlays.js";
 import {
   ArrowCounterClockwise,
   Download,
   Trash,
   Warning,
-  X,
 } from "../primitives/icons.js";
 import { ReauthField, type ReauthMode } from "./reauth-field.js";
 import {
@@ -76,7 +77,7 @@ export interface ConfirmDialogProps {
  * matching PRD Decisions 1.42, 6.7, 7.1, 7.7, and 7.9.
  */
 const ConfirmDialog = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ElementRef<typeof DialogContent>,
   ConfirmDialogProps
 >(
   (
@@ -210,40 +211,30 @@ const ConfirmDialog = React.forwardRef<
 
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogPortal>
-          <DialogOverlay />
-          <DialogPrimitive.Content
-            ref={ref}
-            aria-describedby={undefined}
-            className={cn(
-              "fixed left-[50%] top-[50%] z-50 grid w-[min(var(--nb-layout-modal-sm),calc(100%-var(--nb-space-8)))] max-h-[85vh] translate-x-[-50%] translate-y-[-50%] gap-[var(--nb-space-4)] overflow-y-auto rounded-[var(--nb-radius-modal)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-[var(--nb-space-6)] text-[var(--nb-ink)] shadow-[var(--nb-shadow-modal)]",
-              className
-            )}
-            {...props}
-          >
-            <div className="dlg-head flex items-start justify-between gap-[var(--nb-space-3)]">
-              <div className="flex items-center gap-[var(--nb-space-3)]">
-                {renderIcon()}
-                <div className="grid gap-[var(--nb-space-0-5)]">
-                  <DialogTitle>{displayTitle}</DialogTitle>
-                  {targetName ? (
-                    <p className="text-xs font-medium text-[var(--nb-ink-2)]">
-                      {targetName}
-                    </p>
-                  ) : null}
-                </div>
+        <DialogContent
+          ref={ref}
+          size="sm"
+          aria-describedby={undefined}
+          className={cn("max-h-[calc(100%-var(--nb-space-8))] overflow-y-auto", className)}
+          {...props}
+        >
+          <DialogHeader>
+            <div className="flex items-center gap-[var(--nb-space-3)]">
+              {renderIcon()}
+              <div className="grid gap-[var(--nb-space-0-5)]">
+                <DialogTitle>{displayTitle}</DialogTitle>
+                {targetName ? (
+                  <p className="text-[length:var(--nb-text-xs)] font-[number:var(--nb-weight-medium)] text-[var(--nb-ink-2)]">
+                    {targetName}
+                  </p>
+                ) : null}
               </div>
-              <DialogPrimitive.Close
-                aria-label="Close"
-                onClick={onCancel}
-                className="inline-flex min-h-[var(--nb-size-control-sm)] min-w-[var(--nb-size-control-sm)] items-center justify-center rounded-[var(--nb-radius-control)] text-[var(--nb-ink-2)] hover:bg-[var(--nb-well-hover)]"
-              >
-                <X size={16} aria-hidden="true" />
-              </DialogPrimitive.Close>
             </div>
+            <DialogCloseButton onClick={onCancel} />
+          </DialogHeader>
 
-            <div className="dlg-body grid gap-[var(--nb-space-4)]">
-              <DialogDescription className="text-xs text-[var(--nb-ink-2)]">
+            <DialogBody className="gap-[var(--nb-space-4)]">
+              <DialogDescription className="text-[length:var(--nb-text-xs)] text-[var(--nb-ink-2)]">
                 {displayDescription}
               </DialogDescription>
 
@@ -251,20 +242,20 @@ const ConfirmDialog = React.forwardRef<
               {onExportBackup ? (
                 <div className="grid gap-[var(--nb-space-2)] rounded-[var(--nb-radius-card)] border border-[var(--nb-hairline)] bg-[var(--nb-well)] p-[var(--nb-space-3)]">
                   <div className="flex items-center justify-between gap-[var(--nb-space-3)]">
-                    <div className="flex items-center gap-[var(--nb-space-2)] text-xs text-[var(--nb-ink)]">
+                    <div className="flex items-center gap-[var(--nb-space-2)] text-[length:var(--nb-text-xs)] text-[var(--nb-ink)]">
                       <Download size={16} aria-hidden="true" className="shrink-0 text-[var(--nb-ink-2)]" />
                       <span>Back up your data before deleting.</span>
                     </div>
                     <Button
                       type="button"
-                      variant="outline"
-                      size="sm"
+                      variant="nb_btn_secondary"
+                      size="nb_btn_sm"
                       onClick={() => {
                         setBackupExported(true);
                         onExportBackup();
                       }}
+                      leadingIcon={Download}
                     >
-                      <Download size={16} aria-hidden="true" className="mr-[var(--nb-space-1)]" />
                       {exportBackupLabel}
                     </Button>
                   </div>
@@ -274,7 +265,7 @@ const ConfirmDialog = React.forwardRef<
                       onChange={(checked) => {
                         setBackupAcknowledged(checked);
                       }}
-                      className="text-xs"
+                      className="text-[length:var(--nb-text-xs)]"
                     >
                       I have already backed up this data or do not require an export
                     </CheckboxRow>
@@ -285,11 +276,13 @@ const ConfirmDialog = React.forwardRef<
               {/* Effect List */}
               {displayEffects && displayEffects.length > 0 ? (
                 <div className="grid gap-[var(--nb-space-2)] rounded-[var(--nb-radius-control)] border border-[var(--nb-hairline)] bg-[var(--nb-well)] p-[var(--nb-space-3)]">
-                  <p className="text-xs font-semibold text-[var(--nb-ink)]">What will happen:</p>
-                  <ul className="grid gap-[var(--nb-space-1)] text-xs text-[var(--nb-ink-2)]">
+                  <p className="text-[length:var(--nb-text-xs)] font-[number:var(--nb-weight-semibold)] text-[var(--nb-ink)]">
+                    What will happen:
+                  </p>
+                  <ul className="grid gap-[var(--nb-space-1)] text-[length:var(--nb-text-xs)] text-[var(--nb-ink-2)]">
                     {displayEffects.map((effect, idx) => (
                       <li key={idx} className="flex items-start gap-[var(--nb-space-2)]">
-                        <span className="text-[var(--nb-danger)] font-bold">•</span>
+                        <span className="text-[var(--nb-danger)] font-[number:var(--nb-weight-bold)]">•</span>
                         <span>{effect}</span>
                       </li>
                     ))}
@@ -299,8 +292,8 @@ const ConfirmDialog = React.forwardRef<
 
               {/* Honest Limits Disclosure (Decision 7.9) */}
               {displayDisclosures && displayDisclosures.length > 0 ? (
-                <div className="grid gap-[var(--nb-space-1)] rounded-[var(--nb-radius-control)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-[var(--nb-space-3)] text-xs text-[var(--nb-ink-2)]">
-                  <p className="font-semibold text-[var(--nb-ink)]">Honest limits disclosure:</p>
+                <div className="grid gap-[var(--nb-space-1)] rounded-[var(--nb-radius-control)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-[var(--nb-space-3)] text-[length:var(--nb-text-xs)] text-[var(--nb-ink-2)]">
+                  <p className="font-[number:var(--nb-weight-semibold)] text-[var(--nb-ink)]">Honest limits disclosure:</p>
                   {displayDisclosures.map((disclosure, idx) => (
                     <p key={idx}>{disclosure}</p>
                   ))}
@@ -318,13 +311,13 @@ const ConfirmDialog = React.forwardRef<
                   disabled={isPending}
                 />
               ) : null}
-            </div>
+            </DialogBody>
 
             {/* Actions */}
-            <div className="dlg-foot flex flex-col-reverse gap-[var(--nb-space-2)] sm:flex-row sm:justify-end sm:gap-[var(--nb-space-2)] pt-[var(--nb-space-2)]">
+            <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-end sm:gap-[var(--nb-space-2)]">
               <Button
                 type="button"
-                variant="outline"
+                variant="nb_btn_secondary"
                 disabled={isPending}
                 onClick={() => {
                   onCancel?.();
@@ -335,18 +328,17 @@ const ConfirmDialog = React.forwardRef<
               </Button>
               <Button
                 type="button"
-                variant="destructive"
+                variant="nb_btn_danger"
                 disabled={!canConfirm || isPending}
                 onClick={() => {
                   void onConfirm(currentReauth);
                 }}
+                leadingIcon={Trash}
               >
-                <Trash size={16} aria-hidden="true" className="mr-[var(--nb-space-2)] shrink-0" />
                 {isPending ? "Deleting..." : defaultConfirmLabel}
               </Button>
-            </div>
-          </DialogPrimitive.Content>
-        </DialogPortal>
+            </DialogFooter>
+        </DialogContent>
       </Dialog>
     );
   }

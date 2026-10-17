@@ -1,4 +1,5 @@
 import * as React from "react";
+import { IconButton } from "../primitives/button.js";
 import { ClockCounterClockwise, ArrowUUpLeft } from "../primitives/icons.js";
 import { formatRelativeTime } from "../../lib/formatters.js";
 import { cn } from "../../lib/utils.js";
@@ -24,6 +25,9 @@ export interface HistoryRowProps
 /**
  * HistoryRow (ticket 11): chat history row with question text, timestamp /
  * relative time, and action affordance.
+ *
+ * The row and the action are sibling controls (never nested), so keyboard
+ * activation of the action can never also select the row.
  */
 const HistoryRow = React.forwardRef<HTMLDivElement, HistoryRowProps>(
   (
@@ -47,15 +51,10 @@ const HistoryRow = React.forwardRef<HTMLDivElement, HistoryRowProps>(
         displayTime = formatRelativeTime(timestamp);
       } else if (timestamp instanceof Date) {
         displayTime = formatRelativeTime(timestamp.toISOString());
-      } else if (typeof timestamp === "number") {
+      } else if (typeof timestamp === "number" && Number.isFinite(timestamp)) {
         displayTime = formatRelativeTime(new Date(timestamp).toISOString());
       }
     }
-
-    const handleRowClick = (e: React.MouseEvent<HTMLDivElement>) => {
-      onClick?.(e);
-      onSelect?.(question);
-    };
 
     const handleActionClick = (e: React.MouseEvent<HTMLButtonElement>) => {
       e.stopPropagation();
@@ -69,46 +68,43 @@ const HistoryRow = React.forwardRef<HTMLDivElement, HistoryRowProps>(
     return (
       <div
         ref={ref}
-        role="button"
-        tabIndex={0}
-        onClick={handleRowClick}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onSelect?.(question);
-          }
-        }}
+        onClick={onClick}
         className={cn(
-          "group flex min-h-[var(--nb-size-control-md)] cursor-pointer items-center justify-between gap-[var(--nb-space-3)] rounded-[var(--nb-radius-control)] px-[var(--nb-space-3)] py-[var(--nb-space-2)] text-sm text-[var(--nb-ink)] transition-colors hover:bg-[var(--nb-well)] focus-visible:outline focus-visible:outline-[var(--nb-ring-width)] focus-visible:outline-[var(--nb-focus)] focus-visible:outline-offset-[var(--nb-ring-offset)]",
+          "group flex min-h-[var(--nb-size-control-md)] items-center justify-between gap-[var(--nb-space-3)] rounded-[var(--nb-radius-control)] px-[var(--nb-space-3)] py-[var(--nb-space-2)] text-[length:var(--nb-text-sm)] text-[var(--nb-ink)] transition-colors duration-[var(--nb-dur-fast)] ease-[var(--nb-ease)] motion-reduce:transition-none hover:bg-[var(--nb-well)]",
           className
         )}
         {...props}
       >
-        <div className="flex min-w-0 items-center gap-[var(--nb-space-2)]">
+        <button
+          type="button"
+          onClick={() => {
+            onSelect?.(question);
+          }}
+          className="flex min-w-0 flex-1 items-center gap-[var(--nb-space-2)] rounded-[var(--nb-radius-control)] text-left focus-visible:outline-[length:var(--nb-ring-width)] focus-visible:outline-solid focus-visible:outline-[var(--nb-focus)] focus-visible:outline-offset-[var(--nb-ring-offset)]"
+        >
           <ClockCounterClockwise
             size={16}
             aria-hidden="true"
             className="shrink-0 text-[var(--nb-ink-3)]"
           />
-          <span className="truncate font-medium">{question}</span>
-        </div>
+          <span className="truncate font-[number:var(--nb-weight-medium)]">{question}</span>
+        </button>
 
         <div className="flex shrink-0 items-center gap-[var(--nb-space-2)]">
           {displayTime ? (
-            <span className="text-xs text-[var(--nb-ink-3)]">{displayTime}</span>
+            <span className="text-[length:var(--nb-text-xs)] text-[var(--nb-ink-3)]">{displayTime}</span>
           ) : null}
 
           {action !== undefined ? (
             action
           ) : onAction || onSelect ? (
-            <button
+            <IconButton
               type="button"
+              size="nb_btn_icon_sm"
               aria-label={actionLabel}
               onClick={handleActionClick}
-              className="grid h-[var(--nb-size-target-min)] w-[var(--nb-size-target-min)] cursor-pointer place-items-center rounded-[var(--nb-radius-control)] text-[var(--nb-ink-2)] transition-colors hover:bg-[var(--nb-well-hover)] hover:text-[var(--nb-ink)] focus-visible:outline focus-visible:outline-[var(--nb-ring-width)] focus-visible:outline-[var(--nb-focus)]"
-            >
-              <ArrowUUpLeft size={16} aria-hidden="true" />
-            </button>
+              icon={ArrowUUpLeft}
+            />
           ) : null}
         </div>
       </div>

@@ -1,18 +1,26 @@
 import * as React from "react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Button } from "../primitives/button.js";
 import {
   Dialog,
-  DialogOverlay,
-  DialogPortal,
+  DialogBody,
+  DialogContent,
+  DialogHeader,
   DialogTitle,
-} from "../primitives/dialog.js";
-import { FormField } from "./form-field.js";
-import { Lock } from "../primitives/icons.js";
-import { PasswordInput } from "./password-input.js";
-import { cn } from "../../lib/utils.js";
+} from "../primitives/overlays.js";
+import type { DialogContentProps } from "../primitives/overlays.js";
+import { FormField, PasswordInput } from "../primitives/fields.js";
+import { Lock, resolveIconProps } from "../primitives/icons.js";
 
-export interface LockscreenModalProps {
+export interface LockscreenModalProps
+  extends Omit<
+    DialogContentProps,
+    | "children"
+    | "size"
+    | "showCloseButton"
+    | "aria-describedby"
+    | "onPointerDownOutside"
+    | "onEscapeKeyDown"
+  > {
   open: boolean;
   /** Whole seconds left on the server-driven lockout. Submit is blocked above 0. */
   lockedSecondsRemaining?: number | undefined;
@@ -20,7 +28,7 @@ export interface LockscreenModalProps {
   error?: string | undefined;
   /** Remaining attempts before lockout, when the server reports it. */
   attemptsRemaining?: number | undefined;
-  onUnlock: ((passcode: string) => void) | undefined;
+  onUnlock?: ((passcode: string) => void) | undefined;
   onOpenChange?: ((open: boolean) => void) | undefined;
 }
 
@@ -37,7 +45,7 @@ function formatCountdown(totalSeconds: number): string {
  * authoritative remaining time come from the server via props.
  */
 const LockscreenModal = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ElementRef<typeof DialogContent>,
   LockscreenModalProps
 >(
   (
@@ -55,37 +63,40 @@ const LockscreenModal = React.forwardRef<
     const [passcode, setPasscode] = React.useState("");
     const locked = lockedSecondsRemaining > 0;
 
+    // Drop any typed passcode as soon as the lockscreen closes, so a reopened
+    // lockscreen never prefills the previous attempt.
+    React.useEffect(() => {
+      if (!open) {
+        setPasscode("");
+      }
+    }, [open]);
+
     return (
+      // Non-dismissable by design: only the parent clears `open` after a
+      // successful unlock, so Escape and outside pointer downs cannot bypass it.
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogPortal>
-          <DialogOverlay />
-          <DialogPrimitive.Content
-            ref={ref}
-            aria-describedby={undefined}
-            onPointerDownOutside={(event) => {
-              if (locked) {
-                event.preventDefault();
-              }
-            }}
-            onEscapeKeyDown={(event) => {
-              if (locked) {
-                event.preventDefault();
-              }
-            }}
-            className={cn(
-              "fixed left-[50%] top-[50%] z-50 grid w-[min(var(--nb-layout-modal-sm),calc(100%-var(--nb-space-8)))] translate-x-[-50%] translate-y-[-50%] gap-[var(--nb-space-4)] rounded-[var(--nb-radius-modal)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-[var(--nb-space-6)] text-[var(--nb-ink)] shadow-[var(--nb-shadow-modal)]"
-            )}
-            {...props}
-          >
-            <div className="grid justify-items-center gap-[var(--nb-space-2)] text-center">
-              <span className="grid h-10 w-10 place-items-center rounded-[var(--nb-radius-well)] bg-[var(--nb-well)] text-[var(--nb-ink-2)]">
-                <Lock size={20} aria-hidden="true" />
-              </span>
-              <DialogTitle>Unlock Notebench</DialogTitle>
-              <p className="text-xs text-[var(--nb-ink-2)]">
-                Enter your passcode to continue.
-              </p>
-            </div>
+        <DialogContent
+          ref={ref}
+          size="sm"
+          aria-describedby={undefined}
+          onPointerDownOutside={(event) => {
+            event.preventDefault();
+          }}
+          onEscapeKeyDown={(event) => {
+            event.preventDefault();
+          }}
+          {...props}
+        >
+          <DialogHeader className="grid justify-center justify-items-center gap-[var(--nb-space-2)] text-center">
+            <span className="grid h-[var(--nb-size-tile-icon)] w-[var(--nb-size-tile-icon)] place-items-center rounded-[var(--nb-radius-menu)] bg-[var(--nb-well)] text-[var(--nb-ink-2)]">
+              <Lock {...resolveIconProps({ size: "md" })} />
+            </span>
+            <DialogTitle>Unlock Notebench</DialogTitle>
+            <p className="text-xs text-[var(--nb-ink-2)]">
+              Enter your passcode to continue.
+            </p>
+          </DialogHeader>
+          <DialogBody className="gap-[var(--nb-space-4)]">
             <form
               className="grid gap-[var(--nb-space-4)]"
               onSubmit={(event) => {
@@ -123,12 +134,17 @@ const LockscreenModal = React.forwardRef<
                   {formatCountdown(lockedSecondsRemaining)}.
                 </p>
               ) : null}
-              <Button type="submit" disabled={locked} className="w-full">
+              <Button
+                type="submit"
+                variant="nb_btn_primary"
+                disabled={locked}
+                className="w-full"
+              >
                 Unlock
               </Button>
             </form>
-          </DialogPrimitive.Content>
-        </DialogPortal>
+          </DialogBody>
+        </DialogContent>
       </Dialog>
     );
   }

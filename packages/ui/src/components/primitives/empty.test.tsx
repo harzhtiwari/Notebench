@@ -23,8 +23,8 @@ describe("EmptyState Primitive", () => {
     expect(root.className).toContain("empty");
     expect(root.className).toContain("bg-[var(--nb-well)]");
     expect(root.className).toContain("rounded-[var(--nb-radius-card)]");
-    expect(root.className).toContain("p-[var(--nb-space-6)]");
-    expect(root.className).toContain("sm:p-[var(--nb-space-8)]");
+    expect(root.className).toContain("py-[var(--nb-space-8)]");
+    expect(root.className).toContain("px-[var(--nb-space-6)]");
     expect(root.className).toContain("gap-[var(--nb-space-3)]");
     expect(root.className).toContain("justify-items-start");
     expect(root.className).toContain("max-w-[var(--nb-layout-modal-sm)]");

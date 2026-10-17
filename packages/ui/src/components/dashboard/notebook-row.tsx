@@ -4,6 +4,7 @@ import {
   type DashboardColumnId,
   type NotebookSummary,
 } from "@notebook/contracts";
+import { Button } from "../primitives/button.js";
 import { NotebookEmblem } from "./notebook-emblem.js";
 import { formatBytes, formatRelativeTime } from "../../lib/formatters.js";
 import { cn } from "../../lib/utils.js";
@@ -37,15 +38,17 @@ const NotebookRow = React.forwardRef<HTMLTableRowElement, NotebookRowProps>(
         case "title":
           return (
             <td key={column} className={cn(CELL_CLASS, "font-medium")}>
-              <button
+              <Button
                 type="button"
+                variant="nb_btn_link"
+                size="nb_btn_sm"
                 onClick={() => {
                   onOpen?.(notebook.id);
                 }}
-                className="hover:underline"
+                className="h-auto min-h-0 px-0 font-medium leading-[var(--nb-leading-ui)] text-sm text-[var(--nb-ink)]"
               >
                 {notebook.title}
-              </button>
+              </Button>
             </td>
           );
         case "sourcesCount":
@@ -95,7 +98,7 @@ const NotebookRow = React.forwardRef<HTMLTableRowElement, NotebookRowProps>(
           onOpen?.(notebook.id);
         }}
         className={cn(
-          "cursor-pointer transition-colors hover:bg-[var(--nb-well)]",
+          "cursor-pointer transition-colors duration-[var(--nb-dur-fast)] ease-[var(--nb-ease)] motion-reduce:transition-none hover:bg-[var(--nb-well)]",
           className
         )}
         {...props}

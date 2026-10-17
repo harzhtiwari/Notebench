@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Notebook } from "../primitives/icons.js";
+import { Notebook, resolveIconProps } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
 /**
@@ -16,7 +16,7 @@ const NotebookEmblem = React.forwardRef<
     className={cn("inline-flex text-[var(--nb-ink-2)]", className)}
     {...props}
   >
-    <Notebook size={20} aria-hidden="true" />
+    <Notebook {...resolveIconProps({ size: "md" })} />
   </span>
 ));
 NotebookEmblem.displayName = "NotebookEmblem";

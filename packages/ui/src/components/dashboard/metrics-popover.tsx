@@ -4,8 +4,9 @@ import {
   Popover,
   PopoverTrigger,
   PopoverContent,
-} from "../primitives/popover.js";
-import { Button } from "../primitives/button.js";
+} from "../primitives/overlays.js";
+import { Button, IconButton } from "../primitives/button.js";
+import { MetricRow } from "../primitives/metric-row.js";
 import { ChartBar } from "../primitives/icons.js";
 import {
   type DashboardMetrics,
@@ -28,20 +29,16 @@ export function MetricsPopover({ metrics, onManageStorage }: MetricsPopoverProps
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
+        <IconButton
+          variant="nb_btn_secondary"
+          size="nb_btn_icon_sm"
+          icon={ChartBar}
           data-testid="metrics-popover-trigger"
           aria-label="Instance Metrics"
-          className="h-[var(--nb-size-control-sm)] w-[var(--nb-size-control-sm)] p-0 text-[var(--nb-ink-2)]"
-        >
-          <ChartBar size={16} />
-        </Button>
+          className="text-[var(--nb-ink-2)]"
+        />
       </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="w-[var(--nb-layout-popover-w)] border border-[var(--nb-edge)] bg-[var(--nb-sheet)] p-[var(--nb-space-4)] text-[var(--nb-ink)] shadow-[var(--nb-shadow-float)]"
-      >
+      <PopoverContent align="end" className="w-[var(--nb-layout-popover-w)]">
         <div className="mb-[var(--nb-space-3)] flex items-center justify-between border-b border-[var(--nb-hairline)] pb-[var(--nb-space-2)]">
           <span className="text-xs font-semibold uppercase tracking-wider text-[var(--nb-ink-3)]">
             Instance Telemetry
@@ -53,53 +50,42 @@ export function MetricsPopover({ metrics, onManageStorage }: MetricsPopoverProps
           {DASHBOARD_METRICS_CONFIG.map((config) => {
             if (config.id === "storageUsed") {
               return (
-                <div key={config.id} className="space-y-[var(--nb-space-1)]">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-[var(--nb-ink-2)]">{config.label}</span>
-                    <span className="font-semibold text-[var(--nb-ink)]">
-                      {formatBytes(metrics.storageUsedBytes)} / 5.0 GB Safe Cap
-                    </span>
-                  </div>
-                  <div className="h-[var(--nb-size-progress)] w-full overflow-hidden rounded-[var(--nb-radius-full)] bg-[var(--nb-well)]">
-                    <div
-                      className="h-full bg-[var(--nb-ink-2)] transition-all"
-                      style={{ width: `${Math.max(2, storagePercentage)}%` }}
-                    />
-                  </div>
-                </div>
+                <MetricRow
+                  key={config.id}
+                  label={config.label}
+                  value={`${formatBytes(metrics.storageUsedBytes)} / 5.0 GB Safe Cap`}
+                  fraction={storagePercentage / 100}
+                />
               );
             }
 
             if (config.id === "notebookCount") {
               return (
-                <div key={config.id} className="flex justify-between text-xs">
-                  <span className="text-[var(--nb-ink-2)]">{config.label}</span>
-                  <span className="font-semibold text-[var(--nb-ink)]">
-                    {metrics.notebookCount} Active
-                  </span>
-                </div>
+                <MetricRow
+                  key={config.id}
+                  label={config.label}
+                  value={`${metrics.notebookCount} Active`}
+                />
               );
             }
 
             if (config.id === "sourceCount") {
               return (
-                <div key={config.id} className="flex justify-between text-xs">
-                  <span className="text-[var(--nb-ink-2)]">{config.label}</span>
-                  <span className="font-semibold text-[var(--nb-ink)]">
-                    {metrics.sourceCount} Files
-                  </span>
-                </div>
+                <MetricRow
+                  key={config.id}
+                  label={config.label}
+                  value={`${metrics.sourceCount} Files`}
+                />
               );
             }
 
             if (config.id === "artifactCount") {
               return (
-                <div key={config.id} className="flex justify-between text-xs">
-                  <span className="text-[var(--nb-ink-2)]">{config.label}</span>
-                  <span className="font-semibold text-[var(--nb-ink)]">
-                    {metrics.artifactCount} Trees
-                  </span>
-                </div>
+                <MetricRow
+                  key={config.id}
+                  label={config.label}
+                  value={`${metrics.artifactCount} Trees`}
+                />
               );
             }
 
@@ -109,8 +95,8 @@ export function MetricsPopover({ metrics, onManageStorage }: MetricsPopoverProps
 
         <div className="mt-[var(--nb-space-4)] border-t border-[var(--nb-hairline)] pt-[var(--nb-space-3)]">
           <Button
-            variant="outline"
-            size="sm"
+            variant="nb_btn_secondary"
+            size="nb_btn_sm"
             onClick={onManageStorage}
             className="w-full h-[var(--nb-size-control-sm)] text-xs font-medium justify-between text-[var(--nb-ink)]"
           >

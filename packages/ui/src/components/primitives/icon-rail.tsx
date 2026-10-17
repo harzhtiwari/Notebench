@@ -1,39 +1,58 @@
 import * as React from "react";
 import { cn } from "../../lib/utils.js";
-import { Button } from "./button.js";
+import {
+  IconButton,
+  type ButtonVariant,
+  type IconButtonProps,
+} from "./button.js";
 import { SidebarSimple } from "./icons.js";
 
 export interface IconRailProps
   extends Omit<
-    React.ButtonHTMLAttributes<HTMLButtonElement>,
-    "aria-label" | "onClick" | "children"
+    IconButtonProps,
+    "aria-label" | "onClick" | "children" | "icon" | "size" | "variant"
   > {
   /** Accessible name, e.g. "Collapse sources". Icon is decorative. */
   label: string;
   onToggle: () => void;
+  /** Button style variant. Defaults to canonical "nb_btn_ghost". */
+  variant?: ButtonVariant | undefined;
+  /** Icon button size. Defaults to canonical "nb_btn_icon_sm". */
+  size?: "nb_btn_icon_sm" | "nb_btn_icon_md" | "nb_btn_icon_lg" | undefined;
 }
 
 /**
  * Board collapse button (ticket 12): ghost icon-small button carrying the
- * `sidebar-simple` catalog icon. Stands alone, so it always has an accessible
- * name; the icon itself is decorative.
+ * `sidebar-simple` catalog icon (`nb_btn_ghost` / `nb_btn_icon_sm`; board
+ * `.btn--ghost .btn--icon .btn--sm` at `:1093` / `:1110`). Stands alone, so
+ * it always has an accessible name; the icon itself is decorative.
  */
 const IconRail = React.forwardRef<HTMLButtonElement, IconRailProps>(
-  ({ className, label, onToggle, type = "button", ...props }, ref) => (
-    <Button
+  (
+    {
+      className,
+      label,
+      onToggle,
+      type = "button",
+      variant = "nb_btn_ghost",
+      size = "nb_btn_icon_sm",
+      ...props
+    },
+    ref
+  ) => (
+    <IconButton
       ref={ref}
       type={type}
-      variant="ghost"
-      size="sm"
-      className={cn("w-8 px-0", className)}
+      variant={variant}
+      size={size}
+      icon={SidebarSimple}
+      className={className}
       {...props}
       aria-label={label}
       onClick={() => {
         onToggle();
       }}
-    >
-      <SidebarSimple aria-hidden="true" />
-    </Button>
+    />
   )
 );
 IconRail.displayName = "IconRail";
@@ -72,17 +91,21 @@ const WorkspacePanel = React.forwardRef<HTMLElement, WorkspacePanelProps>(
       aria-label={title}
       data-collapsed={collapsed}
       className={cn(
-        "grid content-start gap-[var(--nb-layout-gutter)] rounded-[var(--nb-radius-panel)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-[var(--nb-space-3)]",
+        "grid min-w-0 content-start gap-[var(--nb-space-4)] rounded-[var(--nb-radius-panel)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-[var(--nb-space-3)] text-[var(--nb-ink)] transition-all duration-[var(--nb-dur-slow)] ease-[var(--nb-ease)] motion-reduce:transition-none",
         className
       )}
       {...props}
     >
-      <div className="flex items-center justify-between gap-[var(--nb-space-3)] px-[var(--nb-space-2)] pt-[var(--nb-space-1)]">
-        <h3 className="text-sm font-semibold text-[var(--nb-ink)]">
-          {title}
+      <div className="mb-[var(--nb-space-3)] flex items-center justify-between gap-[var(--nb-space-3)] px-[var(--nb-space-2)] pt-[var(--nb-space-1)]">
+        <h3 className="flex items-center gap-[var(--nb-space-2)] font-ui font-[family-name:var(--nb-font-ui)] text-sm text-[length:var(--nb-text-sm)] font-bold font-[number:var(--nb-weight-bold)] leading-[var(--nb-leading-ui)] text-[var(--nb-ink)]">
+          <span>{title}</span>
           {titleSuffix}
         </h3>
-        <IconRail label={collapseLabel} onToggle={onToggleCollapse} />
+        <IconRail
+          label={collapseLabel}
+          onToggle={onToggleCollapse}
+          aria-expanded={!collapsed}
+        />
       </div>
       {children}
     </section>

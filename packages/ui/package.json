@@ -8,6 +8,7 @@
   "files": [
     "dist/**",
     "tokens.css",
+    "tokens.theme.css",
     "tokens.media.css",
     "tailwind.preset.cjs",
     "tokens.json"
@@ -20,6 +21,7 @@
       "import": "./dist/index.js"
     },
     "./tokens.css": "./tokens.css",
+    "./tokens.theme.css": "./tokens.theme.css",
     "./tokens.media.css": "./tokens.media.css",
     "./tailwind.preset.cjs": "./tailwind.preset.cjs",
     "./tokens.json": "./tokens.json"

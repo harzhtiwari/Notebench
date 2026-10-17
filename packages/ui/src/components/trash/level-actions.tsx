@@ -1,6 +1,7 @@
 import * as React from "react";
 import type { DeletionLevel } from "@notebook/contracts";
 import { Button } from "../primitives/button.js";
+import { Badge } from "../primitives/badges.js";
 import { ConfirmDialog } from "./confirm-dialog.js";
 import {
   DELETION_LEVELS,
@@ -43,25 +44,22 @@ export interface LevelActionsProps {
 function RiskTag({ risk }: { risk: DeletionRisk }): React.JSX.Element {
   if (risk === "low") {
     return (
-      <span className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-chip)] border border-[var(--nb-ok)] bg-[var(--nb-ok-wash)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] font-medium text-[var(--nb-ok)] text-[var(--nb-text-2xs)]">
-        <ShieldCheck size={12} aria-hidden="true" />
+      <Badge variant="ok" icon={<ShieldCheck size={12} aria-hidden="true" />}>
         Low Risk
-      </span>
+      </Badge>
     );
   }
   if (risk === "medium") {
     return (
-      <span className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-chip)] border border-[var(--nb-warn)] bg-[var(--nb-warn-wash)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] font-medium text-[var(--nb-warn)] text-[var(--nb-text-2xs)]">
-        <Warning size={12} aria-hidden="true" />
+      <Badge variant="warn" icon={<Warning size={12} aria-hidden="true" />}>
         Medium Risk
-      </span>
+      </Badge>
     );
   }
   return (
-    <span className="inline-flex items-center gap-[var(--nb-space-1)] rounded-[var(--nb-radius-chip)] border border-[var(--nb-danger)] bg-[var(--nb-danger-wash)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] font-medium text-[var(--nb-danger)] text-[var(--nb-text-2xs)]">
-      <Warning size={12} aria-hidden="true" />
+    <Badge variant="danger" icon={<Warning size={12} aria-hidden="true" />}>
       High Risk
-    </span>
+    </Badge>
   );
 }
 
@@ -112,19 +110,19 @@ export function LevelActions({
             >
               <div className="space-y-[var(--nb-space-1)]">
                 <div className="flex flex-wrap items-center gap-[var(--nb-space-2)]">
-                  <span className="font-mono text-[var(--nb-ink-3)] text-[var(--nb-text-xs)]">
+                  <span className="font-[family-name:var(--nb-font-mono)] text-[var(--nb-ink-3)] text-[length:var(--nb-text-xs)]">
                     Level {def.level}
                   </span>
-                  <h4 className="font-semibold text-[var(--nb-ink)] text-[var(--nb-text-sm)]">
+                  <h4 className="font-[number:var(--nb-weight-semibold)] text-[var(--nb-ink)] text-[length:var(--nb-text-sm)]">
                     {def.name}
                   </h4>
                   <RiskTag risk={def.risk} />
                 </div>
-                <p className="text-[var(--nb-ink-2)] text-[var(--nb-text-xs)]">
+                <p className="text-[var(--nb-ink-2)] text-[length:var(--nb-text-xs)]">
                   {def.description}
                 </p>
                 {def.effects.length > 0 && (
-                  <ul className="mt-[var(--nb-space-1)] list-disc pl-[var(--nb-space-4)] text-[var(--nb-ink-3)] text-[var(--nb-text-2xs)]">
+                  <ul className="mt-[var(--nb-space-1)] list-disc pl-[var(--nb-space-4)] text-[var(--nb-ink-3)] text-[length:var(--nb-text-2xs)]">
                     {def.effects.slice(0, 2).map((effect) => (
                       <li key={effect}>{effect}</li>
                     ))}
@@ -135,20 +133,13 @@ export function LevelActions({
               <div className="shrink-0">
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  variant={isHighRisk ? "nb_btn_danger" : "nb_btn_secondary"}
+                  size="nb_btn_sm"
                   disabled={isLocked || isPending}
                   onClick={() => handleActionClick(def)}
-                  className={cn(
-                    "gap-[var(--nb-space-2)] shadow-none",
-                    isHighRisk &&
-                      "border-[var(--nb-danger)] text-[var(--nb-danger)] hover:bg-[var(--nb-danger-wash)]"
-                  )}
                   title={isLocked ? "Export required before deletion" : def.name}
+                  leadingIcon={isLocked ? Lock : undefined}
                 >
-                  {isLocked && (
-                    <Lock size={14} className="text-[var(--nb-ink-3)]" aria-hidden="true" />
-                  )}
                   {def.name}
                 </Button>
               </div>

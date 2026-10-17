@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Textarea } from "../primitives/index.js";
 import { cn } from "../../lib/utils.js";
 
 export interface EditorShellProps
@@ -86,18 +87,18 @@ const EditorShell = React.forwardRef<HTMLTextAreaElement, EditorShellProps>(
     return (
       <div
         className={cn(
-          "editor-shell relative flex flex-col gap-[var(--nb-space-2)] rounded-[var(--nb-radius-card)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-[var(--nb-space-3)] text-[var(--nb-ink)] transition-colors focus-within:outline-[var(--nb-ring-width)] focus-within:outline-[var(--nb-focus)] focus-within:outline-offset-[var(--nb-ring-offset)]",
+          "editor-shell relative flex flex-col gap-[var(--nb-space-2)] rounded-[var(--nb-radius-card)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] p-[var(--nb-space-3)] text-[var(--nb-ink)] transition-colors duration-[var(--nb-dur-fast)] ease-[var(--nb-ease)] motion-reduce:transition-none focus-within:outline-solid focus-within:outline-[length:var(--nb-ring-width)] focus-within:outline-[var(--nb-focus)] focus-within:outline-offset-[var(--nb-ring-offset)]",
           className
         )}
       >
         {header !== undefined ? <div className="editor-shell-header">{header}</div> : null}
         {children ?? (
-          <textarea
+          <Textarea
             ref={ref}
             value={localValue}
             onChange={handleChange}
             onBlur={handleBlur}
-            className="min-h-[var(--nb-size-textarea-min)] w-full resize-y border-0 bg-transparent p-0 font-[var(--nb-font-read)] text-[var(--nb-text-md)] leading-[var(--nb-leading-read)] text-[var(--nb-ink)] placeholder:text-[var(--nb-ink-3)] focus:outline-none"
+            className="min-h-[var(--nb-size-textarea-min)] w-full resize-y border-0 bg-transparent p-0 font-[family-name:var(--nb-font-read)] text-[length:var(--nb-text-md)] leading-[var(--nb-leading-read)] text-[var(--nb-ink)] placeholder:text-[var(--nb-ink-3)] focus:outline-none focus-visible:outline-none focus-visible:outline-0 focus-visible:outline-offset-0"
             {...props}
           />
         )}

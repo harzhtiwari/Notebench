@@ -1,7 +1,5 @@
 import * as React from "react";
-import { FormField } from "./form-field.js";
-import { Input } from "./input.js";
-import { PasswordInput } from "./password-input.js";
+import { FormField, Input, PasswordInput } from "../primitives/fields.js";
 
 export type ReauthMode = "passcode" | "phrase";
 
