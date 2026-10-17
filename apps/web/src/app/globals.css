@@ -1,18 +1,22 @@
 @import "tailwindcss";
-@source "../../node_modules/@notebook/ui/src";
+@source "..";
+@source "../../../../packages/ui/src";
+@source "../../../../packages/ui/dist";
+@source "../../packages/ui/src";
+@source "../../packages/ui/dist";
 @import "@notebook/ui/tokens.css";
+@import "@notebook/ui/tokens.theme.css";
 
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
 
-html, body {
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-  font-family: var(--nb-font-ui);
-  background-color: var(--nb-ground);
-  color: var(--nb-ink);
+  html, body {
+    min-height: 100%;
+    width: 100%;
+    font-family: var(--nb-font-ui);
+    background-color: var(--nb-ground);
+    color: var(--nb-ink);
+  }
 }

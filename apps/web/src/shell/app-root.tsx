@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { Well, WellDescription, WellTitle } from "@notebook/ui";
 import {
   createMemoryRouter,
   parseRoute,
@@ -11,15 +12,29 @@ import {
 import { resolveScreen } from "../lib/screens";
 import { SetupScreen } from "../screens/setup-screen";
 import { LoginScreen } from "../screens/login-screen";
-import { HealthScreen } from "../screens/health-screen";
-import { TrashScreen } from "../screens/trash-screen";
-import { ModelsKeysScreen } from "../screens/models-keys-screen";
-import { NotFoundScreen } from "../screens/not-found-screen";
-import { UiPreviewScreen } from "../screens/ui-preview-screen";
-import { DashboardContainer } from "../app/dashboard/dashboard-container";
 
 function liveUrl(): string {
   return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+}
+
+/**
+ * Removed stub screens (health, dashboard, notebook detail, trash, models,
+ * ui-preview) render a valid shell instead of a document reload or a server
+ * 404. The `route-not-found` marker is part of the shell contract asserted by
+ * app-root.test.tsx and the dev warm-up probe (tools/dev/src/warmup-browser.ts).
+ */
+function NotFoundScreen({ path }: { path: string }): React.JSX.Element {
+  return (
+    <div
+      data-testid="route-not-found"
+      className="flex min-h-screen items-center justify-center bg-[var(--nb-ground)] p-4"
+    >
+      <Well className="max-w-md p-6 text-center">
+        <WellTitle>Route not found</WellTitle>
+        <WellDescription>No screen is registered for {path}.</WellDescription>
+      </Well>
+    </div>
+  );
 }
 
 /**
@@ -104,12 +119,12 @@ export function AppRoot({ initialPath }: { initialPath: string }) {
   const screens: Record<ScreenId, React.JSX.Element> = {
     setup: <SetupScreen navigate={(to) => router.navigate(to)} />,
     login: <LoginScreen navigate={(to) => router.navigate(to)} />,
-    health: <HealthScreen />,
-    dashboard: <DashboardContainer navigate={(to) => router.navigate(to)} />,
-    notebook: <DashboardContainer navigate={(to) => router.navigate(to)} />,
-    trash: <TrashScreen navigate={(to) => router.navigate(to)} />,
-    models: <ModelsKeysScreen />,
-    "ui-preview": <UiPreviewScreen />,
+    health: <NotFoundScreen path={entry.path} />,
+    dashboard: <NotFoundScreen path={entry.path} />,
+    notebook: <NotFoundScreen path={entry.path} />,
+    trash: <NotFoundScreen path={entry.path} />,
+    models: <NotFoundScreen path={entry.path} />,
+    "ui-preview": <NotFoundScreen path={entry.path} />,
     "not-found": <NotFoundScreen path={entry.path} />,
   };
 

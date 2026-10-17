@@ -19,6 +19,51 @@ export function apiUrl(path: string): string {
 export interface ApiError {
   code: string;
   message: string;
+  /** Field issues projected from `details.issues`; absent when the payload has none. */
+  readonly issues?: readonly ApiFieldIssue[];
+}
+
+/** One server-side field issue (sanitizer validation issue projected to a field path). */
+export interface ApiFieldIssue {
+  readonly path: string;
+  readonly message: string;
+}
+
+/** Materialized issue objects accepted into the projected list. */
+interface RawIssue {
+  readonly path?: unknown;
+  readonly message?: unknown;
+}
+
+function projectIssues(value: unknown): ApiFieldIssue[] | undefined {
+  if (isRecord(value) === false) {
+    return undefined;
+  }
+  const issues = value["issues"];
+  if (Array.isArray(issues) === false) {
+    return undefined;
+  }
+  const projected: ApiFieldIssue[] = [];
+  for (const raw of issues) {
+    if (isRecord(raw) === false) {
+      continue;
+    }
+    const candidate = raw as RawIssue;
+    if (Array.isArray(candidate.path) === false || typeof candidate.message !== "string") {
+      continue;
+    }
+    const path = candidate.path
+      .filter((segment): segment is string | number => {
+        return typeof segment === "string" || typeof segment === "number";
+      })
+      .map(String)
+      .join(".");
+    if (path === "") {
+      continue;
+    }
+    projected.push({ path, message: candidate.message });
+  }
+  return projected.length > 0 ? projected : undefined;
 }
 
 /**
@@ -49,17 +94,23 @@ export function parseApiError(payload: unknown): ApiError {
   if (record["code"] === "" || record["message"] === "") {
     return fallback;
   }
-  return { code: record["code"], message: record["message"] };
+  const issues = projectIssues(record["details"]);
+  if (issues === undefined) {
+    return { code: record["code"], message: record["message"] };
+  }
+  return { code: record["code"], message: record["message"], issues };
 }
 
-/** Typed fetch failure carrying the backend's error code. */
+/** Typed fetch failure carrying the backend's error code and optional field issues. */
 export class ApiRequestError extends Error {
   readonly code: string;
+  readonly issues: readonly ApiFieldIssue[];
 
-  constructor(code: string, message: string) {
+  constructor(code: string, message: string, issues: readonly ApiFieldIssue[] = []) {
     super(message);
     this.name = "ApiRequestError";
     this.code = code;
+    this.issues = issues;
   }
 }
 
@@ -80,5 +131,5 @@ export async function fetchApiJson<T>(path: string, init?: RequestInit): Promise
     payload = null;
   }
   const parsed = parseApiError(payload);
-  throw new ApiRequestError(parsed.code, parsed.message);
+  throw new ApiRequestError(parsed.code, parsed.message, parsed.issues ?? []);
 }
