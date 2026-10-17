@@ -1,5 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import net from "node:net";
+import { spawn as nodeSpawn } from "node:child_process";
+import { once } from "node:events";
 import { join, sep } from "node:path";
 import getPort from "get-port";
 import { parseOrchestratorArgs } from "../src/args.js";
@@ -47,6 +49,26 @@ import {
 import type { RunIdentity } from "../src/identity.js";
 import { buildForceKillCommand, teardownOwnedRun } from "../src/cleanup.js";
 import { resolveGeneratedPathsForRun } from "../src/isolate.js";
+import { makeTempRoot as createTempRoot, removeTempRoots } from "./temp-dir.js";
+
+const tempRoots: string[] = [];
+
+function makeTempRoot(): string {
+  return createTempRoot(tempRoots, "notebench-unit-");
+}
+
+afterEach(() => removeTempRoots(tempRoots), 120_000);
+
+function identityRecord(runId: string, namespace: string): RunIdentity {
+  return {
+    runId,
+    namespace,
+    orchestratorPid: 4711,
+    orchestratorStartTimeMs: 1,
+    children: {},
+    createdAt: new Date().toISOString(),
+  };
+}
 
 function freePort(): Promise<number> {
   return getPort();
@@ -948,4 +970,231 @@ describe("ticket 01: orchestrator args, paths, ports", () => {
       expect(a.serverPortFile).not.toBe(b.serverPortFile);
     });
   });
+});
+
+describe("round-2: teardown ownership, completeness, and fault containment", () => {
+  it("never deletes records once a successor run owns the identity file", async () => {
+    const root = makeTempRoot();
+    const p = resolveRunPaths(root, "handover-ns");
+    await writeIdentity(p.identityFile, identityRecord("run-successor", "handover-ns"));
+    const unlinked: string[] = [];
+    const result = await teardownOwnedRun(
+      p,
+      [
+        { service: "server", pid: 9001, startTimeMs: 10 },
+        { service: "web", pid: 9002, startTimeMs: 20 },
+      ],
+      {
+        runId: "run-first",
+        isPidLive: () => false,
+        unlink: (path: string) => {
+          unlinked.push(path);
+        },
+      }
+    );
+    expect(unlinked).toEqual([]);
+    expect(result.cleanedFiles).toEqual([]);
+    const successor = await readIdentity(p.identityFile);
+    expect(successor?.runId).toBe("run-successor");
+  });
+
+  it("still deletes its own records while the identity file carries this run id", async () => {
+    const root = makeTempRoot();
+    const p = resolveRunPaths(root, "self-own-ns");
+    await writeIdentity(p.identityFile, identityRecord("run-ours", "self-own-ns"));
+    const unlinked: string[] = [];
+    await teardownOwnedRun(p, [{ service: "server", pid: 9003, startTimeMs: 10 }], {
+      runId: "run-ours",
+      isPidLive: () => false,
+      unlink: (path: string) => {
+        unlinked.push(path);
+      },
+    });
+    expect(unlinked).toContain(p.identityFile);
+    expect(unlinked).toContain(p.serverPortFile);
+    expect(unlinked).toContain(p.serverPidFile);
+  });
+
+  it("contains a rejecting liveness check: later children and file cleanup still run", async () => {
+    const p = resolveRunPaths(process.cwd(), "fault-ns");
+    const signaled: number[] = [];
+    const forced: number[] = [];
+    const unlinked: string[] = [];
+    const result = await teardownOwnedRun(
+      p,
+      [
+        { service: "server", pid: 6001, startTimeMs: 10 },
+        { service: "web", pid: 6002, startTimeMs: 20 },
+      ],
+      {
+        isPidLive: (pid: number) => {
+          if (pid === 6002) throw new Error("liveness dependency failed");
+          return true;
+        },
+        graceMs: 0,
+        requestGracefulStop: (child) => {
+          signaled.push(child.pid);
+        },
+        forceKill: (pid: number) => {
+          forced.push(pid);
+        },
+        unlink: (path: string) => {
+          unlinked.push(path);
+        },
+      }
+    );
+    expect(signaled).toEqual([6001]);
+    expect(result.stopped).toEqual(["server"]);
+    expect(forced).toEqual([6001]);
+    expect(unlinked).toContain(p.identityFile);
+    expect(unlinked).toContain(p.serverPortFile);
+    expect(unlinked).toContain(p.webPortFile);
+    expect(unlinked).toContain(p.webPidFile);
+  });
+
+  it("defaults to a start-time-aware liveness check (existence alone never signals)", async () => {
+    const child = nodeSpawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+      stdio: "ignore",
+    });
+    const childPid = child.pid as number;
+    try {
+      const p = resolveRunPaths(process.cwd(), "default-live-ns");
+      const signaled: number[] = [];
+      const result = await teardownOwnedRun(
+        p,
+        [{ service: "server", pid: childPid, startTimeMs: 1 }],
+        {
+          requestGracefulStop: (c) => {
+            signaled.push(c.pid);
+          },
+          unlink: () => undefined,
+        }
+      );
+      expect(signaled).toEqual([]);
+      expect(result.unverified).toEqual(["server"]);
+      expect(() => process.kill(childPid, 0)).not.toThrow();
+    } finally {
+      child.kill();
+    }
+  }, 30_000);
+
+  it("reports children that exist but cannot be verified instead of silently skipping", async () => {
+    const p = resolveRunPaths(process.cwd(), "unverified-ns");
+    const signaled: number[] = [];
+    const result = await teardownOwnedRun(p, [{ service: "server", pid: 7001, startTimeMs: 1 }], {
+      isPidLive: () => false,
+      isPidPresent: () => true,
+      requestGracefulStop: () => {
+        signaled.push(7001);
+      },
+      unlink: () => undefined,
+    });
+    expect(signaled).toEqual([]);
+    expect(result.unverified).toEqual(["server"]);
+
+    const clean = await teardownOwnedRun(p, [{ service: "server", pid: 7002, startTimeMs: 1 }], {
+      isPidLive: () => false,
+      isPidPresent: () => false,
+      unlink: () => undefined,
+    });
+    expect(clean.unverified).toEqual([]);
+  });
+
+  it("force-kills the process group when the root died during grace but the tree still lives", async () => {
+    const p = resolveRunPaths(process.cwd(), "tree-ns");
+    let rootAlive = true;
+    const forced: number[] = [];
+    const seenPlatforms: string[] = [];
+    const result = await teardownOwnedRun(p, [{ service: "server", pid: 8001, startTimeMs: 1 }], {
+      platform: "linux",
+      isPidLive: () => rootAlive,
+      isTreeLive: (pid: number, platform: string) => {
+        seenPlatforms.push(platform);
+        return pid === 8001;
+      },
+      requestGracefulStop: () => {
+        rootAlive = false;
+      },
+      forceKill: (pid: number) => {
+        forced.push(pid);
+      },
+      unlink: () => undefined,
+    });
+    expect(forced).toEqual([8001]);
+    expect(result.forceKilled).toEqual(["server"]);
+    expect(seenPlatforms).toEqual(["linux"]);
+  });
+
+  it("does not force-kill when the root died and the tree is gone too", async () => {
+    const p = resolveRunPaths(process.cwd(), "tree-gone-ns");
+    let rootAlive = true;
+    const forced: number[] = [];
+    await teardownOwnedRun(p, [{ service: "server", pid: 8002, startTimeMs: 1 }], {
+      platform: "linux",
+      isPidLive: () => rootAlive,
+      isTreeLive: () => false,
+      requestGracefulStop: () => {
+        rootAlive = false;
+      },
+      forceKill: (pid: number) => {
+        forced.push(pid);
+      },
+      unlink: () => undefined,
+    });
+    expect(forced).toEqual([]);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "group-kills a POSIX tree whose root exits while a descendant keeps running",
+    async () => {
+      const root = makeTempRoot();
+      const p = resolveRunPaths(root, "posix-tree-ns");
+      const rootScript = `
+const { spawn } = require("child_process");
+const kid = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+console.log(kid.pid);
+`;
+      const rootChild = nodeSpawn(process.execPath, ["-e", rootScript], {
+        stdio: ["ignore", "pipe", "ignore"],
+        detached: true,
+      });
+      const rootPid = rootChild.pid as number;
+      const chunks: Buffer[] = [];
+      rootChild.stdout?.on("data", (chunk: Buffer) => chunks.push(chunk));
+      try {
+        const deadline = Date.now() + 15_000;
+        let grandPid = 0;
+        while (grandPid === 0 && Date.now() < deadline) {
+          const text = Buffer.concat(chunks).toString("utf8").trim();
+          if (text !== "") grandPid = Number(text.split(/\r?\n/)[0]);
+          if (grandPid === 0) await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        expect(grandPid).toBeGreaterThan(0);
+        await once(rootChild, "exit");
+        await teardownOwnedRun(p, [{ service: "server", pid: rootPid, startTimeMs: 1 }], {});
+        let grandAlive = true;
+        for (let i = 0; i < 50 && grandAlive; i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          try {
+            process.kill(grandPid, 0);
+          } catch {
+            grandAlive = false;
+          }
+        }
+        expect(grandAlive).toBe(false);
+      } finally {
+        try {
+          process.kill(rootPid, "SIGKILL");
+        } catch {
+          // Already reaped.
+        }
+        try {
+          process.kill(0 - rootPid, "SIGKILL");
+        } catch {
+          // Group already gone.
+        }
+      }
+    },
+    30_000
+  );
 });

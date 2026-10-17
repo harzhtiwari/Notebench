@@ -12,6 +12,7 @@ import { defaultProbeHttp, defaultSleep } from "./defaults.js";
 import { resolveRunPaths } from "./paths.js";
 import type { RunPaths } from "./paths.js";
 import { allocateRunPorts } from "./ports.js";
+import type { AllocatedPorts } from "./ports.js";
 import { spawnChild } from "./spawn.js";
 import type { SpawnedChild, SpawnFn } from "./spawn.js";
 import {
@@ -29,16 +30,19 @@ import {
   TEARDOWN_GRACE_MS,
   waitForReadiness,
 } from "./readiness.js";
-import { createOsPidLivenessChecker } from "./process-start-time.js";
+import {
+  createOsPidLivenessChecker,
+  createOsPidOwnershipChecker,
+} from "./process-start-time.js";
 import type { PidLiveness, RunIdentity } from "./identity.js";
 import {
   currentProcessStartTimeMs,
-  isIdentityLive,
+  isOrchestratorLive,
   readIdentity,
   writeIdentity,
 } from "./identity.js";
-import { teardownOwnedRun } from "./cleanup.js";
-import type { OwnedChild } from "./cleanup.js";
+import { releaseRunClaim, teardownOwnedRun } from "./cleanup.js";
+import type { OwnedChild, TeardownResult } from "./cleanup.js";
 import { ensureServerFreshness } from "./freshness.js";
 import type { CompiledDep } from "./freshness.js";
 import { formatReadyLine, UI_WARMUP_DEADLINE_MS, verifyWarmup } from "./warmup.js";
@@ -159,6 +163,13 @@ export interface BackendPhaseDeps {
   sleep?: ((ms: number) => Promise<void>) | undefined;
   spawnFn?: SpawnFn | undefined;
   isPidLive?: PidLiveness | undefined;
+  /**
+   * Ownership predicate for the namespace busy check: true while the
+   * recorded orchestrator still owns the namespace. Defaults to the injected
+   * `isPidLive` (unit seams) and otherwise to the OS checks that treat an
+   * unverifiable start time as still owning.
+   */
+  isRunOwnerLive?: PidLiveness | undefined;
   createServerSpawn?: ((ctx: ServerSpawnContext) => ServerSpawnRequest) | undefined;
   serverEntryPath?: string | undefined;
   healthPath?: string | undefined;
@@ -413,11 +424,12 @@ export async function startDefaultWebPhase(
     );
     await tee.flush();
   } catch (error: unknown) {
-    await teardownOwnedRun(
+    const partial = await teardownOwnedRun(
       ctx.paths,
       [{ service: "web", pid: webChild.pid, startTimeMs: webChild.startTimeMs }],
-      { isPidLive }
+      { isPidLive, runId: ctx.runId }
     );
+    reportUnverified(partial.unverified, logLine);
     if (ctx.isRunOver()) {
       throw new OrchestratorError("server exited while the web sidecar was starting", 1);
     }
@@ -447,21 +459,34 @@ async function ignoreMissing(operation: Promise<unknown>): Promise<void> {
   }
 }
 
+function namespaceBusyError(paths: RunPaths, previous: RunIdentity): OrchestratorError {
+  return new OrchestratorError(
+    `Namespace "${paths.namespace}" is already running ` +
+      `(orchestrator pid ${previous.orchestratorPid}, run "${previous.runId}"). ` +
+      `Stop that run before starting a new one.`,
+    1
+  );
+}
+
 /**
- * First-run recovery: a live identity fails fast naming the occupant; any
- * other state (stale, corrupt, or missing identity) is cleaned by removal
- * only — no signal is ever sent to an unverified PID.
+ * Busy check for namespace acquisition: the recorded orchestrator being
+ * live makes the namespace busy. Children liveness never decides ownership,
+ * so a record whose server already died mid-teardown still reads busy
+ * instead of letting a successor clobber the successor's own records
+ * (round-2 P11a).
  */
-async function recoverStaleRun(paths: RunPaths, isPidLive: PidLiveness): Promise<void> {
+async function recoverStaleRun(paths: RunPaths, isRunOwnerLive: PidLiveness): Promise<void> {
   const previous = await readIdentity(paths.identityFile);
-  if (previous !== null && (await isIdentityLive(previous, isPidLive))) {
-    throw new OrchestratorError(
-      `Namespace "${paths.namespace}" is already running ` +
-        `(orchestrator pid ${previous.orchestratorPid}, run "${previous.runId}"). ` +
-        `Stop that run before starting a new one.`,
-      1
-    );
+  if (previous !== null && (await isOrchestratorLive(previous, isRunOwnerLive))) {
+    throw namespaceBusyError(paths, previous);
   }
+}
+
+/**
+ * Stale cleanup: stale, corrupt, or missing records are removed — no signal
+ * is ever sent to an unverified PID.
+ */
+async function clearStaleRecords(paths: RunPaths): Promise<void> {
   const ownedRecords = [
     paths.serverPortFile,
     paths.webPortFile,
@@ -473,6 +498,56 @@ async function recoverStaleRun(paths: RunPaths, isPidLive: PidLiveness): Promise
     await ignoreMissing(fsRm(file, { force: true }));
   }
   await ignoreMissing(fsRm(nestedServerPortResidue(paths.root), { force: true }));
+}
+
+function isAlreadyExistsError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown })["code"] === "EEXIST"
+  );
+}
+
+/**
+ * Acquire the run record exclusively (`wx` write) before the freshness
+ * builds: two near-simultaneous starts race on this single atomic claim, and
+ * the loser fails busy naming the winner instead of clobbering it (P11b).
+ * A loser that finds a stale record (its orchestrator verified dead or a
+ * start-time mismatch) clears it and retries once.
+ */
+async function acquireRunClaim(
+  paths: RunPaths,
+  claim: RunIdentity,
+  isRunOwnerLive: PidLiveness
+): Promise<void> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await writeIdentity(paths.identityFile, claim, undefined, { exclusive: true });
+      return;
+    } catch (error: unknown) {
+      if (!isAlreadyExistsError(error)) throw error;
+    }
+    const previous = await readIdentity(paths.identityFile);
+    if (previous !== null && (await isOrchestratorLive(previous, isRunOwnerLive))) {
+      throw namespaceBusyError(paths, previous);
+    }
+    await clearStaleRecords(paths);
+  }
+  throw new OrchestratorError(
+    `Namespace "${paths.namespace}" was claimed concurrently by another run. ` +
+      `Stop that run before starting a new one.`,
+    1
+  );
+}
+
+/** Surface unverifiable teardown skips instead of letting them read as success. */
+function reportUnverified(services: readonly string[], logLine: (line: string) => void): void {
+  if (services.length > 0) {
+    logLine(
+      `[dev] teardown could not verify ${String(services.length)} owned process(es); ` +
+        `not signaled: ${services.join(", ")}`
+    );
+  }
 }
 
 /** Read the failure tail, waiting briefly for piped output to flush. */
@@ -529,112 +604,15 @@ export async function startBackendPhase(
   }
   const paths = resolveRunPaths(root, parsed.namespace);
   const host = ORCHESTRATOR_HOST;
+  // Signal-safety predicate: existence plus a verified start time; teardown
+  // never signals an unverified PID.
   const isPidLive: PidLiveness = deps?.isPidLive ?? createOsPidLivenessChecker();
+  // Ownership predicate: an unverifiable start time keeps the namespace
+  // busy instead of reading as stale, so a live orchestrator is never
+  // clobbered by a successor (round-2 P11c).
+  const isRunOwnerLive: PidLiveness =
+    deps?.isRunOwnerLive ?? deps?.isPidLive ?? createOsPidOwnershipChecker();
 
-  await recoverStaleRun(paths, isPidLive);
-
-  await ensureServerFreshness(root, {
-    runBuild: deps?.runBuild,
-    statMtimeMs: deps?.statMtimeMs,
-    listFilesRecursive: deps?.listFilesRecursive,
-  });
-
-  const allocated = await allocateRunPorts({
-    serverPort: parsed.serverPort,
-    webPort: parsed.webPort,
-    host,
-  });
-
-  await fsMkdir(paths.portsDir, { recursive: true });
-  await fsMkdir(paths.pidsDir, { recursive: true });
-  await fsMkdir(paths.runDir, { recursive: true });
-  await fsMkdir(dirname(paths.serverLogFile), { recursive: true });
-  await rotateNamespaceLogs({
-    latestFile: paths.serverLogFile,
-    previousFile: join(dirname(paths.serverLogFile), "previous.log"),
-  });
-
-  const serverEntry = deps?.serverEntryPath ?? join(resolveRepoRoot(), "apps", "server", "src", "index.ts");
-  const spawnRequest = createServerSpawn({
-    host,
-    port: allocated.serverPort,
-    portFile: paths.serverPortFile,
-    entry: serverEntry,
-  });
-
-  logLine(
-    formatStartupLine("server", {
-      service: "server",
-      namespace: paths.namespace,
-      runId,
-      host,
-      serverPort: allocated.serverPort,
-      executable: spawnRequest.executable,
-      logFile: paths.serverLogFile,
-    })
-  );
-
-  const serviceTee = createServiceLogTee({
-    logFile: paths.serverLogFile,
-    service: "server",
-    logLine,
-  });
-  const flushOutput = serviceTee.flush;
-
-  const childEnv: Record<string, string | undefined> = {
-    ...env,
-    HOST: host,
-    PORT: String(allocated.serverPort),
-    [SERVER_PORT_FILE_ENV]: paths.serverPortFile,
-    [DEV_RUN_ID_ENV]: runId,
-  };
-
-  let serverChild: SpawnedChild;
-  try {
-    serverChild = spawnChild(
-      {
-        executable: spawnRequest.executable,
-        argv: spawnRequest.argv,
-        service: "server",
-        namespace: paths.namespace,
-        runId,
-        logFile: paths.serverLogFile,
-        cwd: root,
-        env: childEnv,
-        onOutput: serviceTee.onOutput,
-      },
-      { spawnFn: deps?.spawnFn, now }
-    );
-  } catch (error: unknown) {
-    await teardownOwnedRun(paths, [], { isPidLive });
-    throw error;
-  }
-
-  const orchestratorStartTimeMs = currentProcessStartTimeMs(now(), process.uptime());
-  const identityRecord: RunIdentity = {
-    runId,
-    namespace: paths.namespace,
-    orchestratorPid: process.pid,
-    orchestratorStartTimeMs,
-    children: {
-      server: { pid: serverChild.pid, startTimeMs: serverChild.startTimeMs },
-    },
-    createdAt: new Date().toISOString(),
-  };
-
-  const ownedServer: OwnedChild = {
-    service: "server",
-    pid: serverChild.pid,
-    startTimeMs: serverChild.startTimeMs,
-  };
-  // Supervised children in start order; teardown reverses it (web before
-  // server). The web phase appends once the sidecar is gated.
-  const owned: OwnedChild[] = [ownedServer];
-  // Exit promises in the same order. Shutdown returns only after every
-  // owned child is actually reaped (not merely signaled): reaping is what
-  // releases OS locks such as the Windows working-directory handle, so
-  // post-run cleanup never races a dying child.
-  const exitPromises: Array<Promise<ChildExit>> = [serverChild.exited];
   let childExited = false;
   let shuttingDown = false;
   let settled = false;
@@ -652,12 +630,32 @@ export async function startBackendPhase(
   };
   const isRunOver = (): boolean => childExited || shuttingDown || settled;
 
+  // Supervised children in start order; teardown reverses it (web before
+  // server). The web phase appends once the sidecar is gated.
+  const owned: OwnedChild[] = [];
+  // Exit promises in the same order. Shutdown returns only after every
+  // owned child is actually reaped (not merely signaled): reaping is what
+  // releases OS locks such as the Windows working-directory handle, so
+  // post-run cleanup never races a dying child.
+  const exitPromises: Array<Promise<ChildExit>> = [];
+  let flushOutput: () => Promise<void> = () => Promise.resolve();
+
+  const runTeardown = async (children: OwnedChild[]): Promise<TeardownResult> => {
+    const result = await teardownOwnedRun(paths, children, { isPidLive, runId });
+    reportUnverified(result.unverified, logLine);
+    return result;
+  };
+
   const shutdown = async (): Promise<number> => {
     if (settled) return settledCode;
     shuttingDown = true;
     removeSignal("SIGINT", handleSigint);
     removeSignal("SIGTERM", handleSigterm);
-    await teardownOwnedRun(paths, owned, { isPidLive });
+    await runTeardown(owned);
+    if (owned.length === 0) {
+      // Claimed but nothing spawned yet: release this run's own record.
+      await releaseRunClaim(paths, runId);
+    }
     await flushOutput();
     let settleTimer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -688,11 +686,145 @@ export async function startBackendPhase(
   // Shutdown handlers must exist before any run record is observable:
   // observers signal as soon as they see `identity.json` or `server.pid`,
   // and a signal delivered before registration would be silently dropped.
+  // The record is now claimed before the freshness builds, so the handlers
+  // are installed first of all.
   onSignal("SIGINT", handleSigint);
   onSignal("SIGTERM", handleSigterm);
 
-  await writeIdentity(paths.identityFile, identityRecord);
-  await fsWriteFile(paths.serverPidFile, `${serverChild.pid}\n`, "utf-8");
+  // Namespace acquisition (round-2 P11): busy check by orchestrator
+  // identity, then the exclusive claim before any freshness build runs.
+  await recoverStaleRun(paths, isRunOwnerLive);
+  await clearStaleRecords(paths);
+
+  const orchestratorStartTimeMs = currentProcessStartTimeMs(now(), process.uptime());
+  const identityRecord: RunIdentity = {
+    runId,
+    namespace: paths.namespace,
+    orchestratorPid: process.pid,
+    orchestratorStartTimeMs,
+    children: {},
+    createdAt: new Date().toISOString(),
+  };
+  await acquireRunClaim(paths, identityRecord, isRunOwnerLive);
+
+  // Everything between the claim and the spawned child is wrapped: a
+  // failure releases this run's own claim (and the early signal handlers)
+  // instead of leaving the namespace blocked or half-wired.
+  const startup = await (async (): Promise<{
+    allocated: AllocatedPorts;
+    serverChild: SpawnedChild;
+  }> => {
+    try {
+      await ensureServerFreshness(root, {
+        runBuild: deps?.runBuild,
+        statMtimeMs: deps?.statMtimeMs,
+        listFilesRecursive: deps?.listFilesRecursive,
+      });
+
+      const allocated = await allocateRunPorts({
+        serverPort: parsed.serverPort,
+        webPort: parsed.webPort,
+        host,
+      });
+
+      await fsMkdir(paths.portsDir, { recursive: true });
+      await fsMkdir(paths.pidsDir, { recursive: true });
+      await fsMkdir(paths.runDir, { recursive: true });
+      await fsMkdir(dirname(paths.serverLogFile), { recursive: true });
+      await rotateNamespaceLogs({
+        latestFile: paths.serverLogFile,
+        previousFile: join(dirname(paths.serverLogFile), "previous.log"),
+      });
+
+      if (settled) {
+        // A shutdown request interrupted startup before any child existed:
+        // report a clean stop, never a failure.
+        throw new OrchestratorError("shutdown requested during startup", 0);
+      }
+
+      const serverEntry =
+        deps?.serverEntryPath ?? join(resolveRepoRoot(), "apps", "server", "src", "index.ts");
+      const spawnRequest = createServerSpawn({
+        host,
+        port: allocated.serverPort,
+        portFile: paths.serverPortFile,
+        entry: serverEntry,
+      });
+
+      logLine(
+        formatStartupLine("server", {
+          service: "server",
+          namespace: paths.namespace,
+          runId,
+          host,
+          serverPort: allocated.serverPort,
+          executable: spawnRequest.executable,
+          logFile: paths.serverLogFile,
+        })
+      );
+
+      const serviceTee = createServiceLogTee({
+        logFile: paths.serverLogFile,
+        service: "server",
+        logLine,
+      });
+      flushOutput = serviceTee.flush;
+
+      const childEnv: Record<string, string | undefined> = {
+        ...env,
+        HOST: host,
+        PORT: String(allocated.serverPort),
+        [SERVER_PORT_FILE_ENV]: paths.serverPortFile,
+        [DEV_RUN_ID_ENV]: runId,
+      };
+
+      const serverChild = spawnChild(
+        {
+          executable: spawnRequest.executable,
+          argv: spawnRequest.argv,
+          service: "server",
+          namespace: paths.namespace,
+          runId,
+          logFile: paths.serverLogFile,
+          cwd: root,
+          env: childEnv,
+          onOutput: serviceTee.onOutput,
+        },
+        { spawnFn: deps?.spawnFn, now }
+      );
+      return { allocated, serverChild };
+    } catch (error: unknown) {
+      removeSignal("SIGINT", handleSigint);
+      removeSignal("SIGTERM", handleSigterm);
+      await releaseRunClaim(paths, runId);
+      throw error;
+    }
+  })();
+  const { allocated, serverChild } = startup;
+
+  const ownedServer: OwnedChild = {
+    service: "server",
+    pid: serverChild.pid,
+    startTimeMs: serverChild.startTimeMs,
+  };
+  owned.push(ownedServer);
+  exitPromises.push(serverChild.exited);
+  identityRecord.children["server"] = {
+    pid: serverChild.pid,
+    startTimeMs: serverChild.startTimeMs,
+  };
+
+  // Post-spawn record writes are protected (round-2 P14): a throw here must
+  // stop the just-spawned child instead of orphaning it and rejecting
+  // unreferenced.
+  try {
+    await writeIdentity(paths.identityFile, identityRecord);
+    await fsWriteFile(paths.serverPidFile, `${serverChild.pid}\n`, "utf-8");
+  } catch (error: unknown) {
+    await runTeardown(owned);
+    finish(1);
+    throw error;
+  }
 
   void serverChild.exited.then(async () => {
     childExited = true;
@@ -701,7 +833,7 @@ export async function startBackendPhase(
     const tail = await readFailureTail(paths.serverLogFile, sleep);
     const tailText = tailToText(tail);
     logLine(`[server] exited unexpectedly. Log tail:\n${tailText}`);
-    await teardownOwnedRun(paths, owned, { isPidLive });
+    await runTeardown(owned);
     finish(1);
   });
 
@@ -767,7 +899,7 @@ export async function startBackendPhase(
         const tail = await readFailureTail(web.logFile, sleep);
         const tailText = tailToText(tail);
         logLine(`[web] exited unexpectedly. Log tail:\n${tailText}`);
-        await teardownOwnedRun(paths, owned, { isPidLive });
+        await runTeardown(owned);
         finish(1);
       });
       logLine(
@@ -805,7 +937,7 @@ export async function startBackendPhase(
     }
   } catch (error: unknown) {
     await flushOutput();
-    await teardownOwnedRun(paths, owned, { isPidLive });
+    await runTeardown(owned);
     if (shuttingDown) {
       // A shutdown request interrupted startup: settlement and child
       // reaping belong to the outstanding shutdown, so the run reports a
@@ -859,6 +991,12 @@ export async function runDevCommand(
     return await handle.waitForExit();
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
+    if (error instanceof OrchestratorError && error.exitCode === 0) {
+      // A shutdown request interrupted startup before any child existed:
+      // a clean stop, not a failure.
+      logLine(`[dev] run stopped during startup: ${message}`);
+      return 0;
+    }
     logLine(`[dev] run failed: ${message}`);
     if (error instanceof OrchestratorError) return error.exitCode;
     return 1;
@@ -880,6 +1018,12 @@ export async function runBackendCommand(
     return await handle.waitForExit();
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
+    if (error instanceof OrchestratorError && error.exitCode === 0) {
+      // A shutdown request interrupted startup before any child existed:
+      // a clean stop, not a failure.
+      logLine(`[dev] backend stopped during startup: ${message}`);
+      return 0;
+    }
     logLine(`[dev] backend failed: ${message}`);
     if (error instanceof OrchestratorError) return error.exitCode;
     return 1;
