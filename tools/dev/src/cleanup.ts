@@ -12,9 +12,9 @@ import { defaultPidExists } from "./identity.js";
  * Owned-only teardown for the dev orchestrator. Stops children in reverse
  * start order with a bounded graceful wait, force-kills only the owned
  * process tree (`taskkill /T /F` on Windows, process-group kill on POSIX),
- * and deletes only the records of the children it stops: a server in the
- * list removes `server.port`/`server.pid` plus `identity.json` (the run
- * owner), a web child removes `web.port`/`web.pid`. A partial teardown
+ * and deletes only the records of the services in its teardown list: a
+ * server in the list removes `server.port`/`server.pid` plus `identity.json`
+ * (the run owner), a web child removes `web.port`/`web.pid`. A partial teardown
  * (web only) never removes the server's records or `identity.json`, so a
  * still-live server keeps the records needed for recovery.
  *
@@ -103,7 +103,7 @@ async function defaultUnlink(path: string): Promise<void> {
 /**
  * Stop every owned child in reverse start order, wait at most `graceMs` for
  * each graceful exit, force-kill the owned tree only when it is still
- * verified live, then remove the records owned by the children it stopped.
+ * verified live, then remove the records owned by the services in the list.
  * Idempotent: safe to run on every exit path.
  */
 export async function teardownOwnedRun(
@@ -145,9 +145,10 @@ export async function teardownOwnedRun(
     }
   }
 
-  // Record removal follows the children actually torn down: only the
-  // server (run owner) owns `identity.json`, and each service owns its own
-  // port/PID records. A web-only pass must leave a live server recoverable.
+  // Record removal covers exactly the services in the teardown list: only
+  // the server (run owner) owns `identity.json`, and each service owns its
+  // own port/PID records. A web-only pass must leave a live server
+  // recoverable.
   const ownedFiles: string[] = [];
   const ownedServices = new Set(childrenInStartOrder.map((child) => child.service));
   if (ownedServices.has("server")) {

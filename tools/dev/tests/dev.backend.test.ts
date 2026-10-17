@@ -603,6 +603,50 @@ http.createServer((req, res) => {
     expect(parseNamespace(handle.namespace)).toBe("int-ns");
   }, 30_000);
 
+  it("registers shutdown handlers before any run record is observable during the health gate", async () => {
+    const root = makeTempRoot();
+    const { lines, logLine } = silentLogs();
+    const paths = resolveRunPaths(root, "gate-signal-ns");
+    const handlers = new Map<string, () => void>();
+    const runPromise = runBackendCommand(
+      { root, argv: ["--namespace", "gate-signal-ns"], env: {} },
+      {
+        logLine,
+        runBuild: () => undefined,
+        createServerSpawn: () => ({
+          executable: process.execPath,
+          argv: ["-e", NEVER_LISTENING_SCRIPT],
+        }),
+        // The gate never passes on its own: the run sits inside the server
+        // health window with its records already written.
+        probeHealth: () => Promise.resolve(false),
+        serverDeadlineMs: 3_000,
+        pollIntervalMs: 100,
+        onSignal: (signal: string, handler: () => void) => {
+          handlers.set(signal, handler);
+        },
+      }
+    );
+    try {
+      const deadline = Date.now() + 30_000;
+      while (!existsSync(paths.identityFile) && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(existsSync(paths.identityFile)).toBe(true);
+      // The record is observable; a signal at this instant must not be lost.
+      expect(handlers.has("SIGINT")).toBe(true);
+      expect(handlers.has("SIGTERM")).toBe(true);
+      handlers.get("SIGINT")?.();
+      await expect(runPromise).resolves.toBe(0);
+      expect(lines.join("\n")).not.toContain("run failed");
+      expect(existsSync(paths.identityFile)).toBe(false);
+      expect(existsSync(paths.serverPidFile)).toBe(false);
+    } finally {
+      handlers.get("SIGINT")?.();
+      await runPromise;
+    }
+  }, 60_000);
+
   it("boots the real server from source with the orchestrator port-file contract", async () => {
     const root = makeTempRoot();
     const { logLine } = silentLogs();

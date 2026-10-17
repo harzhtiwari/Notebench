@@ -621,8 +621,6 @@ export async function startBackendPhase(
     },
     createdAt: new Date().toISOString(),
   };
-  await writeIdentity(paths.identityFile, identityRecord);
-  await fsWriteFile(paths.serverPidFile, `${serverChild.pid}\n`, "utf-8");
 
   const ownedServer: OwnedChild = {
     service: "server",
@@ -687,6 +685,15 @@ export async function startBackendPhase(
     void shutdown();
   }
 
+  // Shutdown handlers must exist before any run record is observable:
+  // observers signal as soon as they see `identity.json` or `server.pid`,
+  // and a signal delivered before registration would be silently dropped.
+  onSignal("SIGINT", handleSigint);
+  onSignal("SIGTERM", handleSigterm);
+
+  await writeIdentity(paths.identityFile, identityRecord);
+  await fsWriteFile(paths.serverPidFile, `${serverChild.pid}\n`, "utf-8");
+
   void serverChild.exited.then(async () => {
     childExited = true;
     if (shuttingDown || settled) return;
@@ -713,12 +720,6 @@ export async function startBackendPhase(
     );
     await flushOutput();
     await fsWriteFile(paths.serverPortFile, `${allocated.serverPort}\n`, "utf-8");
-
-    // Shutdown handlers must exist before any readiness record is
-    // observable: observers signal as soon as they see the record, and a
-    // signal delivered before registration would be silently dropped.
-    onSignal("SIGINT", handleSigint);
-    onSignal("SIGTERM", handleSigterm);
 
     const hook = deps?.onServerReady;
     const readyCtx: ServerReadyContext = {
@@ -805,6 +806,23 @@ export async function startBackendPhase(
   } catch (error: unknown) {
     await flushOutput();
     await teardownOwnedRun(paths, owned, { isPidLive });
+    if (shuttingDown) {
+      // A shutdown request interrupted startup: settlement and child
+      // reaping belong to the outstanding shutdown, so the run reports a
+      // clean stop (exit 0) instead of surfacing the aborted wait as a
+      // failure.
+      return {
+        root,
+        namespace: paths.namespace,
+        runId,
+        host,
+        serverPort: allocated.serverPort,
+        paths,
+        serverChild,
+        shutdown,
+        waitForExit: () => exitPromise,
+      };
+    }
     finish(error instanceof OrchestratorError ? error.exitCode : 1);
     throw error;
   }

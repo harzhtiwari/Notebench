@@ -697,6 +697,52 @@ http.createServer((req, res) => {
     }
   }, 60_000);
 
+  it("reports a clean stop when a shutdown request interrupts the sidecar wait", async () => {
+    const { runDevCommand } = await import("../src/composer.js");
+    const { resolveRunPaths } = await import("../src/paths.js");
+    const root = makeTempRoot();
+    const { lines, logLine } = silentLogs();
+    const paths = resolveRunPaths(root, "webstop-ns");
+    const handlers = new Map<string, () => void>();
+    let releaseWebSpawn: () => void = () => undefined;
+    const webSpawned = new Promise<void>((resolve) => {
+      releaseWebSpawn = () => resolve();
+    });
+
+    const runPromise = runDevCommand(
+      { root, argv: ["--namespace", "webstop-ns"], env: {} },
+      {
+        logLine,
+        runBuild: () => undefined,
+        createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", SERVER_HEALTHY_SCRIPT] }),
+        createWebSpawn: () => {
+          releaseWebSpawn();
+          // Never listens: the run stays inside the sidecar wait.
+          return { executable: process.execPath, argv: ["-e", "setInterval(() => {}, 1000);"] };
+        },
+        webDeadlineMs: 30_000,
+        pollIntervalMs: 100,
+        onSignal: (signal: string, handler: () => void) => {
+          handlers.set(signal, handler);
+        },
+      }
+    );
+    try {
+      await webSpawned;
+      expect(handlers.has("SIGINT")).toBe(true);
+      // A user stop mid-startup is a clean shutdown (spec section 7.6),
+      // not a child failure.
+      handlers.get("SIGINT")?.();
+      await expect(runPromise).resolves.toBe(0);
+      expect(lines.join("\n")).not.toContain("run failed");
+      expect(existsSync(paths.webPortFile)).toBe(false);
+      expect(existsSync(paths.identityFile)).toBe(false);
+    } finally {
+      handlers.get("SIGINT")?.();
+      await runPromise;
+    }
+  }, 60_000);
+
   it("times out with exit 4, the tail, and no owned state when the sidecar never listens", async () => {
     const { runDevCommand } = await import("../src/composer.js");
     const { resolveRunPaths } = await import("../src/paths.js");
