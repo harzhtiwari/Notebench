@@ -1,6 +1,6 @@
 /**
- * Formats byte size into human-readable notation (e.g. 512 B, 1.2 MB, 4.8 GB).
- */
+Formats byte size into human-readable notation (e.g. 512 B, 1.2 MB, 4.8 GB).
+*/
 export function formatBytes(bytes: number): string {
   if (bytes <= 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -11,8 +11,8 @@ export function formatBytes(bytes: number): string {
 }
 
 /**
- * Formats ISO date string into relative time (e.g. "just now", "12m ago", "2d ago").
- */
+Formats ISO date string into relative time (e.g. "just now", "12m ago", "2d ago").
+*/
 export function formatRelativeTime(isoString: string): string {
   const date = new Date(isoString);
   const now = new Date();

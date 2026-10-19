@@ -1,5 +1,5 @@
 import * as React from "react";
-import { CheckCircle } from "../primitives/icons.js";
+import { CheckCircleIcon } from "../primitives/icons.js";
 import { Well } from "../primitives/index.js";
 import { cn } from "../../lib/utils.js";
 
@@ -12,10 +12,10 @@ export interface DiffViewProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 /**
- * DiffView: board `.diff` pattern (ticket 16).
- * Renders side-by-side or stacked Before/After diff panes with del/ins formatting
- * plus an optional verification row asserting sibling invariance.
- */
+DiffView: board `.diff` pattern (ticket 16).
+Renders side-by-side or stacked Before/After diff panes with del/ins formatting
+plus an optional verification row asserting sibling invariance.
+*/
 const DiffView = React.forwardRef<HTMLDivElement, DiffViewProps>(
   (
     {
@@ -54,12 +54,12 @@ const DiffView = React.forwardRef<HTMLDivElement, DiffViewProps>(
           </div>
         )}
 
-        {verifyMessage !== undefined ? (
+        {verifyMessage === undefined ? null : (
           <div className="verify flex items-center gap-[var(--nb-space-2)] px-[var(--nb-space-4)] py-[var(--nb-space-3)] text-sm font-semibold text-[var(--nb-ok)]">
-            <CheckCircle size={16} weight="fill" aria-hidden="true" className="shrink-0" />
+            <CheckCircleIcon size={16} weight="fill" aria-hidden="true" className="shrink-0" />
             <span>{verifyMessage}</span>
           </div>
-        ) : null}
+        )}
       </div>
     );
   }

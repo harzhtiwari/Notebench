@@ -3,7 +3,7 @@ import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import path from "node:path";
 import { createLogger, type Logger } from "@notebench/logger";
 import type { NotebookErrorCode, DocWorkerProbe, NotebookRepositoryPort } from "@notebench/contracts";
 import type { SqliteHealthProbeTarget } from "@notebench/domain-ops";
@@ -41,43 +41,51 @@ export interface BuildServerOptions extends FastifyServerOptions {
   cookieSecret?: string | undefined;
   vaultDir?: string | undefined;
   dbPath?: string | undefined;
-  /** Alias for sqliteInstance, accepted for test ergonomics */
+  /**
+  Alias for sqliteInstance, accepted for test ergonomics
+  */
   db?: SqliteDatabaseInstance | undefined;
   sqliteInstance?: SqliteDatabaseInstance | undefined;
   notebookRepo?: NotebookRepositoryPort | undefined;
   notebookService?: NotebookService | undefined;
   defaultUserId?: string | undefined;
-  /** Encrypted provider-key vault (Ticket 04). Defaults to SQLite-backed vault. */
+  /**
+  Encrypted provider-key vault (Ticket 04). Defaults to SQLite-backed vault.
+  */
   vault?: EncryptedVault | undefined;
-  /** Chat/embedding model selection store (Ticket 04 D6). Defaults to SQLite. */
+  /**
+  Chat/embedding model selection store (Ticket 04 D6). Defaults to SQLite.
+  */
   modelSelections?: ModelSelectionStore | undefined;
-  /** Provider adapter overrides (Ticket 04). Defaults to the full registry. */
+  /**
+  Provider adapter overrides (Ticket 04). Defaults to the full registry.
+  */
   providerAdapters?: Partial<Record<ProviderId, ProviderAdapter>> | undefined;
 }
 
 /**
- * Locates the prebuilt web export (`apps/web/out`) from the workspace root,
- * regardless of which package directory the server starts in (repo root in
- * Docker, `apps/server` under `pnpm --filter`). Returns undefined outside a
- * workspace or when the export has not been built yet, so callers keep the
- * previous fallback behavior instead of serving a wrong directory.
- */
+Locates the prebuilt web export (`apps/web/out`) from the workspace root,
+regardless of which package directory the server starts in (repo root in
+Docker, `apps/server` under `pnpm --filter`). Returns undefined outside a
+workspace or when the export has not been built yet, so callers keep the
+previous fallback behavior instead of serving a wrong directory.
+*/
 export function resolveWebOutDir(startDir: string = process.cwd()): string | undefined {
-  let dir = resolve(startDir);
+  let dir = path.resolve(startDir);
   while (true) {
-    if (existsSync(join(dir, "pnpm-workspace.yaml"))) {
-      const candidate = join(dir, "apps", "web", "out");
+    if (existsSync(path.join(dir, "pnpm-workspace.yaml"))) {
+      const candidate = path.join(dir, "apps", "web", "out");
       return existsSync(candidate) ? candidate : undefined;
     }
-    const parent = dirname(dir);
+    const parent = path.dirname(dir);
     if (parent === dir) return undefined;
     dir = parent;
   }
 }
 
 /**
- * Builds and configures the Notebench Fastify composition root.
- */
+Builds and configures the Notebench Fastify composition root.
+*/
 export async function buildServer(options: BuildServerOptions = {}): Promise<FastifyInstance> {
   const {
     staticDir,
@@ -100,9 +108,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   // not three. Tests passing sqliteDb/sqliteInstance/db are unaffected.
   let sharedSqliteInstance = resolvedSqliteInstance;
   function ensureSharedSqlite(): SqliteDatabaseInstance {
-    if (!sharedSqliteInstance) {
-      sharedSqliteInstance = createSqliteDatabase({ dbPath: options.dbPath });
-    }
+    sharedSqliteInstance ??= createSqliteDatabase({ dbPath: options.dbPath });
     return sharedSqliteInstance;
   }
   const doctorSqliteDb =
@@ -138,7 +144,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
       statusCode: 429,
       error: {
         code: "RATE_LIMITED",
-        message: `Rate limit exceeded. Retry in ${String(context.after)}.`,
+        message: `Rate limit exceeded. Retry in ${context.after}.`,
         details: {
           retryAfterSeconds: Math.ceil(context.ttl / 1000),
           limit: context.max,
@@ -148,11 +154,11 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   });
 
   // Health probe endpoints
-  app.get("/healthz", async () => {
+  app.get("/healthz", () => {
     return { status: "ok" };
   });
 
-  app.get("/livez", async () => {
+  app.get("/livez", () => {
     return { status: "ok" };
   });
 
@@ -201,7 +207,10 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     "preHandler",
     createSessionGuard({
       sessionService,
-      isPasscodeRequired: async () => (await setupService.getAppState()).requiresPasscode,
+      isPasscodeRequired: async () => {
+        const appState = await setupService.getAppState();
+        return appState.requiresPasscode;
+      },
     })
   );
 
@@ -251,7 +260,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   }
 
   await app.register(providersRoutes, {
-    ...(options.providerAdapters ? { adapters: options.providerAdapters } : {}),
+    ...(options.providerAdapters && { adapters: options.providerAdapters }),
     vault,
     selections: modelSelections,
     defaultUserId,
@@ -262,7 +271,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
   // Prefer the workspace-root export (works from any package cwd); keep the
   // legacy cwd-relative path as a last resort for non-workspace layouts.
   const resolvedStaticDir =
-    staticDir ?? resolveWebOutDir() ?? resolve(process.cwd(), "apps/web/out");
+    staticDir ?? resolveWebOutDir() ?? path.resolve(process.cwd(), "apps/web/out");
   const hasStaticDir = existsSync(resolvedStaticDir);
 
   if (hasStaticDir) {
@@ -290,15 +299,15 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     const pathname = queryIndex === -1 ? url : url.slice(0, queryIndex);
     const acceptHeader = request.headers.accept;
     const accept = Array.isArray(acceptHeader) ? acceptHeader.join(",") : (acceptHeader ?? "");
-    const wantsHtml = accept === "" || accept.includes("text/html") || accept.includes("*/*");
+    const isWantsHtml = accept === "" || accept.includes("text/html") || accept.includes("*/*");
     const isNavigation = request.method === "GET" || request.method === "HEAD";
     if (
       pathname === "/api" ||
-      pathname.startsWith("/api/") ||
-      !isNavigation ||
       pathname === "/_next" ||
-      pathname.startsWith("/_next/") ||
-      !wantsHtml
+      !isNavigation ||
+      !isWantsHtml ||
+      pathname.startsWith("/api/") ||
+      pathname.startsWith("/_next/")
     ) {
       return reply.status(404).send({
         error: {
@@ -309,7 +318,7 @@ export async function buildServer(options: BuildServerOptions = {}): Promise<Fas
     }
 
     // Client-side routes fallback to static SPA index.html
-    if (hasStaticDir && existsSync(resolve(resolvedStaticDir, "index.html"))) {
+    if (hasStaticDir && existsSync(path.resolve(resolvedStaticDir, "index.html"))) {
       return reply.sendFile("index.html");
     }
 

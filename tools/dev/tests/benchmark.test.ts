@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import {
   benchmarkFailureExitCode,
   parseBenchmarkArgs,
@@ -13,10 +13,10 @@ import { resolveRunPaths } from "../src/paths.js";
 import { OrchestratorError } from "../src/types.js";
 import { makeTempRoot, removeTempRoots } from "./temp-dir.js";
 /**
- * Ticket 08 RED suite: the benchmark harness must accept both `--flag=value`
- * and `--flag value` forms (the documented usage shows the space form), so a
- * `--warmup ui` invocation never silently benchmarks route mode.
- */
+Ticket 08 RED suite: the benchmark harness must accept both `--flag=value`
+and `--flag value` forms (the documented usage shows the space form), so a
+`--warmup ui` invocation never silently benchmarks route mode.
+*/
 
 describe("ticket 08: benchmark flag parsing", () => {
   it("accepts equals-form flags", () => {
@@ -130,20 +130,20 @@ describe("ticket 08: benchmark run wiring", () => {
     const root = makeTempRoot(roots, "bench-wire-");
     const captured: string[] = [];
     const logSpy = vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
-      captured.push(args.map((arg) => String(arg)).join(" "));
+      captured.push(args.map(String).join(" "));
     });
-    const exitListeners: Array<(...args: unknown[]) => void> = [];
+    const exitListeners: ((...args: unknown[]) => void)[] = [];
     const spawnFn: SpawnFn = () => ({
-      pid: 99999,
+      pid: 99_999,
       on: (event: string, listener: (...args: unknown[]) => void) => {
         if (event === "exit") exitListeners.push(listener);
       },
     });
-    let reaped = false;
+    let isReaped = false;
     try {
       await runOnce(root, "bench-wire", "route", "cold", 7, {
         backend: {
-          runBuild: () => undefined,
+          runBuild: () => {},
           spawnFn,
           // Fake children never exit on their own. Shutdown's first liveness
           // check happens inside its teardown (the run is already closing),
@@ -151,8 +151,8 @@ describe("ticket 08: benchmark run wiring", () => {
           // without sitting out the reap grace — and the false verdict
           // guarantees pid 99999 is never signaled.
           isPidLive: () => {
-            if (reaped === false) {
-              reaped = true;
+            if (!isReaped) {
+              isReaped = true;
               for (const listener of exitListeners) listener(0, null);
             }
             return false;
@@ -167,7 +167,7 @@ describe("ticket 08: benchmark run wiring", () => {
       const tag = "[bench:cold:7] ";
       const webStartup = captured.filter((line) => line.includes("[web] starting"));
       expect(webStartup.length).toBeGreaterThan(0);
-      expect(webStartup.filter((line) => line.startsWith(tag) === false)).toEqual([]);
+      expect(webStartup.filter((line) => !line.startsWith(tag))).toEqual([]);
 
       const devReady = captured.filter((line) => line.includes("[dev] ready"));
       expect(devReady.some((line) => line.startsWith(tag))).toBe(true);
@@ -184,10 +184,10 @@ describe("ticket 08: cold reset runs after the namespace claim (P15)", () => {
     const root = makeTempRoot(roots, "bench-prep-");
     const paths = resolveRunPaths(root, "prep-bench");
     mkdirSync(paths.buildDir, { recursive: true });
-    const sentinel = join(paths.buildDir, "sentinel.txt");
-    writeFileSync(sentinel, "live", "utf-8");
-    let dirPresentAtPhaseEntry = false;
-    let dirPresentAfterPrep = true;
+    const sentinel = path.join(paths.buildDir, "sentinel.txt");
+    writeFileSync(sentinel, "live", "utf8");
+    let isDirPresentAtPhaseEntry = false;
+    let isDirPresentAfterPrep = true;
     vi.resetModules();
     vi.doMock("../src/composer.js", () => ({
       startBackendPhase: async (
@@ -197,9 +197,9 @@ describe("ticket 08: cold reset runs after the namespace claim (P15)", () => {
         // The phase is entered first; only then does the prep hook run (the
         // real phase invokes it after the exclusive namespace claim).
         const phasePaths = resolveRunPaths(options?.root ?? process.cwd(), "prep-bench");
-        dirPresentAtPhaseEntry = existsSync(join(phasePaths.buildDir, "sentinel.txt"));
+        isDirPresentAtPhaseEntry = existsSync(path.join(phasePaths.buildDir, "sentinel.txt"));
         await deps?.prep?.();
-        dirPresentAfterPrep = existsSync(join(phasePaths.buildDir, "sentinel.txt"));
+        isDirPresentAfterPrep = existsSync(path.join(phasePaths.buildDir, "sentinel.txt"));
         return { shutdown: async () => 0 };
       },
       startDefaultWebPhase: async () => {
@@ -212,8 +212,8 @@ describe("ticket 08: cold reset runs after the namespace claim (P15)", () => {
       expect(trace.mode).toBe("cold");
       // The build dir was untouched when the phase began (a busy namespace
       // still owns it) and the cold reset ran inside the prep hook.
-      expect(dirPresentAtPhaseEntry).toBe(true);
-      expect(dirPresentAfterPrep).toBe(false);
+      expect(isDirPresentAtPhaseEntry).toBe(true);
+      expect(isDirPresentAfterPrep).toBe(false);
       expect(existsSync(sentinel)).toBe(false);
     } finally {
       vi.doUnmock("../src/composer.js");

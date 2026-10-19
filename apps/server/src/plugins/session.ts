@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import cookie from "@fastify/cookie";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import path from "node:path";
 import {
   SESSION_COOKIE_NAME_HTTP,
   SESSION_COOKIE_NAME_SECURE,
@@ -15,40 +15,46 @@ import type { SessionRecord } from "@notebench/contracts";
 
 export interface SessionSupportOptions {
   sessionService: SessionService;
-  /** Direct signing secret override (tests, deployments). Takes precedence. */
+  /**
+  Direct signing secret override (tests, deployments). Takes precedence.
+  */
   cookieSecret?: string | undefined;
-  /** Vault directory holding cookie.key. Defaults to <workspace>/.notebook/vault. */
+  /**
+  Vault directory holding cookie.key. Defaults to <workspace>/.notebook/vault.
+  */
   vaultDir?: string | undefined;
-  /** Environment source. Defaults to process.env; injectable for tests. */
+  /**
+  Environment source. Defaults to process.env; injectable for tests.
+  */
   env?: Record<string, string | undefined> | undefined;
 }
 
 /**
- * File holding the persisted cookie signing secret (research 11 §3.1).
- */
+File holding the persisted cookie signing secret (research 11 §3.1).
+*/
 export const COOKIE_KEY_FILE_NAME = "cookie.key";
 
 /**
- * Minimum accepted secret length (32 characters) per the signing guidance
- * of at least 20 bytes of key material.
- */
+Minimum accepted secret length (32 characters) per the signing guidance
+of at least 20 bytes of key material.
+*/
 const MIN_COOKIE_SECRET_LENGTH = 32;
 
 export type CookieSecretSource = "option" | "env" | "file" | "generated";
 
 /**
- * Locates the workspace root by walking up to pnpm-workspace.yaml,
- * falling back to the start directory (mirrors resolveWebOutDir).
- */
+Locates the workspace root by walking up to pnpm-workspace.yaml,
+falling back to the start directory (mirrors resolveWebOutDir).
+*/
 function findWorkspaceRoot(startDir: string = process.cwd()): string {
-  let dir = resolve(startDir);
+  let dir = path.resolve(startDir);
   while (true) {
-    if (existsSync(join(dir, "pnpm-workspace.yaml"))) {
+    if (existsSync(path.join(dir, "pnpm-workspace.yaml"))) {
       return dir;
     }
-    const parent = dirname(dir);
+    const parent = path.dirname(dir);
     if (parent === dir) {
-      return resolve(startDir);
+      return path.resolve(startDir);
     }
     dir = parent;
   }
@@ -63,11 +69,11 @@ function assertSecretLength(secret: string, source: string): void {
 }
 
 /**
- * Resolves the HMAC cookie signing secret (research 11 §3.1):
- * explicit option, then NOTEBOOK_COOKIE_SECRET, then the persisted
- * `.notebook/vault/cookie.key` file, else a generated secret that is
- * persisted for subsequent boots so sessions survive restarts.
- */
+Resolves the HMAC cookie signing secret (research 11 §3.1):
+explicit option, then NOTEBOOK_COOKIE_SECRET, then the persisted
+`.notebook/vault/cookie.key` file, else a generated secret that is
+persisted for subsequent boots so sessions survive restarts.
+*/
 export function resolveCookieSecret(
   options: {
     cookieSecret?: string | undefined;
@@ -88,8 +94,8 @@ export function resolveCookieSecret(
   }
 
   const dir =
-    options.vaultDir ?? join(findWorkspaceRoot(), ".notebook", "vault");
-  const keyPath = join(resolve(dir), COOKIE_KEY_FILE_NAME);
+    options.vaultDir ?? path.join(findWorkspaceRoot(), ".notebook", "vault");
+  const keyPath = path.join(path.resolve(dir), COOKIE_KEY_FILE_NAME);
   if (existsSync(keyPath)) {
     const stored = readFileSync(keyPath, "utf8").trim();
     assertSecretLength(stored, `file ${keyPath}`);
@@ -97,7 +103,7 @@ export function resolveCookieSecret(
   }
 
   const generated = randomBytes(32).toString("hex");
-  mkdirSync(dirname(keyPath), { recursive: true });
+  mkdirSync(path.dirname(keyPath), { recursive: true });
   writeFileSync(keyPath, `${generated}\n`, { mode: 0o600 });
   return { secret: generated, source: "generated" };
 }
@@ -108,9 +114,9 @@ export interface RequestSession {
 }
 
 /**
- * Registers cookie parsing/signing for session cookies. Must run before any
- * hook that reads cookies (the plugin parses on `onRequest`).
- */
+Registers cookie parsing/signing for session cookies. Must run before any
+hook that reads cookies (the plugin parses on `onRequest`).
+*/
 export async function registerSessionSupport(
   app: FastifyInstance,
   options: SessionSupportOptions
@@ -120,10 +126,10 @@ export async function registerSessionSupport(
 }
 
 /**
- * HTTPS detection for cookie naming (NOTEBENCH 6.5): direct TLS or
- * `X-Forwarded-Proto: https` from a reverse proxy.
- */
-export function resolveRequestSecurity(
+HTTPS detection for cookie naming (NOTEBENCH 6.5): direct TLS or
+`X-Forwarded-Proto: https` from a reverse proxy.
+*/
+export function isRequestSecure(
   protocol: string | undefined,
   forwardedProto: string | string[] | undefined
 ): boolean {
@@ -131,20 +137,17 @@ export function resolveRequestSecurity(
 }
 
 /**
- * Reads the session cookie, accepting both the `__Host-` (HTTPS) and plain
- * (HTTP) names so scheme transitions never hard-lock the owner out.
- */
+Reads the session cookie, accepting both the `__Host-` (HTTPS) and plain
+(HTTP) names so scheme transitions never hard-lock the owner out.
+*/
 function readSessionCookie(request: FastifyRequest): string | undefined {
   const cookies = request.cookies as Record<string, string | undefined> | undefined;
-  if (!cookies) {
-    return undefined;
-  }
-  return cookies[SESSION_COOKIE_NAME_SECURE] ?? cookies[SESSION_COOKIE_NAME_HTTP];
+  return cookies ? cookies[SESSION_COOKIE_NAME_SECURE] ?? cookies[SESSION_COOKIE_NAME_HTTP] : undefined;
 }
 
 /**
- * Issues (or renews) the sliding session cookie for a raw token.
- */
+Issues (or renews) the sliding session cookie for a raw token.
+*/
 export function setSessionCookie(
   reply: FastifyReply,
   rawToken: string,
@@ -156,10 +159,10 @@ export function setSessionCookie(
 }
 
 /**
- * Renews the sliding cookie for an already-resolved request session. Shared by
- * the global guard and the session-management routes so renewal has one shape
- * (Ticket 02 / NOTEBENCH 6.5).
- */
+Renews the sliding cookie for an already-resolved request session. Shared by
+the global guard and the session-management routes so renewal has one shape
+(Ticket 02 / NOTEBENCH 6.5).
+*/
 export function renewSessionCookie(
   reply: FastifyReply,
   request: FastifyRequest,
@@ -168,25 +171,25 @@ export function renewSessionCookie(
   setSessionCookie(
     reply,
     session.rawToken,
-    resolveRequestSecurity(request.protocol, request.headers["x-forwarded-proto"])
+    isRequestSecure(request.protocol, request.headers["x-forwarded-proto"])
   );
 }
 
 /**
- * Clears both session cookie names (scheme transitions may leave either behind).
- * The `__Host-` clearing header must carry `Secure`: RFC 6265bis §5.7 makes a
- * browser ignore any Set-Cookie for a `__Host-` name without it, which would
- * leave the stale cookie alive until its Max-Age lapses (Ticket 02).
- */
+Clears both session cookie names (scheme transitions may leave either behind).
+The `__Host-` clearing header must carry `Secure`: RFC 6265bis §5.7 makes a
+browser ignore any Set-Cookie for a `__Host-` name without it, which would
+leave the stale cookie alive until its Max-Age lapses (Ticket 02).
+*/
 export function clearSessionCookies(reply: FastifyReply): void {
   reply.clearCookie(SESSION_COOKIE_NAME_SECURE, { path: "/", secure: true });
   reply.clearCookie(SESSION_COOKIE_NAME_HTTP, { path: "/" });
 }
 
 /**
- * Resolves and validates the request session, renewing its sliding expiry.
- * Returns null when no usable session is presented.
- */
+Resolves and validates the request session, renewing its sliding expiry.
+Returns null when no usable session is presented.
+*/
 export async function resolveRequestSession(
   request: FastifyRequest,
   sessionService: SessionService
@@ -200,49 +203,31 @@ export async function resolveRequestSession(
     return null;
   }
   const record = await sessionService.validateSession(unsigned.value);
-  if (!record) {
-    return null;
-  }
-  return { record, rawToken: unsigned.value };
+  return record ? { record, rawToken: unsigned.value } : null;
 }
 
 /**
- * API paths that never require a session: setup, health probes and the
- * session routes themselves. Everything else under /api/ is protected, and
- * non-API paths (static SPA assets) are never gated here.
- */
+API paths that never require a session: setup, health probes and the
+session routes themselves. Everything else under /api/ is protected, and
+non-API paths (static SPA assets) are never gated here.
+*/
 export function isProtectedApiRoute(url: string): boolean {
-  const path = url.split("?")[0] ?? url;
-  if (path === "/setup") {
-    return false;
-  }
-  if (!path.startsWith("/api/")) {
-    return false;
-  }
-  if (path === "/api/setup" || path === "/api/app-state") {
-    return false;
-  }
-  if (path === "/api/session" || path.startsWith("/api/session/")) {
-    return false;
-  }
-  return true;
+  const pathname = url.split("?", 1)[0] ?? url;
+  return !(pathname === "/setup" || pathname === "/api/setup" || pathname === "/api/app-state" || pathname === "/api/session" || !pathname.startsWith("/api/") || pathname.startsWith("/api/session/"));
 }
 
 /**
- * Single global session hook used by all protected routes (no per-route copies).
- * Open when the owner has no passcode (ticket 01 zero-auth mode); otherwise a
- * missing/invalid session is a stable 401 and every authenticated request
- * renews the sliding cookie.
- */
+Single global session hook used by all protected routes (no per-route copies).
+Open when the owner has no passcode (ticket 01 zero-auth mode); otherwise a
+missing/invalid session is a stable 401 and every authenticated request
+renews the sliding cookie.
+*/
 export function createSessionGuard(deps: {
   sessionService: SessionService;
   isPasscodeRequired: () => Promise<boolean>;
 }): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
   return async (request, reply) => {
-    if (!isProtectedApiRoute(request.url)) {
-      return;
-    }
-    if (!(await deps.isPasscodeRequired())) {
+    if (!isProtectedApiRoute(request.url) || !(await deps.isPasscodeRequired())) {
       return;
     }
     const session = await resolveRequestSession(request, deps.sessionService);

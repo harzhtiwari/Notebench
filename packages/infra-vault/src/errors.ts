@@ -11,8 +11,8 @@ export type VaultErrorCategory =
   | "VALIDATION_ERROR";
 
 /**
- * Categorised Vault error class preserving prototype chain and strict NotebookError contracts.
- */
+Categorised Vault error class preserving prototype chain and strict NotebookError contracts.
+*/
 export class VaultError extends NotebookError {
   readonly code: NotebookErrorCode;
   readonly statusCode: number;
@@ -28,29 +28,33 @@ export class VaultError extends NotebookError {
     this.category = category;
 
     switch (category) {
-      case "TAMPERED_CIPHERTEXT":
+      case "TAMPERED_CIPHERTEXT": {
         this.code = "INVARIANCE_VIOLATION";
         this.statusCode = 409;
         break;
-      case "INVALID_MASTER_KEY":
+      }
+      case "INVALID_MASTER_KEY": {
         this.code = "UNAUTHORIZED";
         this.statusCode = 401;
         break;
-      case "KEY_NOT_FOUND":
+      }
+      case "KEY_NOT_FOUND": {
         this.code = "NOT_FOUND";
         this.statusCode = 404;
         break;
-      case "STORAGE_ERROR":
+      }
+      case "STORAGE_ERROR": {
         // Vault storage I/O failure: an internal fault, not bad client input.
         // 500-class, mirroring the server's internal-error convention.
         this.code = "INVARIANCE_VIOLATION";
         this.statusCode = 500;
         break;
-      case "VALIDATION_ERROR":
-      default:
+      }
+      default: {
         this.code = "VALIDATION_ERROR";
         this.statusCode = 400;
         break;
+      }
     }
   }
 

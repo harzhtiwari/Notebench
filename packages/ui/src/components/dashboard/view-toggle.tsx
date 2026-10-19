@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Button } from "../primitives/button.js";
-import { GridFour, List } from "../primitives/icons.js";
+import { GridFourIcon, ListIcon } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
 export type DashboardView = "grid" | "list";
@@ -12,15 +12,17 @@ export interface ViewToggleProps
 }
 
 /**
- * Grid/list switch in the board `.seg` shape: pressed state carries the
- * meaning (ink fill), never icon-alone — each side keeps its text label.
- */
+Grid/list switch in the board `.seg` shape: pressed state carries the
+meaning (ink fill), never icon-alone — each side keeps its text label.
+*/
+function optionClass(isActive: boolean): string {
+  return isActive
+    ? "bg-[var(--nb-ink)] text-[var(--nb-ink-inv)]"
+    : "text-[var(--nb-ink-2)]";
+}
+
 const ViewToggle = React.forwardRef<HTMLDivElement, ViewToggleProps>(
   ({ className, value, onChange, ...props }, ref) => {
-    const optionClass = (active: boolean): string =>
-      active
-        ? "bg-[var(--nb-ink)] text-[var(--nb-ink-inv)]"
-        : "text-[var(--nb-ink-2)]";
     return (
       <div
         ref={ref}
@@ -36,7 +38,7 @@ const ViewToggle = React.forwardRef<HTMLDivElement, ViewToggleProps>(
           type="button"
           variant="nb_btn_ghost"
           size="nb_btn_sm"
-          leadingIcon={GridFour}
+          leadingIcon={GridFourIcon}
           aria-label="Grid view"
           aria-pressed={value === "grid"}
           onClick={() => {
@@ -50,7 +52,7 @@ const ViewToggle = React.forwardRef<HTMLDivElement, ViewToggleProps>(
           type="button"
           variant="nb_btn_ghost"
           size="nb_btn_sm"
-          leadingIcon={List}
+          leadingIcon={ListIcon}
           aria-label="List view"
           aria-pressed={value === "list"}
           onClick={() => {

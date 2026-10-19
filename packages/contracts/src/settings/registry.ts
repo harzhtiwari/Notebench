@@ -24,9 +24,9 @@ export const TargetMilestoneSchema = z.enum(["0.2", "0.3", "later"]);
 export type TargetMilestone = z.infer<typeof TargetMilestoneSchema>;
 
 /**
- * Discriminated union for setting operational status.
- * Mandates that disabled controls provide an explicit roadmap milestone and rationale.
- */
+Discriminated union for setting operational status.
+Mandates that disabled controls provide an explicit roadmap milestone and rationale.
+*/
 export const SettingStatusSchema = z.discriminatedUnion("state", [
   z.object({
     state: z.literal("enabled"),

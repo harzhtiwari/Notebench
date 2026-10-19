@@ -7,7 +7,7 @@ import {
 } from "../primitives/overlays.js";
 import { Button, IconButton } from "../primitives/button.js";
 import { MetricRow } from "../primitives/metric-row.js";
-import { ChartBar } from "../primitives/icons.js";
+import { ChartBarIcon } from "../primitives/icons.js";
 import {
   type DashboardMetrics,
   DASHBOARD_METRICS_CONFIG,
@@ -32,7 +32,7 @@ export function MetricsPopover({ metrics, onManageStorage }: MetricsPopoverProps
         <IconButton
           variant="nb_btn_secondary"
           size="nb_btn_icon_sm"
-          icon={ChartBar}
+          icon={ChartBarIcon}
           data-testid="metrics-popover-trigger"
           aria-label="Instance Metrics"
           className="text-[var(--nb-ink-2)]"
@@ -79,17 +79,13 @@ export function MetricsPopover({ metrics, onManageStorage }: MetricsPopoverProps
               );
             }
 
-            if (config.id === "artifactCount") {
-              return (
-                <MetricRow
-                  key={config.id}
-                  label={config.label}
-                  value={`${metrics.artifactCount} Trees`}
-                />
-              );
-            }
-
-            return null;
+            return (
+              <MetricRow
+                key={config.id}
+                label={config.label}
+                value={`${metrics.artifactCount} Trees`}
+              />
+            );
           })}
         </div>
 

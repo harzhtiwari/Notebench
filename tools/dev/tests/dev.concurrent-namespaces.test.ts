@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import { runDevCommand } from "../src/composer.js";
 import type { BackendPhaseDeps } from "../src/composer.js";
 import { resolveRunPaths } from "../src/paths.js";
@@ -8,19 +8,19 @@ import type { RunPaths } from "../src/paths.js";
 import { makeTempRoot as createTempRoot, removeTempRoots } from "./temp-dir.js";
 
 /**
- * Spec story 5 (section 9 story-to-test matrix): "two namespaces run
- * concurrently with disjoint ports, logs, build dirs — real processes".
- *
- * Existing coverage was path arithmetic only (`dev.test.ts`); this suite
- * starts two full `runDevCommand` runs under one workspace root at the same
- * time, each with real node fixture children, and observes the isolation
- * end to end: records, live HTTP, log files, compiler build dirs, and
- * namespace-scoped teardown (spec 5.5, 7.3, 7.6, 5.14).
- *
- * Seams under test (public boundaries only): `runDevCommand` observed via
- * `resolveRunPaths` records and live fixture responses. Signal delivery is
- * injected per run; real process signals are never used.
- */
+Spec story 5 (section 9 story-to-test matrix): "two namespaces run
+concurrently with disjoint ports, logs, build dirs — real processes".
+
+Existing coverage was path arithmetic only (`dev.test.ts`); this suite
+starts two full `runDevCommand` runs under one workspace root at the same
+time, each with real node fixture children, and observes the isolation
+end to end: records, live HTTP, log files, compiler build dirs, and
+namespace-scoped teardown (spec 5.5, 7.3, 7.6, 5.14).
+
+Seams under test (public boundaries only): `runDevCommand` observed via
+`resolveRunPaths` records and live fixture responses. Signal delivery is
+injected per run; real process signals are never used.
+*/
 
 const tempRoots: string[] = [];
 
@@ -30,7 +30,9 @@ function makeTempRoot(): string {
 
 afterEach(() => removeTempRoots(tempRoots), 120_000);
 
-/** Server fixture: answers the health gate, names its own namespace. */
+/**
+Server fixture: answers the health gate, names its own namespace.
+*/
 function makeServerScript(namespace: string): string {
   return `
 const http = require("http");
@@ -50,7 +52,9 @@ http.createServer((req, res) => {
 `;
 }
 
-/** Web fixture: page body names the namespace, stdout echoes PORT + distDir. */
+/**
+Web fixture: page body names the namespace, stdout echoes PORT + distDir.
+*/
 function makeWebScript(namespace: string): string {
   return `
 const http = require("http");
@@ -81,7 +85,9 @@ interface ConcurrentRun {
   promise: Promise<number>;
 }
 
-/** One full orchestrator run: fake spawns, captured logs, captured signals. */
+/**
+One full orchestrator run: fake spawns, captured logs, captured signals.
+*/
 function startRun(root: string, namespace: string): ConcurrentRun {
   const paths = resolveRunPaths(root, namespace);
   const lines: string[] = [];
@@ -90,7 +96,7 @@ function startRun(root: string, namespace: string): ConcurrentRun {
     logLine: (line: string) => {
       lines.push(line);
     },
-    runBuild: () => undefined,
+    runBuild: () => {},
     createServerSpawn: () => ({
       executable: process.execPath,
       argv: ["-e", makeServerScript(namespace)],
@@ -107,7 +113,9 @@ function startRun(root: string, namespace: string): ConcurrentRun {
   return { namespace, paths, lines, handlers, promise };
 }
 
-/** The five owned records teardown removes (spec 5.5/7.3): ports, PIDs, identity. */
+/**
+The five owned records teardown removes (spec 5.5/7.3): ports, PIDs, identity.
+*/
 function ownedRecordFiles(paths: RunPaths): string[] {
   return [
     paths.serverPortFile,
@@ -118,11 +126,12 @@ function ownedRecordFiles(paths: RunPaths): string[] {
   ];
 }
 
-async function pollPortFile(path: string, timeoutMs: number): Promise<string> {
+async function pollPortFile(path: string): Promise<string> {
+  const timeoutMs = 90_000;
   const start = Date.now();
   for (;;) {
     try {
-      const content = readFileSync(path, "utf-8").trim();
+      const content = readFileSync(path, "utf8").trim();
       if (content !== "") return content;
     } catch {
       // Not written yet.
@@ -134,17 +143,19 @@ async function pollPortFile(path: string, timeoutMs: number): Promise<string> {
   }
 }
 
-/** Wait until the log file carries the last line the fixture prints. */
+/**
+Wait until the log file carries the last line the fixture prints.
+*/
 async function pollFileIncluding(
   path: string,
-  needle: string,
-  timeoutMs: number
+  needle: string
 ): Promise<string> {
+  const timeoutMs = 15_000;
   const start = Date.now();
   for (;;) {
-    let content = "";
+    let content: string;
     try {
-      content = readFileSync(path, "utf-8");
+      content = readFileSync(path, "utf8");
     } catch {
       content = "";
     }
@@ -157,10 +168,10 @@ async function pollFileIncluding(
 }
 
 async function pollSignalHandler(
-  handlers: Map<string, () => void>,
-  signal: string,
-  timeoutMs: number
+  handlers: Map<string, () => void>
 ): Promise<() => void> {
+  const timeoutMs = 30_000;
+  const signal = "SIGINT";
   const start = Date.now();
   for (;;) {
     const handler = handlers.get(signal);
@@ -173,16 +184,18 @@ async function pollSignalHandler(
 }
 
 async function expectRefused(url: string): Promise<void> {
-  let refused = false;
+  let isRefused = false;
   try {
     await fetch(url);
   } catch {
-    refused = true;
+    isRefused = true;
   }
-  expect(refused).toBe(true);
+  expect(isRefused).toBe(true);
 }
 
-/** First line in `content` shaped `KEY=value`, or null. */
+/**
+First line in `content` shaped `KEY=value`, or null.
+*/
 function echoedValue(content: string, key: string): string | null {
   const prefix = `${key}=`;
   for (const line of content.split(/\r?\n/)) {
@@ -202,8 +215,8 @@ describe("spec story 5: two namespaces run concurrently under one root", () => {
         // 1. Both runs reach route-ready (spec 5.11): the web port record
         //    appears only after a real request through each web child.
         const [webPortA, webPortB] = await Promise.all([
-          pollPortFile(runA.paths.webPortFile, 90_000),
-          pollPortFile(runB.paths.webPortFile, 90_000),
+          pollPortFile(runA.paths.webPortFile),
+          pollPortFile(runB.paths.webPortFile),
         ]);
         const pageA = await fetch(`http://127.0.0.1:${webPortA}/`);
         const pageB = await fetch(`http://127.0.0.1:${webPortB}/`);
@@ -218,8 +231,8 @@ describe("spec story 5: two namespaces run concurrently under one root", () => {
 
         // 2. Ports are disjoint, and each recorded pair actually serves its
         //    own namespace (read from the records, never guessed).
-        const serverPortA = readFileSync(runA.paths.serverPortFile, "utf-8").trim();
-        const serverPortB = readFileSync(runB.paths.serverPortFile, "utf-8").trim();
+        const serverPortA = readFileSync(runA.paths.serverPortFile, "utf8").trim();
+        const serverPortB = readFileSync(runB.paths.serverPortFile, "utf8").trim();
         expect(Number(serverPortA)).toBeGreaterThan(0);
         expect(Number(serverPortB)).toBeGreaterThan(0);
         expect(serverPortA).not.toBe(serverPortB);
@@ -246,10 +259,10 @@ describe("spec story 5: two namespaces run concurrently under one root", () => {
         const pathsB = runB.paths;
         expect(pathsA.serverLogFile).not.toBe(pathsB.serverLogFile);
         expect(pathsA.webLogFile).not.toBe(pathsB.webLogFile);
-        const serverLogA = await pollFileIncluding(pathsA.serverLogFile, "SERVER_NS=conc-a", 15_000);
-        const serverLogB = await pollFileIncluding(pathsB.serverLogFile, "SERVER_NS=conc-b", 15_000);
-        const webLogA = await pollFileIncluding(pathsA.webLogFile, `PORT=${webPortA}`, 15_000);
-        const webLogB = await pollFileIncluding(pathsB.webLogFile, `PORT=${webPortB}`, 15_000);
+        const serverLogA = await pollFileIncluding(pathsA.serverLogFile, "SERVER_NS=conc-a");
+        const serverLogB = await pollFileIncluding(pathsB.serverLogFile, "SERVER_NS=conc-b");
+        const webLogA = await pollFileIncluding(pathsA.webLogFile, `PORT=${webPortA}`);
+        const webLogB = await pollFileIncluding(pathsB.webLogFile, `PORT=${webPortB}`);
         expect(existsSync(pathsA.serverLogFile)).toBe(true);
         expect(existsSync(pathsB.serverLogFile)).toBe(true);
         expect(existsSync(pathsA.webLogFile)).toBe(true);
@@ -265,8 +278,8 @@ describe("spec story 5: two namespaces run concurrently under one root", () => {
 
         // 4. Build dirs are disjoint, and the sidecar child saw exactly its
         //    own namespaced distDir (spec 5.5) and its own recorded port.
-        const distDirA = join(pathsA.buildDir, "web-dist");
-        const distDirB = join(pathsB.buildDir, "web-dist");
+        const distDirA = path.join(pathsA.buildDir, "web-dist");
+        const distDirB = path.join(pathsB.buildDir, "web-dist");
         expect(existsSync(pathsA.buildDir)).toBe(true);
         expect(existsSync(pathsB.buildDir)).toBe(true);
         expect(pathsA.buildDir).not.toBe(pathsB.buildDir);
@@ -278,8 +291,8 @@ describe("spec story 5: two namespaces run concurrently under one root", () => {
         expect(echoedValue(webLogB, "PORT")).toBe(webPortB);
 
         // 5. Independent teardown (spec 5.14): SIGINT stops A only.
-        const sigintA = await pollSignalHandler(runA.handlers, "SIGINT", 30_000);
-        const sigintB = await pollSignalHandler(runB.handlers, "SIGINT", 30_000);
+        const sigintA = await pollSignalHandler(runA.handlers);
+        const sigintB = await pollSignalHandler(runB.handlers);
         sigintA();
         await expect(runA.promise).resolves.toBe(0);
         for (const file of ownedRecordFiles(pathsA)) {
@@ -295,7 +308,7 @@ describe("spec story 5: two namespaces run concurrently under one root", () => {
         for (const file of ownedRecordFiles(pathsB)) {
           expect(existsSync(file)).toBe(true);
         }
-        expect(readFileSync(pathsB.webPortFile, "utf-8").trim()).toBe(webPortB);
+        expect(readFileSync(pathsB.webPortFile, "utf8").trim()).toBe(webPortB);
         expect(existsSync(pathsB.buildDir)).toBe(true);
 
         // B stops only when its own run is asked to stop.

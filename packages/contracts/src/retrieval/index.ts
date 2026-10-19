@@ -2,8 +2,8 @@ import { z } from "zod";
 
 export const VectorRecordSchema = z.object({
   chunkRowid: z.number().int().positive(),
-  notebookId: z.string().uuid(),
-  userId: z.string().uuid(),
+  notebookId: z.uuid(),
+  userId: z.uuid(),
   embedding: z.array(z.number()),
 });
 export type VectorRecord = z.infer<typeof VectorRecordSchema>;
@@ -32,7 +32,7 @@ export type RrfScoredCandidate = z.infer<typeof RrfScoredCandidateSchema>;
 export interface VectorStorePort {
   insert(record: VectorRecord): Promise<void>;
   insertBatch(records: VectorRecord[]): Promise<void>;
-  searchKnn(params: {
+  searchKnn(parameters: {
     queryVector: number[];
     notebookId: string;
     userId: string;
@@ -42,7 +42,7 @@ export interface VectorStorePort {
 }
 
 export interface FtsStorePort {
-  search(params: {
+  search(parameters: {
     query: string;
     notebookId: string;
     userId: string;

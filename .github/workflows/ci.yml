@@ -52,6 +52,8 @@ jobs:
         run: pnpm knip
       - name: Production Build
         run: pnpm build
+      - name: Design Token Lint (built pages + contrast)
+        run: pnpm lint:tokens
       - name: Typecheck
         run: pnpm typecheck
       - name: Lint

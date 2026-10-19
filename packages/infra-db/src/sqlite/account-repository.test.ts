@@ -1,25 +1,25 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, rmSync, mkdirSync, readFileSync } from "node:fs";
-import { resolve, join } from "node:path";
+import path from "node:path";
 import { SetupAlreadyCompletedError } from "@notebench/contracts";
 import { createSqliteDatabase } from "./connection.js";
 import { SqliteAccountRepository } from "./account-repository.js";
 import { SqliteSessionRepository } from "./session-repository.js";
 
-const TEST_DIR = resolve(`.tmp/test/test-account-repo-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
+const TEST_DIR = path.resolve(`.tmp/test/test-account-repo-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
 
 /**
- * Windows holds file locks briefly after sqlite handles close, longer under
- * parallel suites: retry transient lock errors with a generous budget.
- */
-async function removeDirWithRetry(dir: string): Promise<void> {
+Windows holds file locks briefly after sqlite handles close, longer under
+parallel suites: retry transient lock errors with a generous budget.
+*/
+async function removeDirWithRetry(): Promise<void> {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     try {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(TEST_DIR, { recursive: true, force: true });
       return;
     } catch (error: unknown) {
-      const code = (error as { code?: string }).code;
-      if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
+      const code = (error as { code?: string }).code ?? "";
+      if (["EPERM", "EBUSY", "ENOTEMPTY"].includes(code) && attempt < 59) {
         await new Promise((resolve) => setTimeout(resolve, 250));
         continue;
       }
@@ -31,7 +31,7 @@ async function removeDirWithRetry(dir: string): Promise<void> {
 describe("SqliteAccountRepository & Users Table Migration", () => {
   beforeEach(async () => {
     if (existsSync(TEST_DIR)) {
-      await removeDirWithRetry(TEST_DIR);
+      await removeDirWithRetry();
     }
     mkdirSync(TEST_DIR, { recursive: true });
   }, 120_000);
@@ -39,7 +39,7 @@ describe("SqliteAccountRepository & Users Table Migration", () => {
   afterEach(async () => {
     if (existsSync(TEST_DIR)) {
       try {
-        await removeDirWithRetry(TEST_DIR);
+        await removeDirWithRetry();
       } catch {
         // Non-fatal if OS locks are briefly transitioning
       }
@@ -47,7 +47,7 @@ describe("SqliteAccountRepository & Users Table Migration", () => {
   }, 120_000);
 
   it("automatically applies users table migration and finds null when empty", async () => {
-    const dbPath = join(TEST_DIR, "test-empty.sqlite");
+    const dbPath = path.join(TEST_DIR, "test-empty.sqlite");
     const { db, sqlite, close } = createSqliteDatabase({ dbPath });
 
     try {
@@ -60,7 +60,7 @@ describe("SqliteAccountRepository & Users Table Migration", () => {
   });
 
   it("creates owner with passcode hash and retrieves record faithfully", async () => {
-    const dbPath = join(TEST_DIR, "test-owner.sqlite");
+    const dbPath = path.join(TEST_DIR, "test-owner.sqlite");
     const { db, sqlite, close } = createSqliteDatabase({ dbPath });
 
     try {
@@ -88,7 +88,7 @@ describe("SqliteAccountRepository & Users Table Migration", () => {
   });
 
   it("never persists plaintext passcode bytes in the database file (Ticket 01)", async () => {
-    const dbPath = join(TEST_DIR, "test-no-plaintext.sqlite");
+    const dbPath = path.join(TEST_DIR, "test-no-plaintext.sqlite");
     const { db, sqlite, close } = createSqliteDatabase({ dbPath });
     const plaintext = "correct-plaintext-passphrase-xyz-12345";
     const phc = "$argon2id$v=19$m=65536,t=3,p=1$c2FsdHNhbHQ$ZmFrZXBoY3Zvci1maWxlLXNjYW4";
@@ -101,12 +101,12 @@ describe("SqliteAccountRepository & Users Table Migration", () => {
     }
 
     const raw = readFileSync(dbPath);
-    expect(raw.includes(Buffer.from(plaintext, "utf-8"))).toBe(false);
-    expect(raw.includes(Buffer.from(phc, "utf-8"))).toBe(true);
+    expect(raw.includes(Buffer.from(plaintext, "utf8"))).toBe(false);
+    expect(raw.includes(Buffer.from(phc, "utf8"))).toBe(true);
   });
 
   it("atomically rejects a second owner with SetupAlreadyCompletedError (Ticket 01 review D1)", async () => {
-    const dbPath = join(TEST_DIR, "test-single-owner.sqlite");
+    const dbPath = path.join(TEST_DIR, "test-single-owner.sqlite");
     const { db, sqlite, close } = createSqliteDatabase({ dbPath });
 
     try {
@@ -129,7 +129,7 @@ describe("SqliteAccountRepository & Users Table Migration", () => {
   });
 
   it("two createOwner calls in flight together settle with exactly one owner (TOCTOU regression)", async () => {
-    const dbPath = join(TEST_DIR, "test-concurrent-owner.sqlite");
+    const dbPath = path.join(TEST_DIR, "test-concurrent-owner.sqlite");
     const { db, sqlite, close } = createSqliteDatabase({ dbPath });
 
     try {
@@ -156,7 +156,7 @@ describe("SqliteAccountRepository & Users Table Migration", () => {
   });
 
   it("enforces the single-owner invariant at the schema level (partial unique index)", async () => {
-    const dbPath = join(TEST_DIR, "test-owner-index.sqlite");
+    const dbPath = path.join(TEST_DIR, "test-owner-index.sqlite");
     const { db, sqlite, close } = createSqliteDatabase({ dbPath });
 
     try {
@@ -179,7 +179,7 @@ describe("SqliteAccountRepository & Users Table Migration", () => {
   });
 
   it("atomically updates the passcode and revokes other sessions, keeping the current one (Ticket 02)", async () => {
-    const dbPath = join(TEST_DIR, "test-atomic-change.sqlite");
+    const dbPath = path.join(TEST_DIR, "test-atomic-change.sqlite");
     const { db, sqlite, close } = createSqliteDatabase({ dbPath });
 
     try {
@@ -206,7 +206,8 @@ describe("SqliteAccountRepository & Users Table Migration", () => {
 
       expect(outcome?.user.passcodeHash).toBe("new-hash");
       expect(outcome?.revokedSessions).toBe(1);
-      expect((await repo.findOwner())?.passcodeHash).toBe("new-hash");
+      const storedOwner = await repo.findOwner();
+      expect(storedOwner?.passcodeHash).toBe("new-hash");
       expect(await sessions.findByTokenHash("c".repeat(64))).not.toBeNull();
       expect(await sessions.findByTokenHash("d".repeat(64))).toBeNull();
     } finally {
@@ -215,7 +216,7 @@ describe("SqliteAccountRepository & Users Table Migration", () => {
   });
 
   it("rolls back the passcode update when revoking sessions fails (same transaction)", async () => {
-    const dbPath = join(TEST_DIR, "test-atomic-rollback.sqlite");
+    const dbPath = path.join(TEST_DIR, "test-atomic-rollback.sqlite");
     const { db, sqlite, close } = createSqliteDatabase({ dbPath });
 
     try {
@@ -243,7 +244,8 @@ describe("SqliteAccountRepository & Users Table Migration", () => {
       ).rejects.toThrow(/poisoned-revoke/);
 
       // The failed transaction must leave NOTHING behind: old hash, both sessions.
-      expect((await repo.findOwner())?.passcodeHash).toBe("old-hash");
+      const storedOwner = await repo.findOwner();
+      expect(storedOwner?.passcodeHash).toBe("old-hash");
       expect(await sessions.listSessions(owner.id)).toHaveLength(2);
 
       sqlite.exec("DROP TRIGGER poison_sessions_delete");
@@ -253,14 +255,15 @@ describe("SqliteAccountRepository & Users Table Migration", () => {
         current.id
       );
       expect(retry?.revokedSessions).toBe(1);
-      expect((await repo.findOwner())?.passcodeHash).toBe("new-hash");
+      const storedOwnerAfterRetry = await repo.findOwner();
+      expect(storedOwnerAfterRetry?.passcodeHash).toBe("new-hash");
     } finally {
       close();
     }
   });
 
   it("returns null for a missing user without touching sessions", async () => {
-    const dbPath = join(TEST_DIR, "test-atomic-missing-user.sqlite");
+    const dbPath = path.join(TEST_DIR, "test-atomic-missing-user.sqlite");
     const { db, sqlite, close } = createSqliteDatabase({ dbPath });
 
     try {
@@ -280,7 +283,8 @@ describe("SqliteAccountRepository & Users Table Migration", () => {
       );
 
       expect(outcome).toBeNull();
-      expect((await repo.findOwner())?.passcodeHash).toBe("old-hash");
+      const storedOwner = await repo.findOwner();
+      expect(storedOwner?.passcodeHash).toBe("old-hash");
       expect(await sessions.listSessions(owner.id)).toHaveLength(1);
     } finally {
       close();

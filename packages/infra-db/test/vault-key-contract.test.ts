@@ -16,21 +16,23 @@ import { runPgMigrations } from "../src/migrator/runner.js";
 import { createFreshPgDatabase, pgIntegrationSkipReason } from "./pg-harness.js";
 
 /**
- * Ticket 28 — ONE dialect-parameterised repository contract suite.
- *
- * The exact same test body runs against the SQLite and the PostgreSQL
- * implementation of the smallest stable repository port in `infra-db`
- * (`VaultKeyStorage`, shape-matched to `@notebench/infra-vault`'s
- * `VaultStorage` — infra packages cannot import each other, guard check 11).
- *
- * The SQLite dialect always runs. The PostgreSQL dialect skips cleanly when
- * `POSTGRES_URL` is unset; `pnpm test:postgres` starts a pgvector container
- * and sets it.
- */
+Ticket 28 — ONE dialect-parameterised repository contract suite.
+
+The exact same test body runs against the SQLite and the PostgreSQL
+implementation of the smallest stable repository port in `infra-db`
+(`VaultKeyStorage`, shape-matched to `@notebench/infra-vault`'s
+`VaultStorage` — infra packages cannot import each other, guard check 11).
+
+The SQLite dialect always runs. The PostgreSQL dialect skips cleanly when
+`POSTGRES_URL` is unset; `pnpm test:postgres` starts a pgvector container
+and sets it.
+*/
 
 interface DialectHarness {
   storage: VaultKeyStorage;
-  /** Creates FK prerequisite rows (`users`) for the given ids. */
+  /**
+  Creates FK prerequisite rows (`users`) for the given ids.
+  */
   ensureUsers: (userIds: string[]) => Promise<void>;
   dispose: () => Promise<void>;
 }
@@ -77,6 +79,7 @@ function runVaultKeyContractSuite(
     });
 
     afterAll(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- teardown must survive a beforeAll failure
       await harness?.dispose();
     });
 
@@ -107,7 +110,8 @@ function runVaultKeyContractSuite(
       };
       await harness.storage.save(replacement);
 
-      const matches = (await harness.storage.list(userId)).filter(
+      const storedKeys = await harness.storage.list(userId);
+      const matches = storedKeys.filter(
         (candidate) =>
           candidate.provider === item.provider && candidate.keyId === item.keyId
       );

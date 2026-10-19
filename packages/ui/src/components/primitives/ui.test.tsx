@@ -6,8 +6,8 @@ import {
   Button,
   IconButton,
   buttonVariants,
-  Gear,
-  Copy,
+  GearIcon,
+  CopyIcon,
   Input,
   Sheet,
   SheetHeader,
@@ -67,14 +67,14 @@ describe("@notebench/ui Design System & Primitives", () => {
   // ==========================================================================
   describe("Seam 2: Button, IconButton & Input Atoms", () => {
     it("renders Button with default variant (nb_btn_secondary) and responds to clicks", () => {
-      let clicked = false;
-      render(<Button onClick={() => { clicked = true; }}>Save changes</Button>);
+      let isClicked = false;
+      render(<Button onClick={() => { isClicked = true; }}>Save changes</Button>);
       const btn = screen.getByRole("button", { name: "Save changes" });
       expect(btn).toBeDefined();
       expect(btn.className).toContain("var(--nb-sheet)");
       expect(btn.className).not.toContain("shadow-xs");
       fireEvent.click(btn);
-      expect(clicked).toBe(true);
+      expect(isClicked).toBe(true);
     });
 
     it("supports Button nb_btn_* variants and strict token classes without shadow-xs", () => {
@@ -148,7 +148,7 @@ describe("@notebench/ui Design System & Primitives", () => {
 
     it("renders Button with leadingIcon and trailingIcon", () => {
       render(
-        <Button variant="nb_btn_secondary" leadingIcon={Gear} trailingIcon={Copy}>
+        <Button variant="nb_btn_secondary" leadingIcon={GearIcon} trailingIcon={CopyIcon}>
           Export
         </Button>
       );
@@ -165,7 +165,7 @@ describe("@notebench/ui Design System & Primitives", () => {
         <IconButton
           variant="nb_btn_secondary"
           size="nb_btn_icon_md"
-          icon={Gear}
+          icon={GearIcon}
           aria-label="Settings"
         />
       );
@@ -180,7 +180,7 @@ describe("@notebench/ui Design System & Primitives", () => {
         <IconButton
           variant="nb_btn_ghost"
           size="nb_btn_icon_sm"
-          icon={Copy}
+          icon={CopyIcon}
           aria-label="Copy citation"
           active
         />
@@ -229,7 +229,7 @@ describe("@notebench/ui Design System & Primitives", () => {
 
     it("renders Input with placeholder and accepts value changes", () => {
       render(<Input placeholder="Type query..." defaultValue="Initial" />);
-      const input = screen.getByPlaceholderText("Type query...") as HTMLInputElement;
+      const input = screen.getByPlaceholderText<HTMLInputElement>("Type query...");
       expect(input.value).toBe("Initial");
       fireEvent.change(input, { target: { value: "Updated" } });
       expect(input.value).toBe("Updated");

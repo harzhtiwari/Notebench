@@ -13,25 +13,25 @@ import {
 } from "./pg-harness.js";
 
 /**
- * Ticket 28 — sqlite-vec ↔ pgvector top-5 parity on a 100-row, 384-dim fixture.
- *
- * The two engines are compared through the same `VectorStorePort`:
- * `SqliteVectorStore` (sqlite-vec, cosine distance) and `PgVectorStore`
- * (pgvector `vector(384)`, `<=>`, exact scan — no ANN index so parity is not
- * affected by approximate recall).
- *
- * Tie tolerance: both engines store float32 values, but distance kernels may
- * differ by single-precision rounding, so adjacent rows closer than 1e-4
- * cosine distance may swap. With a seeded random fixture no true ties exist,
- * so the orders are expected to be identical; the tolerance only absorbs
- * float32 kernel noise.
- *
- * The store implementation lives in `@notebench/infra-vectorstore` and the pg
- * driver only resolves inside `@notebench/infra-db` (pnpm isolated
- * node_modules), so this file imports the store's source entry point by
- * relative path: package-level isolation makes `pg` + `sqlite-vec`
- * unresolvable in any single package.
- */
+Ticket 28 — sqlite-vec ↔ pgvector top-5 parity on a 100-row, 384-dim fixture.
+
+The two engines are compared through the same `VectorStorePort`:
+`SqliteVectorStore` (sqlite-vec, cosine distance) and `PgVectorStore`
+(pgvector `vector(384)`, `<=>`, exact scan — no ANN index so parity is not
+affected by approximate recall).
+
+Tie tolerance: both engines store float32 values, but distance kernels may
+differ by single-precision rounding, so adjacent rows closer than 1e-4
+cosine distance may swap. With a seeded random fixture no true ties exist,
+so the orders are expected to be identical; the tolerance only absorbs
+float32 kernel noise.
+
+The store implementation lives in `@notebench/infra-vectorstore` and the pg
+driver only resolves inside `@notebench/infra-db` (pnpm isolated
+node_modules), so this file imports the store's source entry point by
+relative path: package-level isolation makes `pg` + `sqlite-vec`
+unresolvable in any single package.
+*/
 
 const DIMENSIONS = 384;
 const ROW_COUNT = 100;
@@ -42,21 +42,25 @@ const notebookId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const otherNotebookId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 const userId = "11111111-1111-1111-1111-111111111111";
 
-/** Deterministic PRNG so both dialects embed the exact same fixture. */
+/**
+Deterministic PRNG so both dialects embed the exact same fixture.
+*/
 function mulberry32(seed: number): () => number {
   let state = seed;
   return () => {
-    state += 0x6d2b79f5;
+    state += 0x6D_2B_79_F5;
     let t = state;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
   };
 }
 
-/** float32-rounded values: identical bits reach sqlite-vec and pgvector. */
+/**
+float32-rounded values: identical bits reach sqlite-vec and pgvector.
+*/
 function buildFixture(): { embeddings: number[][]; query: number[] } {
-  const random = mulberry32(0x28fa57);
+  const random = mulberry32(0x28_FA_57);
   const next = () => Math.fround(random() * 2 - 1);
   const embeddings = Array.from({ length: ROW_COUNT }, () =>
     Array.from({ length: DIMENSIONS }, next)
@@ -105,10 +109,10 @@ function expectTopKParity(
       `pg distance for sqlite row ${sqliteRow.chunkRowid}`
     ).toBeDefined();
     expect(
-      Math.abs(sqliteRow.distance - (sqliteDistanceOfPgRow ?? Number.POSITIVE_INFINITY))
+      Math.abs(sqliteRow.distance - (sqliteDistanceOfPgRow ?? Infinity))
     ).toBeLessThanOrEqual(TIE_TOLERANCE);
     expect(
-      Math.abs(pgRow.distance - (pgDistanceOfSqliteRow ?? Number.POSITIVE_INFINITY))
+      Math.abs(pgRow.distance - (pgDistanceOfSqliteRow ?? Infinity))
     ).toBeLessThanOrEqual(TIE_TOLERANCE);
   }
 }
@@ -171,7 +175,9 @@ describePg(`Ticket 28 — sqlite-vec vs pgvector top-5 parity (pgvector)${skipSu
   });
 
   afterAll(async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- teardown must survive a beforeAll failure
     await pgDb?.close();
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- teardown must survive a beforeAll failure
     await fresh?.close();
   });
 

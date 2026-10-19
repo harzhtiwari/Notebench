@@ -5,10 +5,10 @@ import {
   rm as fsRm,
   writeFile as fsWriteFile,
 } from "node:fs/promises";
-import { dirname, isAbsolute, join } from "node:path";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseOrchestratorArgs } from "./args.js";
-import { defaultProbeHttp, defaultSleep } from "./defaults.js";
+import { isDefaultProbeHttp, defaultSleep } from "./defaults.js";
 import { resolveRunPaths } from "./paths.js";
 import type { RunPaths } from "./paths.js";
 import { allocateRunPorts } from "./ports.js";
@@ -61,25 +61,27 @@ import type { ChildExit } from "./spawn.js";
 import { OrchestratorError } from "./types.js";
 
 /**
- * Backend startup end-to-end for the dev orchestrator (ticket 03) with the
- * web sidecar phase under the same supervision (ticket 04).
- *
- * Sequence: parse args → stale recovery (identity-verified, never blind PID
- * reuse) → freshness gates (server-consumed compiled outputs only, never the
- * web production export) → allocate ports → spawn the server from source
- * with HOST/PORT passthrough → gate on the real health endpoint → publish
- * namespaced port/PID/identity records → install reverse-order teardown.
- *
- * With a web-phase starter wired (ticket 04: `runDevCommand` wires the
- * default sidecar starter), the server-ready sequencing hook starts the
- * sidecar from source, gates on a real route through it, extends the same
- * records, and joins the same reverse-order supervision: any unexpected
- * child exit stops the sibling and exits non-zero.
- */
+Backend startup end-to-end for the dev orchestrator (ticket 03) with the
+web sidecar phase under the same supervision (ticket 04).
+
+Sequence: parse args → stale recovery (identity-verified, never blind PID
+reuse) → freshness gates (server-consumed compiled outputs only, never the
+web production export) → allocate ports → spawn the server from source
+with HOST/PORT passthrough → gate on the real health endpoint → publish
+namespaced port/PID/identity records → install reverse-order teardown.
+
+With a web-phase starter wired (ticket 04: `runDevCommand` wires the
+default sidecar starter), the server-ready sequencing hook starts the
+sidecar from source, gates on a real route through it, extends the same
+records, and joins the same reverse-order supervision: any unexpected
+child exit stops the sibling and exits non-zero.
+*/
 
 export const ORCHESTRATOR_HOST = "127.0.0.1";
 export const SERVER_HEALTH_PATH = "/healthz";
-/** Orchestrator-provided absolute server port-file path (canonical + alias). */
+/**
+Orchestrator-provided absolute server port-file path (canonical + alias).
+*/
 export const SERVER_PORT_FILE_ENV = "NOTEBENCH_SERVER_PORT_FILE";
 export const SERVER_PORT_FILE_ENV_ALIAS = "NB_SERVER_PORT_FILE";
 export const DEV_RUN_ID_ENV = "NOTEBENCH_DEV_RUN_ID";
@@ -108,7 +110,9 @@ interface WebSpawnContext {
   webDir: string;
 }
 
-/** A started web sidecar child: enough to supervise, gate, and record it. */
+/**
+A started web sidecar child: enough to supervise, gate, and record it.
+*/
 interface WebStarted {
   pid: number;
   startTimeMs: number;
@@ -117,10 +121,10 @@ interface WebStarted {
   port: number;
   flush?: (() => Promise<void>) | undefined;
   /**
-   * Listener-gate observation (P2): the timing of the route's first real
-   * response through the sidecar (the cold compile). Real runs hand this to
-   * warmup so the now-warm route is never re-probed.
-   */
+  Listener-gate observation (P2): the timing of the route's first real
+  response through the sidecar (the cold compile). Real runs hand this to
+  warmup so the now-warm route is never re-probed.
+  */
   routeTiming?: ReadinessResult | undefined;
 }
 
@@ -140,10 +144,10 @@ export interface ServerReadyContext {
   serverChild: SpawnedChild;
   timings: ServerReadyTimings;
   /**
-   * True once any supervised child exited, shutdown began, or the run
-   * settled; the web gate aborts on it so a server crash mid-gate cannot
-   * run out the gate's deadline.
-   */
+  True once any supervised child exited, shutdown began, or the run
+  settled; the web gate aborts on it so a server crash mid-gate cannot
+  run out the gate's deadline.
+  */
   isRunOver: () => boolean;
 }
 
@@ -171,11 +175,11 @@ export interface BackendPhaseDeps {
   spawnFn?: SpawnFn | undefined;
   isPidLive?: PidLiveness | undefined;
   /**
-   * Ownership predicate for the namespace busy check: true while the
-   * recorded orchestrator still owns the namespace. Defaults to the injected
-   * `isPidLive` (unit seams) and otherwise to the OS checks that treat an
-   * unverifiable start time as still owning.
-   */
+  Ownership predicate for the namespace busy check: true while the
+  recorded orchestrator still owns the namespace. Defaults to the injected
+  `isPidLive` (unit seams) and otherwise to the OS checks that treat an
+  unverifiable start time as still owning.
+  */
   isRunOwnerLive?: PidLiveness | undefined;
   createServerSpawn?: ((ctx: ServerSpawnContext) => ServerSpawnRequest) | undefined;
   serverEntryPath?: string | undefined;
@@ -189,10 +193,10 @@ export interface BackendPhaseDeps {
   randomRunId?: (() => string) | undefined;
   logLine?: ((line: string) => void) | undefined;
   /**
-   * Preparation hook invoked once the namespace claim is exclusively ours,
-   * before the freshness builds (P15): the benchmark's cold reset runs here
-   * so a busy namespace's build dir is never deleted.
-   */
+  Preparation hook invoked once the namespace claim is exclusively ours,
+  before the freshness builds (P15): the benchmark's cold reset runs here
+  so a busy namespace's build dir is never deleted.
+  */
   prep?: (() => Promise<void> | void) | undefined;
   runBuild?: ((dep: CompiledDep) => Promise<void> | void) | undefined;
   statMtimeMs?: ((path: string) => Promise<number | null>) | undefined;
@@ -201,29 +205,31 @@ export interface BackendPhaseDeps {
   webDeadlineMs?: number | undefined;
   probeWeb?: ((url: string) => Promise<boolean>) | undefined;
   /**
-   * Web-phase starter, invoked after the server health gate passes. Absent
-   * means backend-only (ticket 03 behavior); `runDevCommand` wires the
-   * default sidecar starter.
-   */
+  Web-phase starter, invoked after the server health gate passes. Absent
+  means backend-only (ticket 03 behavior); `runDevCommand` wires the
+  default sidecar starter.
+  */
   startWebPhase?: ((ctx: ServerReadyContext) => Promise<WebStarted>) | undefined;
   /**
-   * Browser probe for `--warmup ui`: observes the app-mounted marker plus a
-   * screen control at the web origin. Absent means the real headless probe;
-   * tests inject a fake. Invoked only in ui mode, never for route level.
-   */
+  Browser probe for `--warmup ui`: observes the app-mounted marker plus a
+  screen control at the web origin. Absent means the real headless probe;
+  tests inject a fake. Invoked only in ui mode, never for route level.
+  */
   probeUi?: UiProbe | undefined;
-  /** Deadline per warmup gate (default 35 s, spec section 8 sidecar wait). */
+  /**
+  Deadline per warmup gate (default 35 s, spec section 8 sidecar wait).
+  */
   warmupDeadlineMs?: number | undefined;
   /**
-   * Budget for the ui-level browser gate (default 120 s). Kept separate from
-   * the route/sidecar wait so the browser probe can retry several per-attempt
-   * timeouts instead of racing a single 30 s attempt against the 35 s gate.
-   */
+  Budget for the ui-level browser gate (default 120 s). Kept separate from
+  the route/sidecar wait so the browser probe can retry several per-attempt
+  timeouts instead of racing a single 30 s attempt against the 35 s gate.
+  */
   warmupUiDeadlineMs?: number | undefined;
   /**
-   * Benchmark hook (ticket 08): invoked with the verified warmup result
-   * after the ready line is logged. Absent in normal runs.
-   */
+  Benchmark hook (ticket 08): invoked with the verified warmup result
+  after the ready line is logged. Absent in normal runs.
+  */
   onWarmup?: ((result: WarmupResult) => Promise<void> | void) | undefined;
 }
 
@@ -246,11 +252,11 @@ function defaultCreateServerSpawn(ctx: ServerSpawnContext): ServerSpawnRequest {
 }
 
 /**
- * Resolve the TypeScript executor loader to an absolute URL at composer
- * time, so the server child boots from source regardless of its own cwd
- * (bare specifiers would resolve against the child cwd, which is the
- * disposable state root in tests).
- */
+Resolve the TypeScript executor loader to an absolute URL at composer
+time, so the server child boots from source regardless of its own cwd
+(bare specifiers would resolve against the child cwd, which is the
+disposable state root in tests).
+*/
 function resolveTsxLoader(): string {
   try {
     return import.meta.resolve("tsx/esm");
@@ -259,24 +265,29 @@ function resolveTsxLoader(): string {
   }
 }
 
-/** Checkout root derived from this module (source lives here, not under state). */
+/**
+Checkout root derived from this module (source lives here, not under state).
+*/
 function resolveRepoRoot(): string {
-  return dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+  return path.dirname(path.dirname(path.dirname(moduleDir)));
 }
 
-/** Real headless-browser probe for `--warmup ui` (lazy browser load). */
+/**
+Real headless-browser probe for `--warmup ui` (lazy browser load).
+*/
 function defaultProbeUi(webOrigin: string): Promise<UiProbeResult> {
   return probeAppMounted(webOrigin, { timeoutMs: 30_000 });
 }
 
 /**
- * CLI cutover (open-design parity): the web child is the real `next dev`
- * CLI, so the genuine Next.js startup block, HMR, and compile output come
- * from Next itself. The API split moved to the web config's sidecar
- * rewrites; supervision and readiness gating are unchanged.
- */
+CLI cutover (open-design parity): the web child is the real `next dev`
+CLI, so the genuine Next.js startup block, HMR, and compile output come
+from Next itself. The API split moved to the web config's sidecar
+rewrites; supervision and readiness gating are unchanged.
+*/
 export function resolveNextBin(webDir: string): string {
-  return join(webDir, "node_modules", "next", "dist", "bin", "next");
+  return path.join(webDir, "node_modules", "next", "dist", "bin", "next");
 }
 
 export interface NextDevArgv {
@@ -327,44 +338,44 @@ export function resolveWebBundler(env: Record<string, string | undefined>): WebD
 }
 
 /**
- * Default web-phase starter: spawn the sidecar child from source with the
- * orchestrator-owned env, gate on a real route through it (route-ready),
- * and hand back supervision records. The gate also aborts when the run is
- * already over (any supervised child exited, shutdown began, or the run
- * settled), so a server crash mid-gate fails with the run-over cause
- * instead of running out the web deadline. On gate failure the starter
- * stops its own child before throwing; this partial teardown (web only)
- * never removes the server's records or `identity.json` — identity is
- * removed only when the server (run owner) is in the children list. The
- * backend catch path then tears down the server; overlapping teardown
- * passes stay safe because each pass touches only the records of the
- * children it stops.
- */
+Default web-phase starter: spawn the sidecar child from source with the
+orchestrator-owned env, gate on a real route through it (route-ready),
+and hand back supervision records. The gate also aborts when the run is
+already over (any supervised child exited, shutdown began, or the run
+settled), so a server crash mid-gate fails with the run-over cause
+instead of running out the web deadline. On gate failure the starter
+stops its own child before throwing; this partial teardown (web only)
+never removes the server's records or `identity.json` — identity is
+removed only when the server (run owner) is in the children list. The
+backend catch path then tears down the server; overlapping teardown
+passes stay safe because each pass touches only the records of the
+children it stops.
+*/
 export async function startDefaultWebPhase(
   ctx: ServerReadyContext,
-  deps?: BackendPhaseDeps | undefined,
-  env?: Record<string, string | undefined> | undefined
+  deps?: BackendPhaseDeps  ,
+  env?: Record<string, string | undefined>  
 ): Promise<WebStarted> {
   const runEnv = env ?? process.env;
   const logLine = deps?.logLine ?? defaultLogLine;
   const sleep = deps?.sleep ?? defaultSleep;
-  const probeWeb = deps?.probeWeb ?? defaultProbeHttp;
+  const probeWeb = deps?.probeWeb ?? isDefaultProbeHttp;
   const createWebSpawn = deps?.createWebSpawn ?? defaultCreateWebSpawn;
   const webDeadlineMs = deps?.webDeadlineMs ?? SIDECAR_DEADLINE_MS;
   const pollIntervalMs = deps?.pollIntervalMs ?? POLL_INTERVAL_MS;
   const isPidLive: PidLiveness = deps?.isPidLive ?? createOsPidLivenessChecker();
 
   const generated = resolveGeneratedPathsForRun(ctx.paths);
-  const webDir = join(ctx.root, "apps", "web");
+  const webDir = path.join(ctx.root, "apps", "web");
   const bundler = resolveWebBundler(runEnv);
   const serverOrigin = `http://${ctx.host}:${ctx.serverPort}`;
   const port = ctx.reservedWebPort;
 
   await fsMkdir(generated.buildDir, { recursive: true });
-  await fsMkdir(dirname(ctx.paths.webLogFile), { recursive: true });
+  await fsMkdir(path.dirname(ctx.paths.webLogFile), { recursive: true });
   await rotateNamespaceLogs({
     latestFile: ctx.paths.webLogFile,
-    previousFile: join(dirname(ctx.paths.webLogFile), "previous.log"),
+    previousFile: path.join(path.dirname(ctx.paths.webLogFile), "previous.log"),
   });
 
   const spawnRequest = createWebSpawn({
@@ -417,9 +428,9 @@ export async function startDefaultWebPhase(
     { spawnFn: deps?.spawnFn, now: deps?.now ?? Date.now }
   );
 
-  let webExited = false;
+  let isWebExited = false;
   void webChild.exited.then(() => {
-    webExited = true;
+    isWebExited = true;
   });
 
   const webUrl = `http://${ctx.host}:${port}/`;
@@ -431,7 +442,7 @@ export async function startDefaultWebPhase(
         deadlineMs: webDeadlineMs,
         intervalMs: pollIntervalMs,
         probe: () => probeWeb(webUrl),
-        isChildExited: () => webExited || ctx.isRunOver(),
+        isChildExited: () => isWebExited || ctx.isRunOver(),
         getLogTail: () => readFailureTail(ctx.paths.webLogFile, sleep),
       },
       { now: deps?.now ?? Date.now, sleep }
@@ -461,9 +472,11 @@ export async function startDefaultWebPhase(
   };
 }
 
-/** Nested port-file residue from the pre-orchestrator era (never namespaced). */
+/**
+Nested port-file residue from the pre-orchestrator era (never namespaced).
+*/
 export function nestedServerPortResidue(root: string): string {
-  return join(root, "apps", "server", ".tmp", "ports", "server.port");
+  return path.join(root, "apps", "server", ".tmp", "ports", "server.port");
 }
 
 async function ignoreMissing(operation: Promise<unknown>): Promise<void> {
@@ -484,12 +497,12 @@ function namespaceBusyError(paths: RunPaths, previous: RunIdentity): Orchestrato
 }
 
 /**
- * Busy check for namespace acquisition: the recorded orchestrator being
- * live makes the namespace busy. Children liveness never decides ownership,
- * so a record whose server already died mid-teardown still reads busy
- * instead of letting a successor clobber the successor's own records
- * (round-2 P11a).
- */
+Busy check for namespace acquisition: the recorded orchestrator being
+live makes the namespace busy. Children liveness never decides ownership,
+so a record whose server already died mid-teardown still reads busy
+instead of letting a successor clobber the successor's own records
+(round-2 P11a).
+*/
 async function recoverStaleRun(paths: RunPaths, isRunOwnerLive: PidLiveness): Promise<void> {
   const previous = await readIdentity(paths.identityFile);
   if (previous !== null && (await isOrchestratorLive(previous, isRunOwnerLive))) {
@@ -498,9 +511,9 @@ async function recoverStaleRun(paths: RunPaths, isRunOwnerLive: PidLiveness): Pr
 }
 
 /**
- * Stale cleanup: stale, corrupt, or missing records are removed — no signal
- * is ever sent to an unverified PID.
- */
+Stale cleanup: stale, corrupt, or missing records are removed — no signal
+is ever sent to an unverified PID.
+*/
 async function clearStaleRecords(paths: RunPaths): Promise<void> {
   const ownedRecords = [
     paths.serverPortFile,
@@ -519,17 +532,17 @@ function isAlreadyExistsError(error: unknown): boolean {
   return (
     typeof error === "object" &&
     error !== null &&
-    (error as { code?: unknown })["code"] === "EEXIST"
+    (error as { code?: unknown }).code === "EEXIST"
   );
 }
 
 /**
- * Acquire the run record exclusively (`wx` write) before the freshness
- * builds: two near-simultaneous starts race on this single atomic claim, and
- * the loser fails busy naming the winner instead of clobbering it (P11b).
- * A loser that finds a stale record (its orchestrator verified dead or a
- * start-time mismatch) clears it and retries once.
- */
+Acquire the run record exclusively (`wx` write) before the freshness
+builds: two near-simultaneous starts race on this single atomic claim, and
+the loser fails busy naming the winner instead of clobbering it (P11b).
+A loser that finds a stale record (its orchestrator verified dead or a
+start-time mismatch) clears it and retries once.
+*/
 async function acquireRunClaim(
   paths: RunPaths,
   claim: RunIdentity,
@@ -555,7 +568,9 @@ async function acquireRunClaim(
   );
 }
 
-/** Surface unverifiable teardown skips instead of letting them read as success. */
+/**
+Surface unverifiable teardown skips instead of letting them read as success.
+*/
 function reportUnverified(services: readonly string[], logLine: (line: string) => void): void {
   if (services.length > 0) {
     logLine(
@@ -565,22 +580,24 @@ function reportUnverified(services: readonly string[], logLine: (line: string) =
   }
 }
 
-/** Read the failure tail, waiting briefly for piped output to flush. */
+/**
+Read the failure tail, waiting briefly for piped output to flush.
+*/
 async function readFailureTail(
   logFile: string,
   sleep: (ms: number) => Promise<void>
 ): Promise<string[]> {
   let previous = "";
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    let content = "";
+    let content: string;
     try {
-      content = await fsReadFile(logFile, "utf-8");
+      content = await fsReadFile(logFile, "utf8");
     } catch {
       content = "";
     }
     if (content !== "" && content === previous) {
       const lines = content.split(/\r?\n/);
-      const last: string | undefined = lines[lines.length - 1];
+      const last: string | undefined = lines.at(-1);
       const trimmed = last === "" ? lines.slice(0, -1) : lines;
       return trimmed.slice(Math.max(0, trimmed.length - LOG_TAIL_LINES));
     }
@@ -595,15 +612,15 @@ async function readFailureTail(
 }
 
 export async function startBackendPhase(
-  options?: BackendPhaseOptions | undefined,
-  deps?: BackendPhaseDeps | undefined
+  options?: BackendPhaseOptions  ,
+  deps?: BackendPhaseDeps  
 ): Promise<BackendHandle> {
   const env = options?.env ?? process.env;
   const argv = options?.argv ?? process.argv.slice(2);
   const now = deps?.now ?? Date.now;
   const sleep = deps?.sleep ?? defaultSleep;
   const logLine = deps?.logLine ?? defaultLogLine;
-  const probeHealth = deps?.probeHealth ?? defaultProbeHttp;
+  const probeHealth = deps?.probeHealth ?? isDefaultProbeHttp;
   const onSignal = deps?.onSignal ?? defaultOnSignal;
   const removeSignal = deps?.removeSignal ?? defaultRemoveSignal;
   const createServerSpawn = deps?.createServerSpawn ?? defaultCreateServerSpawn;
@@ -614,7 +631,7 @@ export async function startBackendPhase(
 
   const parsed = parseOrchestratorArgs(argv, env);
   const root = options?.root ?? process.cwd();
-  if (!isAbsolute(root)) {
+  if (!path.isAbsolute(root)) {
     throw new OrchestratorError(`Invalid workspace root "${root}": must be an absolute path.`, 1);
   }
   const paths = resolveRunPaths(root, parsed.namespace);
@@ -628,27 +645,32 @@ export async function startBackendPhase(
   const isRunOwnerLive: PidLiveness =
     deps?.isRunOwnerLive ?? deps?.isPidLive ?? createOsPidOwnershipChecker();
 
-  let childExited = false;
+  let isChildExited = false;
   // Per-service exit flags (P13): warm-up aborts on the first service that
   // actually dies instead of waiting for the crash handler's flush + tail
   // read + teardown to settle the run.
-  let webChildExited = false;
+  let isWebChildExited = false;
   let deadService: "server" | "web" | null = null;
-  let shuttingDown = false;
-  let settled = false;
+  let isShuttingDown = false;
+  let isSettled = false;
   let settledCode = 0;
-  let resolveExit: (code: number) => void = () => undefined;
-  const exitPromise = new Promise<number>((resolve) => {
-    resolveExit = resolve;
-  });
+  const { promise: exitPromise, resolve: resolveExit } = Promise.withResolvers<number>();
   const finish = (code: number): void => {
-    if (!settled) {
-      settled = true;
-      settledCode = code;
-      resolveExit(code);
+    if (isSettled) {
+      return;
     }
+
+    isSettled = true;
+    settledCode = code;
+    resolveExit(code);
   };
-  const isRunOver = (): boolean => childExited || shuttingDown || settled;
+  const isRunOver = (): boolean => isChildExited || isShuttingDown || isSettled;
+  // Getter forms for the CFA-visible reads below: the flags are flipped from
+  // nested callbacks the outer scope cannot track, so direct reads would be
+  // reported as constant conditions.
+  const hasChildExited = (): boolean => isChildExited;
+  const isRunSettled = (): boolean => isSettled;
+  const isShutdownRequested = (): boolean => isShuttingDown;
 
   // Supervised children in start order; teardown reverses it (web before
   // server). The web phase appends once the sidecar is gated.
@@ -657,7 +679,7 @@ export async function startBackendPhase(
   // owned child is actually reaped (not merely signaled): reaping is what
   // releases OS locks such as the Windows working-directory handle, so
   // post-run cleanup never races a dying child.
-  const exitPromises: Array<Promise<ChildExit>> = [];
+  const exitPromises: Promise<ChildExit>[] = [];
   let flushOutput: () => Promise<void> = () => Promise.resolve();
 
   // Teardown passes are serialized (P20): overlapping triggers (crash, catch,
@@ -665,18 +687,22 @@ export async function startBackendPhase(
   // `owned` list is passed each time, so a queued pass still sees children
   // appended after it was queued.
   let teardownQueue: Promise<unknown> = Promise.resolve();
-  const runTeardown = (children: OwnedChild[]): Promise<TeardownResult> => {
-    const pass = teardownQueue.then(() =>
-      teardownOwnedRun(paths, children, { isPidLive, runId })
-    );
-    teardownQueue = pass.then(
-      () => undefined,
-      () => undefined
-    );
-    return pass.then((result) => {
-      reportUnverified(result.unverified, logLine);
-      return result;
-    });
+  const runTeardown = async (): Promise<TeardownResult> => {
+    const previous = teardownQueue;
+    const pass = (async (): Promise<TeardownResult> => {
+      await previous;
+      return teardownOwnedRun(paths, owned, { isPidLive, runId });
+    })();
+    teardownQueue = (async () => {
+      try {
+        await pass;
+      } catch {
+        // The queue must stay fulfilled: one failed pass never blocks the next.
+      }
+    })();
+    const result = await pass;
+    reportUnverified(result.unverified, logLine);
+    return result;
   };
 
   let shutdownPromise: Promise<number> | null = null;
@@ -688,9 +714,9 @@ export async function startBackendPhase(
       // must not start a second teardown.
       removeSignal("SIGINT", handleSigint);
       removeSignal("SIGTERM", handleSigterm);
-      if (settled) return settledCode;
-      shuttingDown = true;
-      await runTeardown(owned);
+      if (isSettled) return settledCode;
+      isShuttingDown = true;
+      await runTeardown();
       if (owned.length === 0) {
         // Claimed but nothing spawned yet: release this run's own record.
         await releaseRunClaim(paths, runId);
@@ -698,13 +724,17 @@ export async function startBackendPhase(
       await flushOutput();
       let settleTimer: ReturnType<typeof setTimeout> | undefined;
       try {
-        const reaped = await Promise.race([
-          Promise.allSettled(exitPromises).then(() => true),
+        const allReaped = (async (): Promise<boolean> => {
+          await Promise.allSettled(exitPromises);
+          return true;
+        })();
+        const isReaped = await Promise.race([
+          allReaped,
           new Promise<false>((resolve) => {
-            settleTimer = setTimeout(() => resolve(false), TEARDOWN_GRACE_MS);
+            settleTimer = setTimeout(() => { resolve(false); }, TEARDOWN_GRACE_MS);
           }),
         ]);
-        if (!reaped) {
+        if (!isReaped) {
           logLine(`[dev] shutdown proceeding with owned children still attached after ${String(TEARDOWN_GRACE_MS)}ms`);
         }
       } finally {
@@ -774,20 +804,20 @@ export async function startBackendPhase(
       await fsMkdir(paths.portsDir, { recursive: true });
       await fsMkdir(paths.pidsDir, { recursive: true });
       await fsMkdir(paths.runDir, { recursive: true });
-      await fsMkdir(dirname(paths.serverLogFile), { recursive: true });
+      await fsMkdir(path.dirname(paths.serverLogFile), { recursive: true });
       await rotateNamespaceLogs({
         latestFile: paths.serverLogFile,
-        previousFile: join(dirname(paths.serverLogFile), "previous.log"),
+        previousFile: path.join(path.dirname(paths.serverLogFile), "previous.log"),
       });
 
-      if (settled) {
+      if (isRunSettled()) {
         // A shutdown request interrupted startup before any child existed:
         // report a clean stop, never a failure.
         throw new OrchestratorError("shutdown requested during startup", 0);
       }
 
       const serverEntry =
-        deps?.serverEntryPath ?? join(resolveRepoRoot(), "apps", "server", "src", "index.ts");
+        deps?.serverEntryPath ?? path.join(resolveRepoRoot(), "apps", "server", "src", "index.ts");
       const spawnRequest = createServerSpawn({
         host,
         port: allocated.serverPort,
@@ -863,25 +893,25 @@ export async function startBackendPhase(
   // unreferenced.
   try {
     await writeIdentity(paths.identityFile, identityRecord);
-    await fsWriteFile(paths.serverPidFile, `${serverChild.pid}\n`, "utf-8");
+    await fsWriteFile(paths.serverPidFile, `${serverChild.pid}\n`, "utf8");
   } catch (error: unknown) {
     removeSignal("SIGINT", handleSigint);
     removeSignal("SIGTERM", handleSigterm);
-    await runTeardown(owned);
+    await runTeardown();
     finish(1);
     throw error;
   }
 
   void serverChild.exited.then(async (record) => {
-    childExited = true;
-    if (deadService === null) deadService = "server";
-    if (shuttingDown || settled) return;
+    isChildExited = true;
+    deadService ??= "server";
+    if (isShuttingDown || isSettled) return;
     await flushOutput();
     const tail = await readFailureTail(paths.serverLogFile, sleep);
     const tailText = tailToText(tail);
     const reason = record.error === undefined ? "" : ` (${record.error})`;
     logLine(`[server] exited unexpectedly${reason}. Log tail:\n${tailText}`);
-    await runTeardown(owned);
+    await runTeardown();
     finish(1);
     removeSignal("SIGINT", handleSigint);
     removeSignal("SIGTERM", handleSigterm);
@@ -895,7 +925,7 @@ export async function startBackendPhase(
         deadlineMs: serverDeadlineMs,
         intervalMs: pollIntervalMs,
         probe: () => probeHealth(healthUrl),
-        isChildExited: () => childExited,
+        isChildExited: () => isChildExited,
         getLogTail: () => readFailureTail(paths.serverLogFile, sleep),
       },
       { now, sleep }
@@ -903,14 +933,14 @@ export async function startBackendPhase(
     await flushOutput();
     // P19: the gate can pass at the instant the server dies; never print
     // ready (or start the web phase) for a backend that already exited.
-    if (childExited || settled) {
+    if (hasChildExited() || isRunSettled()) {
       const tail = await readFailureTail(paths.serverLogFile, sleep);
       throw new OrchestratorError(
         `server exited before the backend ready line. Log tail:\n${tailToText(tail)}`,
         1
       );
     }
-    await fsWriteFile(paths.serverPortFile, `${allocated.serverPort}\n`, "utf-8");
+    await fsWriteFile(paths.serverPortFile, `${allocated.serverPort}\n`, "utf8");
 
     const hook = deps?.onServerReady;
     const readyCtx: ServerReadyContext = {
@@ -948,20 +978,20 @@ export async function startBackendPhase(
       if (isRunOver()) {
         throw new OrchestratorError("server exited while the web sidecar was starting", 1);
       }
-      await fsWriteFile(paths.webPortFile, `${web.port}\n`, "utf-8");
-      await fsWriteFile(paths.webPidFile, `${web.pid}\n`, "utf-8");
+      await fsWriteFile(paths.webPortFile, `${web.port}\n`, "utf8");
+      await fsWriteFile(paths.webPidFile, `${web.pid}\n`, "utf8");
       identityRecord.children["web"] = { pid: web.pid, startTimeMs: web.startTimeMs };
       await writeIdentity(paths.identityFile, identityRecord);
       void web.exited.then(async (record) => {
-        webChildExited = true;
-        if (deadService === null) deadService = "web";
-        if (shuttingDown || settled) return;
+        isWebChildExited = true;
+        deadService ??= "web";
+        if (isShuttingDown || isSettled) return;
         if (web.flush !== undefined) await web.flush();
         const tail = await readFailureTail(web.logFile, sleep);
         const tailText = tailToText(tail);
         const reason = record.error === undefined ? "" : ` (${record.error})`;
         logLine(`[web] exited unexpectedly${reason}. Log tail:\n${tailText}`);
-        await runTeardown(owned);
+        await runTeardown();
         finish(1);
         removeSignal("SIGINT", handleSigint);
         removeSignal("SIGTERM", handleSigterm);
@@ -972,7 +1002,7 @@ export async function startBackendPhase(
       );
       const serverOrigin = `http://${host}:${allocated.serverPort}`;
       const webOrigin = `http://${host}:${web.port}`;
-      const probeWebRoute = deps?.probeWeb ?? defaultProbeHttp;
+      const probeWebRoute = deps?.probeWeb ?? isDefaultProbeHttp;
       const warmup = await verifyWarmup(
         {
           mode: parsed.warmup,
@@ -988,12 +1018,10 @@ export async function startBackendPhase(
         {
           now,
           sleep,
-          isChildExited: () => childExited || webChildExited || shuttingDown || settled,
+          isChildExited: () => isChildExited || isWebChildExited || isShuttingDown || isSettled,
           firstDeadService: () => deadService,
           getLogTail: () =>
-            deadService === "server"
-              ? readFailureTail(paths.serverLogFile, sleep)
-              : readFailureTail(paths.webLogFile, sleep),
+            readFailureTail(deadService === "server" ? paths.serverLogFile : paths.webLogFile, sleep),
         }
       );
       logLine(
@@ -1010,8 +1038,8 @@ export async function startBackendPhase(
     removeSignal("SIGINT", handleSigint);
     removeSignal("SIGTERM", handleSigterm);
     await flushOutput();
-    await runTeardown(owned);
-    if (shuttingDown) {
+    await runTeardown();
+    if (isShutdownRequested()) {
       // A shutdown request interrupted startup: settlement and child
       // reaping belong to the outstanding shutdown, so the run reports a
       // clean stop (exit 0) instead of surfacing the aborted wait as a
@@ -1046,15 +1074,15 @@ export async function startBackendPhase(
 }
 
 /**
- * CLI wrapper: run the full dev run (backend first, then the web sidecar)
- * until shutdown or child exit, returning the process exit code. Never
- * throws; failures are logged with the failing service and its log tail
- * (carried on the error message). An explicitly injected `startWebPhase`
- * wins over the default sidecar starter.
- */
+CLI wrapper: run the full dev run (backend first, then the web sidecar)
+until shutdown or child exit, returning the process exit code. Never
+throws; failures are logged with the failing service and its log tail
+(carried on the error message). An explicitly injected `startWebPhase`
+wins over the default sidecar starter.
+*/
 export async function runDevCommand(
-  options?: BackendPhaseOptions | undefined,
-  deps?: BackendPhaseDeps | undefined
+  options?: BackendPhaseOptions  ,
+  deps?: BackendPhaseDeps  
 ): Promise<number> {
   const logLine = deps?.logLine ?? defaultLogLine;
   try {
@@ -1071,19 +1099,18 @@ export async function runDevCommand(
       return 0;
     }
     logLine(`[dev] run failed: ${message}`);
-    if (error instanceof OrchestratorError) return error.exitCode;
-    return 1;
+    return error instanceof OrchestratorError ? error.exitCode : 1;
   }
 }
 
 /**
- * CLI wrapper: run the backend phase until shutdown or child exit, returning
- * the process exit code. Never throws; failures are logged with the failing
- * service and its log tail (carried on the error message).
- */
+CLI wrapper: run the backend phase until shutdown or child exit, returning
+the process exit code. Never throws; failures are logged with the failing
+service and its log tail (carried on the error message).
+*/
 export async function runBackendCommand(
-  options?: BackendPhaseOptions | undefined,
-  deps?: BackendPhaseDeps | undefined
+  options?: BackendPhaseOptions  ,
+  deps?: BackendPhaseDeps  
 ): Promise<number> {
   const logLine = deps?.logLine ?? defaultLogLine;
   try {
@@ -1098,7 +1125,6 @@ export async function runBackendCommand(
       return 0;
     }
     logLine(`[dev] backend failed: ${message}`);
-    if (error instanceof OrchestratorError) return error.exitCode;
-    return 1;
+    return error instanceof OrchestratorError ? error.exitCode : 1;
   }
 }

@@ -10,8 +10,8 @@ import type {
 import { sessions } from "../schema/sqlite.js";
 
 /**
- * Migration DDL creating the canonical sessions table if it does not already exist.
- */
+Migration DDL creating the canonical sessions table if it does not already exist.
+*/
 export const INIT_SESSIONS_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS sessions (
 `;
 
 /**
- * Executes the sessions table migration on a SQLite database.
- */
+Executes the sessions table migration on a SQLite database.
+*/
 export function migrateSessionsTable(sqlite: Database.Database): void {
   sqlite.exec(INIT_SESSIONS_TABLE_SQL);
 }
@@ -46,9 +46,9 @@ function toRecord(row: typeof sessions.$inferSelect): SessionRecord {
 }
 
 /**
- * SQLite implementation of SessionRepositoryPort using Drizzle ORM.
- * Stores only SHA-256 digests; raw tokens never reach this layer.
- */
+SQLite implementation of SessionRepositoryPort using Drizzle ORM.
+Stores only SHA-256 digests; raw tokens never reach this layer.
+*/
 export class SqliteSessionRepository implements SessionRepositoryPort {
   constructor(
     private readonly db: BetterSQLite3Database<{ sessions: typeof sessions }>,
@@ -59,7 +59,7 @@ export class SqliteSessionRepository implements SessionRepositoryPort {
     }
   }
 
-  async createSession(input: CreateSessionRecordInput): Promise<SessionRecord> {
+  createSession(input: CreateSessionRecordInput): Promise<SessionRecord> {
     const now = new Date().toISOString();
     const row = {
       id: randomUUID(),
@@ -72,49 +72,46 @@ export class SqliteSessionRepository implements SessionRepositoryPort {
       createdAt: now,
     };
     this.db.insert(sessions).values(row).run();
-    return toRecord(row);
+    return Promise.resolve(toRecord(row));
   }
 
-  async findByTokenHash(tokenHash: string): Promise<SessionRecord | null> {
+  findByTokenHash(tokenHash: string): Promise<SessionRecord | null> {
     const row = this.db
       .select()
       .from(sessions)
       .where(eq(sessions.tokenHash, tokenHash))
       .limit(1)
       .get();
-    if (!row) {
-      return null;
-    }
-    return toRecord(row);
+    return Promise.resolve(row ? toRecord(row) : null);
   }
 
-  async touchSession(
+  touchSession(
     id: string,
     input: { lastActiveAt: string; expiresAt: string }
   ): Promise<SessionRecord | null> {
+    // Indexing (not `.get()`) keeps the honest `| undefined` type: the driver
+    // yields no row when the UPDATE matches nothing.
     const updated = this.db
       .update(sessions)
       .set({ lastActiveAt: input.lastActiveAt, expiresAt: input.expiresAt })
       .where(eq(sessions.id, id))
       .returning()
-      .get();
-    if (!updated) {
-      return null;
-    }
-    return toRecord(updated);
+      .all()[0];
+    return Promise.resolve(updated ? toRecord(updated) : null);
   }
 
-  async deleteSession(id: string): Promise<void> {
+  deleteSession(id: string): Promise<void> {
     this.db.delete(sessions).where(eq(sessions.id, id)).run();
+    return Promise.resolve();
   }
 
-  async deleteAllSessions(userId: string): Promise<number> {
+  deleteAllSessions(userId: string): Promise<number> {
     const result = this.db.delete(sessions).where(eq(sessions.userId, userId)).run();
-    return Number(result.changes);
+    return Promise.resolve(result.changes);
   }
 
-  async listSessions(userId: string): Promise<SessionRecord[]> {
+  listSessions(userId: string): Promise<SessionRecord[]> {
     const rows = this.db.select().from(sessions).where(eq(sessions.userId, userId)).all();
-    return rows.map(toRecord);
+    return Promise.resolve(rows.map((row) => toRecord(row)));
   }
 }

@@ -1,7 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";
-import { delimiter, join } from "node:path";
+import path from "node:path";
 import { createLogger, type Logger } from "@notebench/logger";
 import {
   createJsonRpcRequest,
@@ -21,27 +20,27 @@ export interface WorkerSpawnPlan {
   command: string;
   argv: string[];
   /**
-   * Full env for a direct venv spawn (VIRTUAL_ENV + venv-first PATH, the
-   * pieces `uv run` would set). Undefined means inherit (uv fallback keeps
-   * today's exact behavior).
-   */
+  Full env for a direct venv spawn (VIRTUAL_ENV + venv-first PATH, the
+  pieces `uv run` would set). Undefined means inherit (uv fallback keeps
+  today's exact behavior).
+  */
   env?: NodeJS.ProcessEnv | undefined;
 }
 
 /**
- * Steady-state worker spawn (research
- * docs/research/2026-10-15/windows-console-flash.md §6 Fix 3): run the
- * venv interpreter directly instead of `uv run`, removing the
- * uv → shim → cpython double hop. A leaf python worker (stdio JSON-RPC,
- * spawns nothing) takes CREATE_NO_WINDOW cleanly. Falls back to `uv run`
- * when the venv interpreter is absent (e.g. before the first `uv sync`).
- * `uv sync` stays the env-setup step in pool startup.
- */
+Steady-state worker spawn (research
+docs/research/2026-10-15/windows-console-flash.md §6 Fix 3): run the
+venv interpreter directly instead of `uv run`, removing the
+uv → shim → cpython double hop. A leaf python worker (stdio JSON-RPC,
+spawns nothing) takes CREATE_NO_WINDOW cleanly. Falls back to `uv run`
+when the venv interpreter is absent (e.g. before the first `uv sync`).
+`uv sync` stays the env-setup step in pool startup.
+*/
 export function resolveWorkerSpawn(projectDir: string): WorkerSpawnPlan {
-  const venvDir = join(projectDir, ".venv");
+  const venvDir = path.join(projectDir, ".venv");
   const scriptsDir =
-    process.platform === "win32" ? join(venvDir, "Scripts") : join(venvDir, "bin");
-  const pythonExe = join(
+    path.join(venvDir, process.platform === "win32" ? "Scripts" : "bin");
+  const pythonExe = path.join(
     scriptsDir,
     process.platform === "win32" ? "python.exe" : "python"
   );
@@ -52,7 +51,7 @@ export function resolveWorkerSpawn(projectDir: string): WorkerSpawnPlan {
       env: {
         ...process.env,
         VIRTUAL_ENV: venvDir,
-        PATH: `${scriptsDir}${delimiter}${process.env["PATH"] ?? ""}`,
+        PATH: `${scriptsDir}${path.delimiter}${process.env["PATH"] ?? ""}`,
       },
     };
   }
@@ -68,7 +67,7 @@ interface PendingRequest {
   timer: NodeJS.Timeout;
 }
 
-export class DocWorkerProcess extends EventEmitter {
+export class DocWorkerProcess extends EventTarget {
   private child: ChildProcess | null = null;
   private readonly projectDir: string;
   private readonly requestTimeoutMs: number;
@@ -78,15 +77,120 @@ export class DocWorkerProcess extends EventEmitter {
   private isAlive = false;
   private isExpectedExit = false;
   private processPid = 0;
+  private workerPid = 0;
 
   constructor(options: WorkerProcessOptions) {
     super();
     this.projectDir = options.projectDir;
-    this.requestTimeoutMs = options.requestTimeoutMs ?? 10000;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? 10_000;
     this.logger = options.logger ?? createLogger({ name: "doc-worker-process" });
   }
 
-  private workerPid = 0;
+  private handleStdout(chunk: Buffer): void {
+    this.buffer += chunk.toString("utf8");
+    let newlineIdx = this.buffer.indexOf("\n");
+
+    while (newlineIdx !== -1) {
+      const line = this.buffer.slice(0, newlineIdx).trim();
+      this.buffer = this.buffer.slice(newlineIdx + 1);
+
+      if (line.length > 0) {
+        this.processLine(line);
+      }
+      newlineIdx = this.buffer.indexOf("\n");
+    }
+  }
+
+  private processLine(line: string): void {
+    try {
+      const raw: unknown = JSON.parse(line);
+      const parsed = JsonRpcResponseSchema.safeParse(raw);
+      if (!parsed.success) {
+        this.logger.warn({ line }, "Received malformed JSON-RPC frame from worker");
+        return;
+      }
+
+      const response = parsed.data;
+      const id: JsonRpcId = response.id;
+      if (id === null) {
+        if ("error" in response) {
+          const parseErr = new ParserFailedError(response.error.message, {
+            code: response.error.code,
+            ...((response.error.data !== undefined) && { data: response.error.data }),
+          });
+          for (const pending of this.pendingRequests.values()) {
+            clearTimeout(pending.timer);
+            pending.reject(parseErr);
+          }
+          this.pendingRequests.clear();
+        }
+        return;
+      }
+
+      const pending = this.pendingRequests.get(id);
+      if (!pending) return;
+
+      clearTimeout(pending.timer);
+      this.pendingRequests.delete(id);
+
+      if ("error" in response) {
+        pending.reject(
+          new ParserFailedError(response.error.message, {
+            code: response.error.code,
+            ...((response.error.data !== undefined) && { data: response.error.data }),
+          })
+        );
+      } else {
+        pending.resolve(response.result);
+      }
+    } catch (error) {
+      this.logger.error({ line, error: String(error) }, "Error decoding worker stdout line");
+    }
+  }
+
+  private killProcess(signal: NodeJS.Signals): void {
+    if (this.workerPid) {
+      try {
+        process.kill(this.workerPid);
+        return;
+      } catch {
+        // Fall through to child.kill
+      }
+    }
+    this.child?.kill(signal);
+  }
+
+  private handleExit(code: number | null, signal: NodeJS.Signals | null): void {
+    this.isAlive = false;
+    const isUnexpected = !this.isExpectedExit;
+
+    if (isUnexpected) {
+      this.logger.error(
+        `Worker process ${this.processPid} crashed unexpectedly (code=${code}, signal=${signal})`
+      );
+    }
+
+    const abortError = new ParserFailedError(
+      `Worker process ${this.processPid} terminated (code=${code}, signal=${signal})`
+    );
+
+    for (const pending of this.pendingRequests.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(abortError);
+    }
+    this.pendingRequests.clear();
+
+    this.dispatchEvent(
+      new CustomEvent("exit", {
+        detail: {
+          pid: this.processPid,
+          code,
+          signal,
+          unexpected: isUnexpected,
+        },
+      })
+    );
+  }
 
   public get pid(): number {
     return this.workerPid || this.processPid;
@@ -109,7 +213,7 @@ export class DocWorkerProcess extends EventEmitter {
           // Leaf worker: spawns nothing further, so hiding is safe (unlike
           // mid-tree supervisors). Keeps console-less launches popup-free.
           windowsHide: true,
-          ...(plan.env === undefined ? {} : { env: plan.env }),
+          ...(plan.env !== undefined && { env: plan.env }),
         });
 
         this.child = child;
@@ -117,12 +221,12 @@ export class DocWorkerProcess extends EventEmitter {
         this.isAlive = true;
         this.isExpectedExit = false;
 
-        child.stdout?.on("data", (chunk: Buffer) => {
+        child.stdout.on("data", (chunk: Buffer) => {
           this.handleStdout(chunk);
         });
 
-        child.stderr?.on("data", (chunk: Buffer) => {
-          const text = chunk.toString("utf-8").trim();
+        child.stderr.on("data", (chunk: Buffer) => {
+          const text = chunk.toString("utf8").trim();
           if (text) {
             this.logger.debug(`[doc-worker:${this.processPid}] ${text}`);
           }
@@ -148,8 +252,8 @@ export class DocWorkerProcess extends EventEmitter {
         } else {
           reject(new ParserFailedError("Failed to obtain child process PID"));
         }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
         reject(new ParserFailedError(`Failed to initialize doc-worker: ${msg}`));
       }
     });
@@ -189,123 +293,25 @@ export class DocWorkerProcess extends EventEmitter {
       });
 
       const payload = JSON.stringify(request) + "\n";
-      this.child?.stdin?.write(payload, "utf-8", (err) => {
-        if (err) {
-          clearTimeout(timer);
-          this.pendingRequests.delete(id);
-          reject(new ParserFailedError(`Failed to write to worker stdin: ${err.message}`));
+      this.child?.stdin?.write(payload, "utf8", (err) => {
+        if (!err) {
+          return;
         }
+
+        clearTimeout(timer);
+        this.pendingRequests.delete(id);
+        reject(new ParserFailedError(`Failed to write to worker stdin: ${err.message}`));
       });
     });
   }
 
-  private handleStdout(chunk: Buffer): void {
-    this.buffer += chunk.toString("utf-8");
-    let newlineIdx = this.buffer.indexOf("\n");
-
-    while (newlineIdx !== -1) {
-      const line = this.buffer.slice(0, newlineIdx).trim();
-      this.buffer = this.buffer.slice(newlineIdx + 1);
-
-      if (line.length > 0) {
-        this.processLine(line);
-      }
-      newlineIdx = this.buffer.indexOf("\n");
-    }
-  }
-
-  private processLine(line: string): void {
-    try {
-      const raw: unknown = JSON.parse(line);
-      const parsed = JsonRpcResponseSchema.safeParse(raw);
-      if (!parsed.success) {
-        this.logger.warn({ line }, "Received malformed JSON-RPC frame from worker");
-        return;
-      }
-
-      const response = parsed.data;
-      const id: JsonRpcId = response.id;
-      if (id === null) {
-        if ("error" in response) {
-          const parseErr = new ParserFailedError(response.error.message, {
-            code: response.error.code,
-            ...(response.error.data !== undefined ? { data: response.error.data } : {}),
-          });
-          for (const pending of this.pendingRequests.values()) {
-            clearTimeout(pending.timer);
-            pending.reject(parseErr);
-          }
-          this.pendingRequests.clear();
-        }
-        return;
-      }
-
-      const pending = this.pendingRequests.get(id);
-      if (!pending) return;
-
-      clearTimeout(pending.timer);
-      this.pendingRequests.delete(id);
-
-      if ("error" in response) {
-        pending.reject(
-          new ParserFailedError(response.error.message, {
-            code: response.error.code,
-            ...(response.error.data !== undefined ? { data: response.error.data } : {}),
-          })
-        );
-      } else {
-        pending.resolve(response.result);
-      }
-    } catch (err) {
-      this.logger.error({ line, error: String(err) }, "Error decoding worker stdout line");
-    }
-  }
-
-  private killProcess(signal: NodeJS.Signals): void {
-    if (this.workerPid) {
-      try {
-        process.kill(this.workerPid);
-        return;
-      } catch {
-        // Fall through to child.kill
-      }
-    }
-    this.child?.kill(signal);
-  }
-
-  private handleExit(code: number | null, signal: NodeJS.Signals | null): void {
-    this.isAlive = false;
-    const unexpected = !this.isExpectedExit;
-
-    if (unexpected) {
-      this.logger.error(
-        `Worker process ${this.processPid} crashed unexpectedly (code=${code}, signal=${signal})`
-      );
-    }
-
-    const abortError = new ParserFailedError(
-      `Worker process ${this.processPid} terminated (code=${code}, signal=${signal})`
-    );
-
-    for (const pending of this.pendingRequests.values()) {
-      clearTimeout(pending.timer);
-      pending.reject(abortError);
-    }
-    this.pendingRequests.clear();
-
-    this.emit("exit", {
-      pid: this.processPid,
-      code,
-      signal,
-      unexpected,
-    });
-  }
-
   public simulateCrash(): void {
-    if (this.child && this.isAlive) {
-      this.isExpectedExit = false;
-      this.killProcess("SIGKILL");
+    if (!(this.child && this.isAlive)) {
+      return;
     }
+
+    this.isExpectedExit = false;
+    this.killProcess("SIGKILL");
   }
 
   public async stop(): Promise<void> {

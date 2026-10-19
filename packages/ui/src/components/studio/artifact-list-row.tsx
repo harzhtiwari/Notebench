@@ -1,12 +1,12 @@
 import * as React from "react";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import {
-  ArrowClockwise,
-  CheckCircle,
+  ArrowClockwiseIcon,
+  CheckCircleIcon,
   resolveIconProps,
-  Sparkle,
-  Warning,
-  WarningCircle,
+  SparkleIcon,
+  WarningIcon,
+  WarningCircleIcon,
 } from "../primitives/icons.js";
 import { Badge, type BadgeVariant } from "../primitives/badges.js";
 import { formatRelativeTime } from "../../lib/formatters.js";
@@ -33,13 +33,12 @@ export interface ArtifactListRowProps
 }
 
 function formatTypeBadge(type: string): string {
-  const norm = type.toLowerCase().replace(/_/g, "-");
+  const norm = type.toLowerCase().replaceAll('_', "-");
   const tool = STUDIO_TOOL_CATALOG.find(
-    (t) => t.id === norm || t.id.replace(/-/g, "_") === type.toLowerCase()
+    (t) => t.id === norm || t.id.replaceAll('-', "_") === type.toLowerCase()
   );
   if (tool) return tool.label;
-  if (type.toLowerCase() === "deck" || type.toLowerCase() === "slides") return "Slide Deck";
-  return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return type.toLowerCase() === "deck" || type.toLowerCase() === "slides" ? "Slide Deck" : type.replaceAll('_', " ").replaceAll(/\b\w/g, (c) => c.toUpperCase());
 }
 
 interface StatusConfig {
@@ -51,48 +50,53 @@ interface StatusConfig {
 
 function getStatusConfig(
   status: ArtifactLiveStatus,
-  customLabel?: string | undefined
+  customLabel?: string  
 ): StatusConfig {
   switch (status) {
-    case "generating":
+    case "generating": {
       return {
-        icon: ArrowClockwise,
+        icon: ArrowClockwiseIcon,
         label: customLabel ?? "Generating...",
         variant: "ai",
         spin: true,
       };
-    case "ready":
+    }
+    case "ready": {
       return {
-        icon: CheckCircle,
+        icon: CheckCircleIcon,
         label: customLabel ?? "Ready",
         variant: "ok",
       };
-    case "failed":
+    }
+    case "failed": {
       return {
-        icon: WarningCircle,
+        icon: WarningCircleIcon,
         label: customLabel ?? "Failed",
         variant: "danger",
       };
-    case "stale":
+    }
+    case "stale": {
       return {
-        icon: Warning,
+        icon: WarningIcon,
         label: customLabel ?? "Source changed",
         variant: "warn",
       };
-    default:
+    }
+    default: {
       return {
-        icon: Sparkle,
-        label: customLabel ?? String(status),
+        icon: SparkleIcon,
+        label: customLabel ?? status,
         variant: "default",
       };
+    }
   }
 }
 
 /**
- * ArtifactListRow: row displaying artifact title, type badge, relative update time,
- * and live status (board .output pattern).
- * Invariant: Live status pairs an icon and label always — never color alone.
- */
+ArtifactListRow: row displaying artifact title, type badge, relative update time,
+and live status (board .output pattern).
+Invariant: Live status pairs an icon and label always — never color alone.
+*/
 export const ArtifactListRow = React.forwardRef<
   HTMLDivElement,
   ArtifactListRowProps
@@ -119,8 +123,7 @@ export const ArtifactListRow = React.forwardRef<
 
     const isoString = React.useMemo(() => {
       if (typeof updatedAt === "string") return updatedAt;
-      if (typeof updatedAt === "number") return new Date(updatedAt).toISOString();
-      return updatedAt.toISOString();
+      return typeof updatedAt === "number" ? new Date(updatedAt).toISOString() : updatedAt.toISOString();
     }, [updatedAt]);
 
     const relativeTime = React.useMemo(() => {
@@ -139,13 +142,15 @@ export const ArtifactListRow = React.forwardRef<
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (onOpen && (e.key === "Enter" || e.key === " ")) {
-        e.preventDefault();
-        onOpen(id);
+      if (!(onOpen && (e.key === "Enter" || e.key === " "))) {
+        return;
       }
+
+      e.preventDefault();
+      onOpen(id);
     };
 
-    const isInteractive = Boolean(onOpen || onClick);
+    const isInteractive = Boolean(onOpen ?? onClick);
 
     return (
       <div
@@ -190,14 +195,14 @@ export const ArtifactListRow = React.forwardRef<
           <span>{statusCfg.label}</span>
         </Badge>
 
-        {actions !== undefined ? (
+        {actions === undefined ? null : (
           <div
             className="shrink-0 flex items-center gap-[var(--nb-space-1)]"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); }}
           >
             {actions}
           </div>
-        ) : null}
+        )}
       </div>
     );
   }

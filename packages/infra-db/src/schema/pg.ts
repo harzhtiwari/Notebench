@@ -11,8 +11,8 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * PostgreSQL Users account table.
- */
+PostgreSQL Users account table.
+*/
 export const users = pgTable("users", {
   id: uuid("id").primaryKey(),
   email: varchar("email", { length: 255 }),
@@ -24,9 +24,9 @@ export const users = pgTable("users", {
 });
 
 /**
- * PostgreSQL Notebooks workspace container table.
- * All records strictly require user_id.
- */
+PostgreSQL Notebooks workspace container table.
+All records strictly require user_id.
+*/
 export const notebooks = pgTable("notebooks", {
   id: uuid("id").primaryKey(),
   userId: uuid("user_id")
@@ -39,9 +39,9 @@ export const notebooks = pgTable("notebooks", {
 });
 
 /**
- * PostgreSQL Sources reference document table.
- * All records strictly require user_id.
- */
+PostgreSQL Sources reference document table.
+All records strictly require user_id.
+*/
 export const sources = pgTable("sources", {
   id: uuid("id").primaryKey(),
   userId: uuid("user_id")
@@ -64,9 +64,9 @@ export const sources = pgTable("sources", {
 });
 
 /**
- * PostgreSQL Artifacts living deliverable AST index table.
- * All records strictly require user_id.
- */
+PostgreSQL Artifacts living deliverable AST index table.
+All records strictly require user_id.
+*/
 export const artifacts = pgTable("artifacts", {
   id: uuid("id").primaryKey(),
   userId: uuid("user_id")
@@ -84,9 +84,9 @@ export const artifacts = pgTable("artifacts", {
 });
 
 /**
- * PostgreSQL Artifact versions append-only history DAG table.
- * All records strictly require user_id.
- */
+PostgreSQL Artifact versions append-only history DAG table.
+All records strictly require user_id.
+*/
 export const artifactVersions = pgTable(
   "artifact_versions",
   {
@@ -106,18 +106,18 @@ export const artifactVersions = pgTable(
     contentDigest: varchar("content_digest", { length: 64 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
-  (table) => ({
-    parentVersionFk: foreignKey({
+  (table) => [
+    foreignKey({
       columns: [table.parentVersionId],
       foreignColumns: [table.id],
     }),
-  })
+  ]
 );
 
 /**
- * PostgreSQL Sessions dual-token authentication table.
- * All records strictly require user_id.
- */
+PostgreSQL Sessions dual-token authentication table.
+All records strictly require user_id.
+*/
 export const sessions = pgTable("sessions", {
   id: uuid("id").primaryKey(),
   userId: uuid("user_id")
@@ -132,9 +132,9 @@ export const sessions = pgTable("sessions", {
 });
 
 /**
- * PostgreSQL Deletion jobs 6-level cascading deletion table.
- * All records strictly require user_id.
- */
+PostgreSQL Deletion jobs 6-level cascading deletion table.
+All records strictly require user_id.
+*/
 export const deletionJobs = pgTable("deletion_jobs", {
   id: uuid("id").primaryKey(),
   userId: uuid("user_id")
@@ -154,9 +154,9 @@ export const deletionJobs = pgTable("deletion_jobs", {
 });
 
 /**
- * PostgreSQL Memory rules persistent context instructions table.
- * All records strictly require user_id.
- */
+PostgreSQL Memory rules persistent context instructions table.
+All records strictly require user_id.
+*/
 export const memoryRules = pgTable("memory_rules", {
   id: uuid("id").primaryKey(),
   userId: uuid("user_id")
@@ -171,9 +171,9 @@ export const memoryRules = pgTable("memory_rules", {
 });
 
 /**
- * PostgreSQL Provider keys encrypted credentials storage table.
- * All records strictly require user_id.
- */
+PostgreSQL Provider keys encrypted credentials storage table.
+All records strictly require user_id.
+*/
 export const providerKeys = pgTable("provider_keys", {
   id: uuid("id").primaryKey(),
   userId: uuid("user_id")
@@ -191,10 +191,10 @@ export const providerKeys = pgTable("provider_keys", {
 });
 
 /**
- * PostgreSQL provider model selections table (Ticket 04, PRD D6/D7).
- * One row per (user_id, kind): chat and embedding models persist independently.
- * All records strictly require user_id.
- */
+PostgreSQL provider model selections table (Ticket 04, PRD D6/D7).
+One row per (user_id, kind): chat and embedding models persist independently.
+All records strictly require user_id.
+*/
 export const providerModelSelections = pgTable(
   "provider_model_selections",
   {

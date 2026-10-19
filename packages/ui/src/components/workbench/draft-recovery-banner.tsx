@@ -1,7 +1,7 @@
 import * as React from "react";
 
 import { Banner } from "../primitives/index.js";
-import { ClockCounterClockwise } from "../primitives/icons.js";
+import { ClockCounterClockwiseIcon } from "../primitives/icons.js";
 
 export interface DraftRecoveryBannerProps
   extends React.HTMLAttributes<HTMLDivElement> {
@@ -15,10 +15,10 @@ export interface DraftRecoveryBannerProps
 }
 
 /**
- * Draft recovery offer banner (issue 15, Decision 4.4).
- * Appears when an uncommitted local draft is detected on reload.
- * Composed on the unified Banner primitive (warn tone, clock lead icon).
- */
+Draft recovery offer banner (issue 15, Decision 4.4).
+Appears when an uncommitted local draft is detected on reload.
+Composed on the unified Banner primitive (warn tone, clock lead icon).
+*/
 export const DraftRecoveryBanner = React.forwardRef<
   HTMLDivElement,
   DraftRecoveryBannerProps
@@ -54,7 +54,7 @@ export const DraftRecoveryBanner = React.forwardRef<
         title={title}
         message={message ?? defaultMessage}
         icon={
-          <ClockCounterClockwise
+          <ClockCounterClockwiseIcon
             size={20}
             weight="fill"
             aria-hidden="true"

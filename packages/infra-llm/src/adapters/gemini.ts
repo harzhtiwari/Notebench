@@ -24,8 +24,9 @@ function parseGeminiPage(bodyText: string): GeminiPage {
   if (!isRecord(parsed) || !Array.isArray(parsed["models"])) {
     throw new ProviderError("server_error", "Provider returned an unexpected model list shape");
   }
+  const modelEntries = parsed["models"];
   const models: ModelRef[] = [];
-  for (const entry of parsed["models"]) {
+  for (const entry of modelEntries) {
     if (!isRecord(entry) || typeof entry["name"] !== "string" || entry["name"].length === 0) {
       continue;
     }
@@ -51,10 +52,10 @@ function parseGeminiPage(bodyText: string): GeminiPage {
 }
 
 /**
- * Gemini adapter: `GET {baseUrl}/models` with `x-goog-api-key`
- * (ticket §7: header wins until the live check settles it),
- * paging via `pageToken` while `nextPageToken` is present.
- */
+Gemini adapter: `GET {baseUrl}/models` with `x-goog-api-key`
+(ticket §7: header wins until the live check settles it),
+paging via `pageToken` while `nextPageToken` is present.
+*/
 export class GeminiAdapter implements ProviderAdapter {
   readonly id = "gemini" as const;
   readonly defaultBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
@@ -90,12 +91,12 @@ export class GeminiAdapter implements ProviderAdapter {
         { "x-goog-api-key": params.apiKey },
         params.timeoutMs
       );
-    } catch (err: unknown) {
-      const failed = toFailedTestResult(err);
+    } catch (error: unknown) {
+      const failed = toFailedTestResult(error);
       if (failed) {
         return failed;
       }
-      throw err;
+      throw error;
     }
     return { ok: true, latencyMs: Date.now() - started };
   }

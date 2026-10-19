@@ -17,8 +17,9 @@ function parseTagsList(bodyText: string): readonly ModelRef[] {
   if (!isRecord(parsed) || !Array.isArray(parsed["models"])) {
     throw new ProviderError("server_error", "Provider returned an unexpected model list shape");
   }
+  const modelEntries = parsed["models"];
   const models: ModelRef[] = [];
-  for (const entry of parsed["models"]) {
+  for (const entry of modelEntries) {
     if (isRecord(entry) && typeof entry["name"] === "string" && entry["name"].length > 0) {
       models.push({ id: entry["name"] });
     }
@@ -27,10 +28,10 @@ function parseTagsList(bodyText: string): readonly ModelRef[] {
 }
 
 /**
- * Ollama adapter: `GET {baseUrl}/api/tags` for locally installed models.
- * Local requests carry no credentials; the call doubles as the D2
- * connection test (empty list = reachable, refusal = unreachable).
- */
+Ollama adapter: `GET {baseUrl}/api/tags` for locally installed models.
+Local requests carry no credentials; the call doubles as the D2
+connection test (empty list = reachable, refusal = unreachable).
+*/
 export class OllamaAdapter implements ProviderAdapter {
   readonly id = "ollama" as const;
   readonly defaultBaseUrl = "http://localhost:11434";
@@ -49,12 +50,12 @@ export class OllamaAdapter implements ProviderAdapter {
     const started = Date.now();
     try {
       await this.listModels(params);
-    } catch (err: unknown) {
-      const failed = toFailedTestResult(err);
+    } catch (error: unknown) {
+      const failed = toFailedTestResult(error);
       if (failed) {
         return failed;
       }
-      throw err;
+      throw error;
     }
     return { ok: true, latencyMs: Date.now() - started };
   }

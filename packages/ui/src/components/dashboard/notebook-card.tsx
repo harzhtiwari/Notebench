@@ -12,12 +12,11 @@ export interface NotebookCardProps
 }
 
 /**
- * Grid card: emblem + title + shared meta + actions slot. Display-only —
- * rename/duplicate/delete UI is composed by the parent through `actions`.
- */
+Grid card: emblem + title + shared meta + actions slot. Display-only —
+rename/duplicate/delete UI is composed by the parent through `actions`.
+*/
 const NotebookCard = React.forwardRef<HTMLDivElement, NotebookCardProps>(
   ({ className, notebook, onOpen, children, ...props }, ref) => {
-    if (!notebook) return null;
     return (
       <div
         ref={ref}

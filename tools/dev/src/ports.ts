@@ -10,20 +10,18 @@ export { OrchestratorError } from "./types.js";
 const execFileAsync = promisify(execFile);
 
 /**
- * Parse a user-facing port value. Accepts integers 1-65535 only.
- * `0` is rejected: automatic allocation is requested by omitting the
- * flag/env var (internally `undefined`), never by passing 0.
- */
+Parse a user-facing port value. Accepts integers 1-65535 only.
+`0` is rejected: automatic allocation is requested by omitting the
+flag/env var (internally `undefined`), never by passing 0.
+*/
 export function parsePortInput(value: unknown, label: string): number {
   if (typeof value === "number") {
-    if (Number.isInteger(value) && value >= 1 && value <= 65535) return value;
-  } else if (typeof value === "string") {
-    if (/^\d+$/.test(value)) {
+    if (Number.isSafeInteger(value) && value >= 1 && value <= 65_535) return value;
+  } else if (typeof value === "string" && /^\d+$/.test(value)) {
       const parsed = Number(value);
-      if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535) return parsed;
+      if (Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= 65_535) return parsed;
     }
-  }
-  const shown = typeof value === "string" ? value : JSON.stringify(value) ?? String(value);
+  const shown = typeof value === "string" ? value : JSON.stringify(value);
   throw new OrchestratorError(
     `Invalid ${label} "${shown}": expected an integer port 1-65535 ` +
       `(omit the flag for automatic allocation).`,
@@ -31,8 +29,10 @@ export function parsePortInput(value: unknown, label: string): number {
   );
 }
 
-/** True when nothing is listening on port/host right now. */
-export function isPortAvailable(port: number, host: string): Promise<boolean> {
+/**
+True when nothing is listening on port/host right now.
+*/
+export function checkPortAvailable(port: number, host: string): Promise<boolean> {
   return new Promise((resolve) => {
     const server = net.createServer();
     server.once("error", () => {
@@ -47,16 +47,13 @@ export function isPortAvailable(port: number, host: string): Promise<boolean> {
 }
 
 /**
- * Best-effort occupant description for a taken port (e.g. `pid 1234
- * (node.exe)`). Returns `"unknown"` when the OS lookup is unavailable or
- * inconclusive. Never throws.
- */
+Best-effort occupant description for a taken port (e.g. `pid 1234
+(node.exe)`). Returns `"unknown"` when the OS lookup is unavailable or
+inconclusive. Never throws.
+*/
 export async function describePortOccupant(port: number, host: string): Promise<string> {
   try {
-    if (process.platform === "win32") {
-      return await describeOccupantWindows(port, host);
-    }
-    return await describeOccupantPosix(port, host);
+    return process.platform === "win32" ? (await describeOccupantWindows(port, host)) : (await describeOccupantPosix(port, host));
   } catch {
     return "unknown";
   }
@@ -76,7 +73,7 @@ async function describeOccupantWindows(port: number, host: string): Promise<stri
       ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"],
       { timeout: 2000, shell: false, windowsHide: true }
     );
-    const image = task.split(",")[0]?.replaceAll('"', "").trim();
+    const image = task.split(",", 1)[0]?.replaceAll('"', "").trim();
     return image !== undefined && image !== "" ? `pid ${pid} (${image})` : `pid ${pid}`;
   } catch {
     return `pid ${pid}`;
@@ -88,14 +85,15 @@ function parseNetstatPid(output: string, port: number, host: string): string | u
   for (const line of output.split("\n")) {
     const parts = line.trim().split(/\s+/);
     // `TCP    127.0.0.1:3123    0.0.0.0:0    LISTENING    1234`
-    if (parts.length >= 4 && parts[0]?.toUpperCase() === "TCP" && parts[3]?.toUpperCase() === "LISTENING") {
-      const local = parts[1] ?? "";
-      if (!local.endsWith(`:${port}`)) continue;
-      const pid = parts[parts.length - 1];
-      if (pid === undefined || !/^\d+$/.test(pid)) continue;
-      if (local === `${host}:${port}`) return pid;
-      fallback ??= pid;
+    if (parts.length < 4 || parts[0]?.toUpperCase() !== "TCP" || parts[3]?.toUpperCase() !== "LISTENING") {
+      continue;
     }
+    const local = parts[1] ?? "";
+    if (!local.endsWith(`:${port}`)) continue;
+    const pid = parts.at(-1);
+    if (pid === undefined || !/^\d+$/.test(pid)) continue;
+    if (local === `${host}:${port}`) return pid;
+    fallback ??= pid;
   }
   return fallback;
 }
@@ -114,14 +112,16 @@ async function describeOccupantPosix(port: number, host: string): Promise<string
       continue;
     }
     const candidate = `pid ${parts[1]} (${parts[0]})`;
-    const name = parts[parts.length - 1] ?? "";
+    const name = parts.at(-1) ?? "";
     if (name.includes(`${host}:${port}`)) return candidate;
     fallback ??= candidate;
   }
   return fallback ?? "unknown";
 }
 
-/** Build the fail-fast conflict error for a forced port that is taken. */
+/**
+Build the fail-fast conflict error for a forced port that is taken.
+*/
 export function formatPortConflictError(
   service: ServiceName | "server" | "web",
   port: number,
@@ -147,25 +147,27 @@ export interface AllocatedPorts {
 
 interface AllocateDeps {
   /**
-   * Automatic-allocation seam; production uses `get-port` directly, tests
-   * inject a deterministic allocator.
-   */
+  Automatic-allocation seam; production uses `get-port` directly, tests
+  inject a deterministic allocator.
+  */
   getPortFn?:
     | ((options?: { exclude?: Iterable<number>; host?: string }) => Promise<number>)
     | undefined;
 }
 
-/** Bounded retries when an auto-assigned port lands inside the reserved set. */
+/**
+Bounded retries when an auto-assigned port lands inside the reserved set.
+*/
 const AUTO_PORT_ATTEMPTS = 10;
 
 /**
- * Allocate one run's ports. Forced ports are honored exactly and fail fast
- * (exit 2) on conflict; automatic ports come from get-port with a shared
- * reserved set so the two services can never share a port in one run.
- */
+Allocate one run's ports. Forced ports are honored exactly and fail fast
+(exit 2) on conflict; automatic ports come from get-port with a shared
+reserved set so the two services can never share a port in one run.
+*/
 export async function allocateRunPorts(
   requests: AllocateRequests = {},
-  deps?: AllocateDeps | undefined
+  deps?: AllocateDeps  
 ): Promise<AllocatedPorts> {
   const host = requests.host ?? "127.0.0.1";
   const reserved = new Set<number>();
@@ -187,7 +189,7 @@ async function takePort(
     if (reserved.has(port)) {
       throw formatPortConflictError(service, port, "reserved by this run");
     }
-    if (!(await isPortAvailable(port, host))) {
+    if (!(await checkPortAvailable(port, host))) {
       throw formatPortConflictError(service, port, await describePortOccupant(port, host));
     }
     reserved.add(port);

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { CheckCircle, Circle, CircleNotch, WarningCircle } from "../primitives/icons.js";
+import { CheckCircleIcon, CircleIcon, CircleNotchIcon, WarningCircleIcon } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
 export type StepStatus = "done" | "running" | "waiting" | "error";
@@ -19,7 +19,7 @@ export interface StepsListProps extends React.OlHTMLAttributes<HTMLOListElement>
 
 const STEP_ICONS: Record<StepStatus, React.ReactElement> = {
   done: (
-    <CheckCircle
+    <CheckCircleIcon
       size={20}
       weight="fill"
       aria-hidden="true"
@@ -27,21 +27,21 @@ const STEP_ICONS: Record<StepStatus, React.ReactElement> = {
     />
   ),
   running: (
-    <CircleNotch
+    <CircleNotchIcon
       size={20}
       aria-hidden="true"
       className="animate-spin [animation-duration:var(--nb-dur-spin)] motion-reduce:animate-none text-[var(--nb-ink)] shrink-0 mt-[var(--nb-space-0-5)]"
     />
   ),
   waiting: (
-    <Circle
+    <CircleIcon
       size={20}
       aria-hidden="true"
       className="text-[var(--nb-ink-3)] shrink-0 mt-[var(--nb-space-0-5)]"
     />
   ),
   error: (
-    <WarningCircle
+    <WarningCircleIcon
       size={20}
       weight="fill"
       aria-hidden="true"
@@ -51,10 +51,10 @@ const STEP_ICONS: Record<StepStatus, React.ReactElement> = {
 };
 
 /**
- * StepsList: board `.steps` pattern (ticket 16).
- * Renders an ordered list of execution or background pipeline steps
- * with status icons, descriptions, and progress bar.
- */
+StepsList: board `.steps` pattern (ticket 16).
+Renders an ordered list of execution or background pipeline steps
+with status icons, descriptions, and progress bar.
+*/
 const StepsList = React.forwardRef<HTMLOListElement, StepsListProps>(
   ({ className, items, children, ...props }, ref) => {
     return (
@@ -92,11 +92,11 @@ const StepsList = React.forwardRef<HTMLOListElement, StepsListProps>(
                     />
                   </div>
                 ) : null}
-                {item.description !== undefined ? (
+                {item.description === undefined ? null : (
                   <div className="help mt-[var(--nb-space-0-5)] text-xs text-[var(--nb-ink-3)]">
                     {item.description}
                   </div>
-                ) : null}
+                )}
               </div>
             </li>
           ))}

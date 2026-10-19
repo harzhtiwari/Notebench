@@ -5,28 +5,34 @@ import {
   type ButtonVariant,
   type IconButtonProps,
 } from "./button.js";
-import { SidebarSimple } from "./icons.js";
+import { SidebarSimpleIcon } from "./icons.js";
 
 export interface IconRailProps
   extends Omit<
     IconButtonProps,
     "aria-label" | "onClick" | "children" | "icon" | "size" | "variant"
   > {
-  /** Accessible name, e.g. "Collapse sources". Icon is decorative. */
+  /**
+  Accessible name, e.g. "Collapse sources". Icon is decorative.
+  */
   label: string;
   onToggle: () => void;
-  /** Button style variant. Defaults to canonical "nb_btn_ghost". */
+  /**
+  Button style variant. Defaults to canonical "nb_btn_ghost".
+  */
   variant?: ButtonVariant | undefined;
-  /** Icon button size. Defaults to canonical "nb_btn_icon_sm". */
+  /**
+  Icon button size. Defaults to canonical "nb_btn_icon_sm".
+  */
   size?: "nb_btn_icon_sm" | "nb_btn_icon_md" | "nb_btn_icon_lg" | undefined;
 }
 
 /**
- * Board collapse button (ticket 12): ghost icon-small button carrying the
- * `sidebar-simple` catalog icon (`nb_btn_ghost` / `nb_btn_icon_sm`; board
- * `.btn--ghost .btn--icon .btn--sm` at `:1093` / `:1110`). Stands alone, so
- * it always has an accessible name; the icon itself is decorative.
- */
+Board collapse button (ticket 12): ghost icon-small button carrying the
+`sidebar-simple` catalog icon (`nb_btn_ghost` / `nb_btn_icon_sm`; board
+`.btn--ghost .btn--icon .btn--sm` at `:1093` / `:1110`). Stands alone, so
+it always has an accessible name; the icon itself is decorative.
+*/
 const IconRail = React.forwardRef<HTMLButtonElement, IconRailProps>(
   (
     {
@@ -45,7 +51,7 @@ const IconRail = React.forwardRef<HTMLButtonElement, IconRailProps>(
       type={type}
       variant={variant}
       size={size}
-      icon={SidebarSimple}
+      icon={SidebarSimpleIcon}
       className={className}
       {...props}
       aria-label={label}
@@ -58,9 +64,13 @@ const IconRail = React.forwardRef<HTMLButtonElement, IconRailProps>(
 IconRail.displayName = "IconRail";
 
 export interface WorkspacePanelProps extends React.HTMLAttributes<HTMLElement> {
-  /** Panel title shown in the head row, e.g. "Sources". */
+  /**
+  Panel title shown in the head row, e.g. "Sources".
+  */
   title: string;
-  /** Trailing head content, e.g. a count badge (`Sources 3`, board `:1093`). */
+  /**
+  Trailing head content, e.g. a count badge (`Sources 3`, board `:1093`).
+  */
   titleSuffix?: React.ReactNode | undefined;
   collapseLabel: string;
   collapsed?: boolean | undefined;
@@ -68,10 +78,10 @@ export interface WorkspacePanelProps extends React.HTMLAttributes<HTMLElement> {
 }
 
 /**
- * Shared side-panel shell (ticket 12): board `.panel` + `.panel-head` shape —
- * title on the left, collapse rail on the right, content below. Both sidebars
- * reuse it; only the title and children differ. Visuals read `var(--nb-*)`.
- */
+Shared side-panel shell (ticket 12): board `.panel` + `.panel-head` shape —
+title on the left, collapse rail on the right, content below. Both sidebars
+reuse it; only the title and children differ. Visuals read `var(--nb-*)`.
+*/
 const WorkspacePanel = React.forwardRef<HTMLElement, WorkspacePanelProps>(
   (
     {

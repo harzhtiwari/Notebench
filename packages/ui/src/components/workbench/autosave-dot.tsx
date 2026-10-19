@@ -1,10 +1,10 @@
 import * as React from "react";
 import type { AutosaveStatus } from "../../lib/autosave-policy.js";
 import {
-  CheckCircle,
-  ClockCounterClockwise,
-  ArrowClockwise,
-  XCircle,
+  CheckCircleIcon,
+  ClockCounterClockwiseIcon,
+  ArrowClockwiseIcon,
+  XCircleIcon,
 } from "../primitives/icons.js";
 import { Button } from "../primitives/index.js";
 import { cn } from "../../lib/utils.js";
@@ -21,7 +21,7 @@ const STATUS_CONFIG: Record<
     label: string;
     dotClass: string;
     textClass: string;
-    Icon: typeof CheckCircle;
+    Icon: typeof CheckCircleIcon;
     spin?: boolean;
   }
 > = {
@@ -29,40 +29,40 @@ const STATUS_CONFIG: Record<
     label: "Saved",
     dotClass: "bg-[var(--nb-hairline)]",
     textClass: "text-[var(--nb-ink-3)]",
-    Icon: CheckCircle,
+    Icon: CheckCircleIcon,
   },
   saved: {
     label: "Saved",
     dotClass: "bg-[var(--nb-ok)]",
     textClass: "text-[var(--nb-ok)]",
-    Icon: CheckCircle,
+    Icon: CheckCircleIcon,
   },
   drafting: {
     label: "Editing...",
     dotClass: "bg-[var(--nb-warn)]",
     textClass: "text-[var(--nb-warn)]",
-    Icon: ClockCounterClockwise,
+    Icon: ClockCounterClockwiseIcon,
   },
   saving: {
     label: "Saving...",
     dotClass: "bg-[var(--nb-ai)]",
     textClass: "text-[var(--nb-ai)]",
-    Icon: ArrowClockwise,
+    Icon: ArrowClockwiseIcon,
     spin: true,
   },
   error: {
     label: "Save failed",
     dotClass: "bg-[var(--nb-danger)]",
     textClass: "text-[var(--nb-danger)]",
-    Icon: XCircle,
+    Icon: XCircleIcon,
   },
 };
 
 /**
- * Autosave indicator (issue 15, Decision 1.40).
- * Displays transitions: Editing... -> Saving... -> Saved (and Save failed retry).
- * Never relies on color alone: icon + text accompanies every state.
- */
+Autosave indicator (issue 15, Decision 1.40).
+Displays transitions: Editing... -> Saving... -> Saved (and Save failed retry).
+Never relies on color alone: icon + text accompanies every state.
+*/
 export const AutosaveDot = React.forwardRef<HTMLDivElement, AutosaveDotProps>(
   ({ className, status, onRetry, retryLabel = "Retry", ...props }, ref) => {
     const config = STATUS_CONFIG[status];

@@ -3,26 +3,35 @@ import { OrchestratorError } from "./types.js";
 import type { ServiceName } from "./types.js";
 
 /**
- * Deadline-based readiness polling and teardown timing for the dev
- * orchestrator. Polls on a short interval (never fixed sleeps); a child
- * exit observed mid-wait aborts immediately with the failing service log
- * tail attached.
- */
+Deadline-based readiness polling and teardown timing for the dev
+orchestrator. Polls on a short interval (never fixed sleeps); a child
+exit observed mid-wait aborts immediately with the failing service log
+tail attached.
+*/
 
-/** Server health wait budget: 120 s max (spec section 8). */
+/**
+Server health wait budget: 120 s max (spec section 8).
+*/
 export const SERVER_HEALTH_DEADLINE_MS = 120_000;
-/** Sidecar listener wait budget: 35 s max (spec section 8). */
+/**
+Sidecar listener wait budget: 35 s max (spec section 8).
+*/
 export const SIDECAR_DEADLINE_MS = 35_000;
-/** Readiness poll cadence: every 150 ms (spec section 8). */
+/**
+Readiness poll cadence: every 150 ms (spec section 8).
+*/
 export const POLL_INTERVAL_MS = 150;
-/** Teardown grace before force-kill: 10 s (spec section 8). */
+/**
+Teardown grace before force-kill: 10 s (spec section 8).
+*/
 export const TEARDOWN_GRACE_MS = 10_000;
 
-/** Timeout exit code for a service readiness deadline (spec section 7.6). */
+/**
+Timeout exit code for a service readiness deadline (spec section 7.6).
+*/
 export function defaultTimeoutExitCode(service: ServiceName): number {
   if (service === "server") return 3;
-  if (service === "web") return 4;
-  return 1;
+  return service === "web" ? 4 : 1;
 }
 
 export interface ReadinessOptions {
@@ -46,60 +55,61 @@ export interface ReadinessDeps {
 }
 
 export function tailToText(tail: string[]): string {
-  if (tail.length === 0) return "(no log tail captured)";
-  return tail.join("\n");
+  return tail.length === 0 ? "(no log tail captured)" : tail.join("\n");
 }
 
 type ProbeOutcome = "passed" | "failed" | "timeout";
 
 /**
- * Race one probe attempt against the budget the previous attempts left, so a
- * slow probe can no longer overshoot the deadline (P18); mirrors warmup.ts's
- * per-attempt bounding for the ui gate. The winner decides the outcome and
- * the loser's late settlement is ignored either way; a rejecting probe still
- * propagates.
- */
+Race one probe attempt against the budget the previous attempts left, so a
+slow probe can no longer overshoot the deadline (P18); mirrors warmup.ts's
+per-attempt bounding for the ui gate. The winner decides the outcome and
+the loser's late settlement is ignored either way; a rejecting probe still
+propagates.
+*/
 function probeWithinBudget(
-  probe: () => Promise<boolean> | boolean,
+  isReady: () => Promise<boolean> | boolean,
   budgetMs: number
 ): Promise<ProbeOutcome> {
   return new Promise<ProbeOutcome>((resolve, reject) => {
-    let settled = false;
+    let isSettled = false;
+    // Getter form for the reads below: the IIFE runs synchronously and the
+    // timer flips `isSettled` through an external callback the rule's flow
+    // analysis cannot see.
+    const hasSettled = (): boolean => isSettled;
     const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
+      if (isSettled) return;
+      isSettled = true;
       resolve("timeout");
     }, budgetMs);
-    Promise.resolve()
-      .then(() => probe())
-      .then(
-        (passed) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          resolve(passed ? "passed" : "failed");
-        },
-        (error: unknown) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          reject(error);
-        }
-      );
+    void (async () => {
+      try {
+        const hasPassed = await Promise.resolve(isReady());
+        if (hasSettled()) return;
+        isSettled = true;
+        clearTimeout(timer);
+        resolve(hasPassed ? "passed" : "failed");
+      } catch (error: unknown) {
+        if (hasSettled()) return;
+        isSettled = true;
+        clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    })();
   });
 }
 
 /**
- * Poll `probe` every `intervalMs` until it passes or `deadlineMs` elapses.
- * The first probe runs unconditionally; every later probe is bounded by the
- * remaining budget. When the supervised child exits mid-wait, abort at once
- * (exit 1) instead of running out the clock; both failure modes name the
- * service and carry its log tail, and the timeout reports observed elapsed
- * time rather than the configured deadline.
- */
+Poll `probe` every `intervalMs` until it passes or `deadlineMs` elapses.
+The first probe runs unconditionally; every later probe is bounded by the
+remaining budget. When the supervised child exits mid-wait, abort at once
+(exit 1) instead of running out the clock; both failure modes name the
+service and carry its log tail, and the timeout reports observed elapsed
+time rather than the configured deadline.
+*/
 export async function waitForReadiness(
   options: ReadinessOptions,
-  deps?: ReadinessDeps | undefined
+  deps?: ReadinessDeps  
 ): Promise<ReadinessResult> {
   const now = deps?.now ?? Date.now;
   const sleep = deps?.sleep ?? defaultSleep;
@@ -127,17 +137,17 @@ export async function waitForReadiness(
         1
       );
     }
-    let passed: boolean;
+    let isPassed: boolean;
     if (attempts === 1) {
-      passed = await options.probe();
+      isPassed = await options.probe();
     } else {
       const remainingMs = options.deadlineMs - (now() - start);
       if (remainingMs <= 0) throw await timeoutError();
       const outcome = await probeWithinBudget(options.probe, remainingMs);
       if (outcome === "timeout") throw await timeoutError();
-      passed = outcome === "passed";
+      isPassed = outcome === "passed";
     }
-    if (passed) {
+    if (isPassed) {
       return { attempts, elapsedMs: now() - start };
     }
     if (now() - start >= options.deadlineMs) throw await timeoutError();

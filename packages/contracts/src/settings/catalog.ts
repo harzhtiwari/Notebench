@@ -598,15 +598,15 @@ export const SETTINGS_REGISTRY: readonly SettingDefinition[] = [
 ] as const;
 
 /**
- * Helper to query settings by page id.
- */
+Helper to query settings by page id.
+*/
 export function getSettingsForPage(page: SettingsPageId): SettingDefinition[] {
   return SETTINGS_REGISTRY.filter((s) => s.page === page);
 }
 
 /**
- * Helper to query sections for a specific page ordered by sequence.
- */
+Helper to query sections for a specific page ordered by sequence.
+*/
 export function getSectionsForPage(page: SettingsPageId): SettingsSection[] {
-  return SETTINGS_SECTIONS.filter((s) => s.page === page).slice().sort((a, b) => a.order - b.order);
+  return SETTINGS_SECTIONS.filter((s) => s.page === page).toSorted((a, b) => a.order - b.order);
 }

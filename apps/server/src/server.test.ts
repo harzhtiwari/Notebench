@@ -1,15 +1,32 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { resolve, join } from "node:path";
+import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { createSqliteDatabase } from "@notebench/infra-db";
 import { runHealthProbes } from "@notebench/domain-ops";
 import { buildServer, resolveWebOutDir } from "./app.js";
 
+interface ProbeSummary {
+  id: string;
+  status: string;
+  message: string;
+}
+
+interface DoctorBody {
+  status: string;
+  version: string;
+  probes: ProbeSummary[];
+  docWorker: { status: string; pong: boolean; pythonVersion: string };
+}
+
+interface ErrorBody {
+  error: { code: string };
+}
+
 describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
   let app: FastifyInstance;
-  const mockWebOutDir = resolve(process.cwd(), `.tmp/test/web-out-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
+  const mockWebOutDir = path.resolve(process.cwd(), `.tmp/test/web-out-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
 
   beforeAll(async () => {
     // Scaffold mock web export fixtures
@@ -17,14 +34,14 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
       mkdirSync(mockWebOutDir, { recursive: true });
     }
     writeFileSync(
-      resolve(mockWebOutDir, "index.html"),
+      path.resolve(mockWebOutDir, "index.html"),
       "<!DOCTYPE html><html><head><title>Notebench SPA</title></head><body><div id=\"root\">App Mounted</div></body></html>",
-      "utf-8"
+      "utf8"
     );
     writeFileSync(
-      resolve(mockWebOutDir, "robots.txt"),
+      path.resolve(mockWebOutDir, "robots.txt"),
       "User-agent: *\nDisallow: /",
-      "utf-8"
+      "utf8"
     );
 
     app = await buildServer({
@@ -50,7 +67,7 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.headers["content-type"]).toContain("application/json");
-      const body = JSON.parse(response.body);
+      const body = JSON.parse(response.body) as { status: string };
       expect(body).toEqual({ status: "ok" });
     });
 
@@ -62,7 +79,7 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.headers["content-type"]).toContain("application/json");
-      const body = JSON.parse(response.body);
+      const body = JSON.parse(response.body) as { status: string };
       expect(body).toEqual({ status: "ok" });
     });
 
@@ -73,7 +90,7 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
+      const body = JSON.parse(response.body) as DoctorBody;
       expect(body.probes).toHaveLength(6);
       expect(body.status).toBe("error");
     });
@@ -91,17 +108,17 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-      const wal = body.probes.find((p: { id: string }) => p.id === "sqlite_wal");
-      const vec = body.probes.find((p: { id: string }) => p.id === "sqlite_vec");
-      expect(wal.message).not.toContain("not provided");
-      expect(vec.message).not.toContain("not provided");
+      const body = JSON.parse(response.body) as DoctorBody;
+      const wal = body.probes.find((p) => p.id === "sqlite_wal");
+      const vec = body.probes.find((p) => p.id === "sqlite_vec");
+      expect(wal?.message).not.toContain("not provided");
+      expect(vec?.message).not.toContain("not provided");
       await wired.close();
     });
 
     it("probe battery performs no writes: all probes against a real WAL handle with PRAGMA query_only=ON", async () => {
       const worker = process.env["VITEST_WORKER_ID"] ?? "0";
-      const dbFile = join(tmpdir(), `nb-doctor-no-write-${worker}-${Date.now()}.sqlite`);
+      const dbFile = path.join(tmpdir(), `nb-doctor-no-write-${worker}-${Date.now()}.sqlite`);
       const instance = createSqliteDatabase({ dbPath: dbFile });
       try {
         const handle = instance.sqlite;
@@ -166,7 +183,7 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
       const mockPool = {
         ping: async () => ({
           pong: true as const,
-          timestamp: 123456789,
+          timestamp: 123_456_789,
           pythonVersion: "3.12.0",
           workerPid: 9999,
         }),
@@ -183,7 +200,7 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
+      const body = JSON.parse(response.body) as DoctorBody;
       expect(body.docWorker).toBeDefined();
       expect(body.docWorker.status).toBe("ok");
       expect(body.docWorker.pong).toBe(true);
@@ -248,7 +265,7 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
 
       expect(response.statusCode).toBe(404);
       expect(response.headers["content-type"]).toContain("application/json");
-      const body = JSON.parse(response.body);
+      const body = JSON.parse(response.body) as ErrorBody;
       expect(body.error).toBeDefined();
       expect(body.error.code).toBe("NOT_FOUND");
     });
@@ -261,7 +278,7 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
 
       expect(response.statusCode).toBe(404);
       expect(response.headers["content-type"]).toContain("application/json");
-      const body = JSON.parse(response.body);
+      const body = JSON.parse(response.body) as ErrorBody;
       expect(body.error.code).toBe("NOT_FOUND");
     });
 
@@ -273,7 +290,7 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
 
       expect(response.statusCode).toBe(404);
       expect(response.headers["content-type"]).toContain("application/json");
-      const body = JSON.parse(response.body);
+      const body = JSON.parse(response.body) as ErrorBody;
       expect(body.error.code).toBe("NOT_FOUND");
     });
 
@@ -286,7 +303,7 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
 
       expect(response.statusCode).toBe(404);
       expect(response.headers["content-type"]).toContain("application/json");
-      const body = JSON.parse(response.body);
+      const body = JSON.parse(response.body) as ErrorBody;
       expect(body.error.code).toBe("NOT_FOUND");
     });
 
@@ -298,7 +315,7 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
 
       expect(response.statusCode).toBe(404);
       expect(response.headers["content-type"]).toContain("application/json");
-      const body = JSON.parse(response.body);
+      const body = JSON.parse(response.body) as ErrorBody;
       expect(body.error.code).toBe("NOT_FOUND");
     });
 
@@ -320,7 +337,7 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
 
       expect(response.statusCode).toBe(404);
       expect(response.headers["content-type"]).toContain("application/json");
-      const body = JSON.parse(response.body);
+      const body = JSON.parse(response.body) as ErrorBody;
       expect(body.error.code).toBe("NOT_FOUND");
     });
 
@@ -332,7 +349,7 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
 
       expect(response.statusCode).toBe(404);
       expect(response.headers["content-type"]).toContain("application/json");
-      const body = JSON.parse(response.body);
+      const body = JSON.parse(response.body) as ErrorBody;
       expect(body.error.code).toBe("NOT_FOUND");
     });
   });
@@ -344,32 +361,35 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
     const worker = process.env["VITEST_WORKER_ID"] ?? "0";
     let fixtureCounter = 0;
     const fixtureRoots: string[] = [];
-    function makeWorkspace(withOut: boolean): string {
+    function makeWorkspace(shouldCreateOut: boolean): string {
       fixtureCounter += 1;
-      const root = join(tmpdir(), `nb-web-out-${worker}-${fixtureCounter}-${Date.now()}`);
+      const root = path.join(tmpdir(), `nb-web-out-${worker}-${fixtureCounter}-${Date.now()}`);
       mkdirSync(root, { recursive: true });
-      writeFileSync(join(root, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n", "utf-8");
-      if (withOut) {
-        mkdirSync(join(root, "apps", "web", "out"), { recursive: true });
+      writeFileSync(path.join(root, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n", "utf8");
+      if (shouldCreateOut) {
+        mkdirSync(path.join(root, "apps", "web", "out"), { recursive: true });
       }
       fixtureRoots.push(root);
       return root;
     }
     afterAll(() => {
       while (fixtureRoots.length > 0) {
-        const dir = fixtureRoots.pop() as string;
+        const dir = fixtureRoots.pop();
+        if (dir === undefined) {
+          break;
+        }
         rmSync(dir, { recursive: true, force: true });
       }
     });
 
     it("resolves apps/web/out from the workspace root", () => {
       const root = makeWorkspace(true);
-      expect(resolveWebOutDir(root)).toBe(join(root, "apps", "web", "out"));
+      expect(resolveWebOutDir(root)).toBe(path.join(root, "apps", "web", "out"));
     });
 
     it("resolves apps/web/out when starting from the server package dir", () => {
       const root = makeWorkspace(true);
-      expect(resolveWebOutDir(join(root, "apps", "server"))).toBe(join(root, "apps", "web", "out"));
+      expect(resolveWebOutDir(path.join(root, "apps", "server"))).toBe(path.join(root, "apps", "web", "out"));
     });
 
     it("returns undefined when the export has not been built yet", () => {
@@ -378,7 +398,7 @@ describe("Fastify Composition Root & Static History Routing (NB-M1-04)", () => {
     });
 
     it("returns undefined outside any workspace", () => {
-      const outside = join(tmpdir(), `nb-no-workspace-probe-${worker}`);
+      const outside = path.join(tmpdir(), `nb-no-workspace-probe-${worker}`);
       expect(resolveWebOutDir(outside)).toBeUndefined();
     });
   });

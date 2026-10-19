@@ -121,13 +121,13 @@ describe("deletion and re-auth patterns (ticket 20)", () => {
 
   describe("ConfirmDialog component", () => {
     it("renders 1-click confirmation for Level 1 (Clear Cache) with effect list", () => {
-      let confirmed = false;
+      let isConfirmed = false;
       render(
         <ConfirmDialog
           open
           level={1}
           onConfirm={() => {
-            confirmed = true;
+            isConfirmed = true;
           }}
         />
       );
@@ -144,11 +144,11 @@ describe("deletion and re-auth patterns (ticket 20)", () => {
       expect(confirmBtn.hasAttribute("disabled")).toBe(false);
 
       fireEvent.click(confirmBtn);
-      expect(confirmed).toBe(true);
+      expect(isConfirmed).toBe(true);
     });
 
     it("requires typing the notebook title for Level 3 when no passcode is configured", () => {
-      let confirmed = false;
+      let isConfirmed = false;
       let typed = "";
       const { rerender } = render(
         <ConfirmDialog
@@ -161,7 +161,7 @@ describe("deletion and re-auth patterns (ticket 20)", () => {
             typed = v;
           }}
           onConfirm={() => {
-            confirmed = true;
+            isConfirmed = true;
           }}
         />
       );
@@ -185,7 +185,7 @@ describe("deletion and re-auth patterns (ticket 20)", () => {
             typed = v;
           }}
           onConfirm={() => {
-            confirmed = true;
+            isConfirmed = true;
           }}
         />
       );
@@ -203,18 +203,18 @@ describe("deletion and re-auth patterns (ticket 20)", () => {
             typed = v;
           }}
           onConfirm={() => {
-            confirmed = true;
+            isConfirmed = true;
           }}
         />
       );
       expect(confirmBtn.hasAttribute("disabled")).toBe(false);
 
       fireEvent.click(confirmBtn);
-      expect(confirmed).toBe(true);
+      expect(isConfirmed).toBe(true);
     });
 
     it("requires passcode re-authentication for Level 5 when passcode is configured", () => {
-      let confirmed = false;
+      let isConfirmed = false;
       let typedPasscode = "";
       const { rerender } = render(
         <ConfirmDialog
@@ -226,7 +226,7 @@ describe("deletion and re-auth patterns (ticket 20)", () => {
             typedPasscode = v;
           }}
           onConfirm={() => {
-            confirmed = true;
+            isConfirmed = true;
           }}
         />
       );
@@ -246,14 +246,14 @@ describe("deletion and re-auth patterns (ticket 20)", () => {
             typedPasscode = v;
           }}
           onConfirm={() => {
-            confirmed = true;
+            isConfirmed = true;
           }}
         />
       );
       expect(confirmBtn.hasAttribute("disabled")).toBe(false);
 
       fireEvent.click(confirmBtn);
-      expect(confirmed).toBe(true);
+      expect(isConfirmed).toBe(true);
     });
 
     it("renders honest limits disclosure on Level 6 (Factory Reset)", () => {
@@ -272,14 +272,14 @@ describe("deletion and re-auth patterns (ticket 20)", () => {
     });
 
     it("enforces export backup acknowledgment before deletion when configured", () => {
-      let exportCalled = false;
+      let isExportCalled = false;
       render(
         <ConfirmDialog
           open
           level={2}
           requireBackupAcknowledgment={true}
           onExportBackup={() => {
-            exportCalled = true;
+            isExportCalled = true;
           }}
           onConfirm={() => {}}
         />
@@ -293,7 +293,7 @@ describe("deletion and re-auth patterns (ticket 20)", () => {
       expect(confirmBtn.hasAttribute("disabled")).toBe(true);
 
       fireEvent.click(exportBtn);
-      expect(exportCalled).toBe(true);
+      expect(isExportCalled).toBe(true);
 
       // Check the acknowledgment checkbox
       const checkbox = screen.getByRole("checkbox");
@@ -304,13 +304,13 @@ describe("deletion and re-auth patterns (ticket 20)", () => {
     });
 
     it("handles cancel action", () => {
-      let cancelled = false;
+      let isCancelled = false;
       render(
         <ConfirmDialog
           open
           level={1}
           onCancel={() => {
-            cancelled = true;
+            isCancelled = true;
           }}
           onConfirm={() => {}}
         />
@@ -318,7 +318,7 @@ describe("deletion and re-auth patterns (ticket 20)", () => {
 
       const cancelBtn = screen.getByRole("button", { name: /cancel/i });
       fireEvent.click(cancelBtn);
-      expect(cancelled).toBe(true);
+      expect(isCancelled).toBe(true);
     });
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, rmSync, mkdirSync } from "node:fs";
-import { resolve, join } from "node:path";
+import path from "node:path";
 import { createSqliteDatabase } from "./connection.js";
 import { SqliteAccountRepository } from "./account-repository.js";
 import {
@@ -8,20 +8,20 @@ import {
   migrateVaultKeysTable,
 } from "./vault-key-repository.js";
 
-const TEST_DIR = resolve(`.tmp/test/test-vault-repo-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
+const TEST_DIR = path.resolve(`.tmp/test/test-vault-repo-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
 
 /**
- * Windows holds file locks briefly after sqlite handles close, longer under
- * parallel suites: retry transient lock errors with a generous budget.
- */
-async function removeDirWithRetry(dir: string): Promise<void> {
+Windows holds file locks briefly after sqlite handles close, longer under
+parallel suites: retry transient lock errors with a generous budget.
+*/
+async function removeDirWithRetry(): Promise<void> {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     try {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(TEST_DIR, { recursive: true, force: true });
       return;
     } catch (error: unknown) {
-      const code = (error as { code?: string }).code;
-      if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
+      const code = (error as { code?: string }).code ?? "";
+      if (["EPERM", "EBUSY", "ENOTEMPTY"].includes(code) && attempt < 59) {
         await new Promise((resolve) => setTimeout(resolve, 250));
         continue;
       }
@@ -42,7 +42,7 @@ const ENVELOPE = {
 describe("SqliteVaultKeyRepository & provider_keys migration (Ticket 03 RED)", () => {
   beforeEach(async () => {
     if (existsSync(TEST_DIR)) {
-      await removeDirWithRetry(TEST_DIR);
+      await removeDirWithRetry();
     }
     mkdirSync(TEST_DIR, { recursive: true });
   }, 120_000);
@@ -50,7 +50,7 @@ describe("SqliteVaultKeyRepository & provider_keys migration (Ticket 03 RED)", (
   afterEach(async () => {
     if (existsSync(TEST_DIR)) {
       try {
-        await removeDirWithRetry(TEST_DIR);
+        await removeDirWithRetry();
       } catch {
         // Non-fatal if OS locks are briefly transitioning
       }
@@ -58,7 +58,7 @@ describe("SqliteVaultKeyRepository & provider_keys migration (Ticket 03 RED)", (
   }, 120_000);
 
   it("migrates provider_keys table and starts empty", async () => {
-    const dbPath = join(TEST_DIR, "vault-empty.sqlite");
+    const dbPath = path.join(TEST_DIR, "vault-empty.sqlite");
     const { db, sqlite, close } = createSqliteDatabase({ dbPath });
     try {
       const accounts = new SqliteAccountRepository(db, sqlite);
@@ -73,7 +73,7 @@ describe("SqliteVaultKeyRepository & provider_keys migration (Ticket 03 RED)", (
   });
 
   it("saves and retrieves a ciphertext envelope with masked key only", async () => {
-    const dbPath = join(TEST_DIR, "vault-roundtrip.sqlite");
+    const dbPath = path.join(TEST_DIR, "vault-roundtrip.sqlite");
     const { db, sqlite, close } = createSqliteDatabase({ dbPath });
     try {
       const accounts = new SqliteAccountRepository(db, sqlite);
@@ -101,7 +101,7 @@ describe("SqliteVaultKeyRepository & provider_keys migration (Ticket 03 RED)", (
   });
 
   it("deleting a key removes its ciphertext row", async () => {
-    const dbPath = join(TEST_DIR, "vault-delete.sqlite");
+    const dbPath = path.join(TEST_DIR, "vault-delete.sqlite");
     const { db, sqlite, close } = createSqliteDatabase({ dbPath });
     try {
       const accounts = new SqliteAccountRepository(db, sqlite);

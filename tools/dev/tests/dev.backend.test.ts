@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import { uptime as osUptime } from "node:os";
 import { spawn as nodeSpawn } from "node:child_process";
 import getPort from "get-port";
@@ -9,7 +9,7 @@ import { resolveRunPaths } from "../src/paths.js";
 import { spawnChild } from "../src/spawn.js";
 import type { SpawnFn, SpawnedChild } from "../src/spawn.js";
 import { readLogTail } from "../src/logs.js";
-import { defaultPidExists, readIdentity, writeIdentity } from "../src/identity.js";
+import { isDefaultPidExists, readIdentity, writeIdentity } from "../src/identity.js";
 import type { RunIdentity } from "../src/identity.js";
 import {
   getProcessStartTimeMs,
@@ -39,17 +39,17 @@ import { OrchestratorError } from "../src/types.js";
 import { makeTempRoot as createTempRoot, removeTempRoots, silentLogs } from "./temp-dir.js";
 
 /**
- * Ticket 03 RED suite (written before implementation).
- *
- * Seams under test (public boundaries only):
- * - composer: startBackendPhase/runBackendCommand observed via real HTTP,
- *   real files, real child processes, and exit codes.
- * - freshness: ensureServerFreshness observed via injected build-runner calls.
- * - start-time: getProcessStartTimeMs observed via real OS calls.
- * - e2e-ports: resolveE2EBaseUrl observed return values with injected fs/env.
- *
- * Vocabulary: orchestrator, server, namespace, run identity (spec section 1).
- */
+Ticket 03 RED suite (written before implementation).
+
+Seams under test (public boundaries only):
+- composer: startBackendPhase/runBackendCommand observed via real HTTP,
+  real files, real child processes, and exit codes.
+- freshness: ensureServerFreshness observed via injected build-runner calls.
+- start-time: getProcessStartTimeMs observed via real OS calls.
+- e2e-ports: resolveE2EBaseUrl observed return values with injected fs/env.
+
+Vocabulary: orchestrator, server, namespace, run identity (spec section 1).
+*/
 
 const tempRoots: string[] = [];
 
@@ -89,33 +89,46 @@ function healthySpawn(): ServerSpawnRequest {
   };
 }
 
+async function captureFailure(action: () => Promise<unknown>): Promise<unknown> {
+  try {
+    await action();
+    return null;
+  } catch (error: unknown) {
+    return error;
+  }
+}
+
+const execFileTimesOut = (): Promise<never> => Promise.reject(new Error("powershell timed out"));
+
 describe("ticket 03: OS process start-time reader", () => {
   it("reports the current process start time within tolerance of clock-minus-uptime", async () => {
     // A single powershell read can transiently fail under parallel load;
     // retry the way production liveness polling does before asserting.
     let reported: number | null = null;
-    for (let attempt = 0; attempt < 3 && reported === null; attempt += 1) {
+    for (let attempt = 0; reported === null && attempt < 3; attempt += 1) {
       reported = await getProcessStartTimeMs(process.pid);
       if (reported === null) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
     expect(reported).not.toBeNull();
+    if (reported === null) throw new Error("start time was never reported within the retries");
     const approx = Date.now() - process.uptime() * 1000;
-    expect(Math.abs((reported as number) - approx)).toBeLessThan(5000);
+    expect(Math.abs(reported - approx)).toBeLessThan(5000);
   }, 30_000);
 
   it("returns null for a dead PID and for invalid PIDs (unverifiable means stale)", async () => {
     await expect(getProcessStartTimeMs(2_147_483_647)).resolves.toBeNull();
     await expect(getProcessStartTimeMs(-3)).resolves.toBeNull();
-    await expect(getProcessStartTimeMs(Number.NaN)).resolves.toBeNull();
+    await expect(getProcessStartTimeMs(NaN)).resolves.toBeNull();
   }, 30_000);
 
   it("builds an async liveness checker that treats unverifiable PIDs as stale", async () => {
     const isPidLive = createOsPidLivenessChecker();
     const startTimeMs = await getProcessStartTimeMs(process.pid);
     expect(startTimeMs).not.toBeNull();
-    await expect(isPidLive(process.pid, startTimeMs as number)).resolves.toBe(true);
+    if (startTimeMs === null) throw new Error("no start time for the current process");
+    await expect(isPidLive(process.pid, startTimeMs)).resolves.toBe(true);
     await expect(isPidLive(process.pid, 1)).resolves.toBe(false);
     await expect(isPidLive(2_147_483_647, 1)).resolves.toBe(false);
   }, 30_000);
@@ -124,7 +137,7 @@ describe("ticket 03: OS process start-time reader", () => {
 describe("ticket 08: shutdown returns only after owned children are reaped", () => {  it("waits for the child exit promise instead of returning after signaling", async () => {
     const root = makeTempRoot();
     const { logLine } = silentLogs();
-    const exitListeners: Array<(...args: unknown[]) => void> = [];
+    const exitListeners: ((...args: unknown[]) => void)[] = [];
     const spawnFn: SpawnFn = (_executable, _argv, _options) => ({
       pid: 4242,
       on: (event: string, listener: (...args: unknown[]) => void) => {
@@ -135,24 +148,25 @@ describe("ticket 08: shutdown returns only after owned children are reaped", () 
       { root, argv: ["--namespace", "shutdown-reap-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", ""] }),
         spawnFn,
         probeHealth: () => Promise.resolve(true),
       }
     );
-    let shutdownReturned = false;
-    const shutdownPromise = handle.shutdown().then((code) => {
-      shutdownReturned = true;
+    let isShutdownReturned = false;
+    const shutdownPromise = (async () => {
+      const code = await handle.shutdown();
+      isShutdownReturned = true;
       return code;
-    });
+    })();
     // Teardown with fakes settles in microtasks; the exit wait must hold
     // shutdown open past this point until the child is reaped.
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(shutdownReturned).toBe(false);
+    expect(isShutdownReturned).toBe(false);
     for (const listener of exitListeners) listener(0, null);
     await expect(shutdownPromise).resolves.toBe(0);
-    expect(shutdownReturned).toBe(true);
+    expect(isShutdownReturned).toBe(true);
   }, 30_000);
 
   it("killing the server child stops the web sibling and exits non-zero (real processes)", async () => {
@@ -163,7 +177,7 @@ describe("ticket 08: shutdown returns only after owned children are reaped", () 
       { root, argv: ["--namespace", "kill-server-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: healthySpawn,
         startWebPhase: (ctx) => (async () => {
           const port = await getPort();
@@ -173,7 +187,7 @@ describe("ticket 08: shutdown returns only after owned children are reaped", () 
             service: "web",
             namespace: ctx.namespace,
             runId: ctx.runId,
-            logFile: join(root, "web-fixture.log"),
+            logFile: path.join(root, "web-fixture.log"),
             cwd: root,
           });
           webPid = child.pid;
@@ -181,7 +195,7 @@ describe("ticket 08: shutdown returns only after owned children are reaped", () 
             pid: child.pid,
             startTimeMs: child.startTimeMs,
             exited: child.exited,
-            logFile: join(root, "web-fixture.log"),
+            logFile: path.join(root, "web-fixture.log"),
             port,
           };
         })(),
@@ -226,7 +240,7 @@ describe("ticket 03: truthful listener-gate timing (P2)", () => {
       logFile: paths.serverLogFile,
       executable: process.execPath,
       argv: ["-e", ""],
-      exited: new Promise<never>(() => undefined),
+      exited: new Promise<never>(() => {}),
     };
     const started = await startDefaultWebPhase(
       {
@@ -243,7 +257,7 @@ describe("ticket 03: truthful listener-gate timing (P2)", () => {
       },
       {
         logLine,
-        spawnFn: () => ({ pid: 4242, on: () => undefined }),
+        spawnFn: () => ({ pid: 4242, on: () => {} }),
         probeWeb: async () => {
           probes += 1;
           return probes >= 3;
@@ -278,7 +292,7 @@ describe("ticket 03: truthful listener-gate timing (P2)", () => {
       { root, argv: ["--namespace", "truthy-timing-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: healthySpawn,
         probeWeb: (url: string) => {
           warmupProbes.push(url);
@@ -317,7 +331,7 @@ describe("ticket 03: warm-up abort names the first dead service (P13)", () => {
       { root, argv: ["--namespace", "p13-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: healthySpawn,
         onServerReady: (ctx: ServerReadyContext) => {
           serverPid = ctx.serverChild.pid;
@@ -329,7 +343,7 @@ describe("ticket 03: warm-up abort names the first dead service (P13)", () => {
             service: "web",
             namespace: ctx.namespace,
             runId: ctx.runId,
-            logFile: join(root, "p13-web-fixture.log"),
+            logFile: path.join(root, "p13-web-fixture.log"),
             cwd: root,
           });
           webChildPid = child.pid;
@@ -337,7 +351,7 @@ describe("ticket 03: warm-up abort names the first dead service (P13)", () => {
             pid: child.pid,
             startTimeMs: child.startTimeMs,
             exited: child.exited,
-            logFile: join(root, "p13-web-fixture.log"),
+            logFile: path.join(root, "p13-web-fixture.log"),
             port: ctx.reservedWebPort,
           });
         },
@@ -349,17 +363,14 @@ describe("ticket 03: warm-up abort names the first dead service (P13)", () => {
     try {
       const deadline = Date.now() + 20_000;
       while (
-        !lines.some((line) => line.includes("[dev] web listening")) &&
+        lines.every((line) => !line.includes("[dev] web listening")) &&
         Date.now() < deadline
       ) {
         await new Promise((resolve) => setTimeout(resolve, 25));
       }
       expect(serverPid).toBeGreaterThan(0);
       process.kill(serverPid);
-      const failure = await runPromise.then(
-        () => null,
-        (error: unknown) => error
-      );
+      const failure = await captureFailure(() => runPromise);
       expect(failure).not.toBeNull();
       expect(failure).toBeInstanceOf(OrchestratorError);
       expect((failure as OrchestratorError).exitCode).toBe(1);
@@ -378,7 +389,11 @@ describe("ticket 03: warm-up abort names the first dead service (P13)", () => {
           // Already reaped by the crash teardown.
         }
       }
-      await runPromise.catch(() => null);
+      try {
+        await runPromise;
+      } catch {
+        // The rejection was already captured above; settle silently here.
+      }
     }
   }, 60_000);
 });
@@ -391,20 +406,20 @@ describe("ticket 03: post-gate exit re-check (P19)", () => {
     const root = makeTempRoot();
     const { lines, logLine } = silentLogs();
     const paths = resolveRunPaths(root, "p19-ns");
-    const exitListeners: Array<(...args: unknown[]) => void> = [];
+    const exitListeners: ((...args: unknown[]) => void)[] = [];
     const spawnFn: SpawnFn = () => ({
       pid: 2_147_483_500,
       on: (event: string, listener: (...args: unknown[]) => void) => {
         if (event === "exit") exitListeners.push(listener);
       },
     });
-    let webPhaseStarted = false;
-    let hookCalled = false;
+    let isWebPhaseStarted = false;
+    let isHookCalled = false;
     const code = await runBackendCommand(
       { root, argv: ["--namespace", "p19-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", ""] }),
         spawnFn,
         isPidLive: () => false,
@@ -414,14 +429,14 @@ describe("ticket 03: post-gate exit re-check (P19)", () => {
           return true;
         },
         onServerReady: () => {
-          hookCalled = true;
+          isHookCalled = true;
         },
         startWebPhase: () => {
-          webPhaseStarted = true;
+          isWebPhaseStarted = true;
           return Promise.resolve({
             pid: 2_147_483_501,
             startTimeMs: 1,
-            exited: new Promise<never>(() => undefined),
+            exited: new Promise<never>(() => {}),
             logFile: paths.webLogFile,
             port: 41_003,
           });
@@ -429,48 +444,48 @@ describe("ticket 03: post-gate exit re-check (P19)", () => {
       }
     );
     expect(code).toBe(1);
-    expect(webPhaseStarted).toBe(false);
-    expect(hookCalled).toBe(false);
+    expect(isWebPhaseStarted).toBe(false);
+    expect(isHookCalled).toBe(false);
     expect(lines.some((line) => line.includes("[dev] backend ready"))).toBe(false);
     expect(lines.join("\n")).toContain("server exited before the backend ready line");
     expect(existsSync(paths.identityFile)).toBe(false);
   }, 30_000);
 });
 
+function lifecycleDeps(
+  handlers: Map<string, () => void>,
+  removed: string[],
+  exitListeners: ((...args: unknown[]) => void)[]
+): BackendPhaseDeps {
+  return {
+    runBuild: () => {},
+    createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", ""] }),
+    spawnFn: () => ({
+      pid: 2_147_483_500,
+      on: (event: string, listener: (...args: unknown[]) => void) => {
+        if (event === "exit") exitListeners.push(listener);
+      },
+    }),
+    probeHealth: () => Promise.resolve(true),
+    onSignal: (signal: string, handler: () => void) => {
+      handlers.set(signal, handler);
+    },
+    removeSignal: (signal: string) => {
+      removed.push(signal);
+    },
+  };
+}
+
 // RED (P20): signal handlers must be removed on every exit path (crash,
 // shutdown, catch) and shutdown must be re-entrancy guarded so concurrent
 // triggers share one teardown.
 describe("round-2 P20: shutdown/signal lifecycle", () => {
-  function lifecycleDeps(
-    handlers: Map<string, () => void>,
-    removed: string[],
-    exitListeners: Array<(...args: unknown[]) => void>
-  ): BackendPhaseDeps {
-    return {
-      runBuild: () => undefined,
-      createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", ""] }),
-      spawnFn: () => ({
-        pid: 2_147_483_500,
-        on: (event: string, listener: (...args: unknown[]) => void) => {
-          if (event === "exit") exitListeners.push(listener);
-        },
-      }),
-      probeHealth: () => Promise.resolve(true),
-      onSignal: (signal: string, handler: () => void) => {
-        handlers.set(signal, handler);
-      },
-      removeSignal: (signal: string) => {
-        removed.push(signal);
-      },
-    };
-  }
-
   it("removes signal handlers when a crash settles the run", async () => {
     const root = makeTempRoot();
     const { logLine } = silentLogs();
     const handlers = new Map<string, () => void>();
     const removed: string[] = [];
-    const exitListeners: Array<(...args: unknown[]) => void> = [];
+    const exitListeners: ((...args: unknown[]) => void)[] = [];
     const handle = await startBackendPhase(
       { root, argv: ["--namespace", "p20-crash-ns"], env: {} },
       {
@@ -490,8 +505,8 @@ describe("round-2 P20: shutdown/signal lifecycle", () => {
     const { logLine } = silentLogs();
     const handlers = new Map<string, () => void>();
     const removed: string[] = [];
-    const exitListeners: Array<(...args: unknown[]) => void> = [];
-    let reaped = false;
+    const exitListeners: ((...args: unknown[]) => void)[] = [];
+    let isReaped = false;
     const handle = await startBackendPhase(
       { root, argv: ["--namespace", "p20-shutdown-ns"], env: {} },
       {
@@ -500,8 +515,8 @@ describe("round-2 P20: shutdown/signal lifecycle", () => {
         // Resolve the fake child's exit during the first liveness check so
         // shutdown reaps promptly without signaling a fake PID.
         isPidLive: () => {
-          if (!reaped) {
-            reaped = true;
+          if (!isReaped) {
+            isReaped = true;
             for (const listener of exitListeners) listener(0, null);
           }
           return false;
@@ -524,7 +539,7 @@ describe("round-2 P15: backend prep hook ordering", () => {
     const { logLine } = silentLogs();
     const paths = resolveRunPaths(root, "prep-order-ns");
     const order: string[] = [];
-    const exitListeners: Array<(...args: unknown[]) => void> = [];
+    const exitListeners: ((...args: unknown[]) => void)[] = [];
     const spawnFn: SpawnFn = () => ({
       pid: 2_147_483_500,
       on: (event: string, listener: (...args: unknown[]) => void) => {
@@ -570,23 +585,22 @@ describe("round-2 P15: backend prep hook ordering", () => {
       createdAt: new Date().toISOString(),
     };
     await writeIdentity(paths.identityFile, live);
-    let prepRan = false;
-    const failure = await startBackendPhase(
-      { root, argv: ["--namespace", "prep-busy-ns"], env: {} },
-      {
-        logLine,
-        prep: () => {
-          prepRan = true;
-        },
-        runBuild: () => undefined,
-        createServerSpawn: () => healthySpawn(),
-      }
-    ).then(
-      () => null,
-      (error: unknown) => error
+    let isPrepRan = false;
+    const failure = await captureFailure(() =>
+      startBackendPhase(
+        { root, argv: ["--namespace", "prep-busy-ns"], env: {} },
+        {
+          logLine,
+          prep: () => {
+            isPrepRan = true;
+          },
+          runBuild: () => {},
+          createServerSpawn: () => healthySpawn(),
+        }
+      )
     );
     expect(failure).not.toBeNull();
-    expect(prepRan).toBe(false);
+    expect(isPrepRan).toBe(false);
   }, 30_000);
 });
 
@@ -630,10 +644,10 @@ describe("ticket 03: freshness gates for server-consumed compiled outputs", () =
     const deps = serverCompiledDeps(root);
     const mtimes = new Map<string, number | null>();
     for (const dep of deps) {
-      mtimes.set(join(dep.dir, dep.distEntry), 1000);
+      mtimes.set(path.join(dep.dir, dep.distEntry), 1000);
     }
     const staleDep = deps[1] as { name: string; dir: string; distEntry: string; srcDir: string };
-    const staleSrc = join(staleDep.srcDir, "index.ts");
+    const staleSrc = path.join(staleDep.srcDir, "index.ts");
     mtimes.set(staleSrc, 2000);
     const built: string[] = [];
     const result = await ensureServerFreshness(root, {
@@ -666,7 +680,7 @@ describe("ticket 03: freshness gates for server-consumed compiled outputs", () =
 describe("ticket 03: namespace-aware end-to-end port reader", () => {
   it("prefers the namespaced web.port over legacy flat paths", () => {
     const port = resolveE2EWebPort("/repo", { NOTEBENCH_NAMESPACE: "team-a" }, {
-      exists: (p: string) => p === join("/repo", ".tmp", "ports", "team-a", "web.port"),
+      exists: (p: string) => p === path.join("/repo", ".tmp", "ports", "team-a", "web.port"),
       readFile: () => "3210",
     });
     expect(port).toBe(3210);
@@ -674,7 +688,7 @@ describe("ticket 03: namespace-aware end-to-end port reader", () => {
 
   it("falls back to legacy flat paths, then PORT env, then the default", () => {
     const legacy = resolveE2EWebPort("/repo", {}, {
-      exists: (p: string) => p === join("/repo", ".tmp", "ports", "web.port"),
+      exists: (p: string) => p === path.join("/repo", ".tmp", "ports", "web.port"),
       readFile: () => "3101",
     });
     expect(legacy).toBe(3101);
@@ -692,12 +706,12 @@ describe("ticket 03: namespace-aware end-to-end port reader", () => {
 
   it("resolves the namespace from NOTEBENCH_NAMESPACE (NB_NAMESPACE alias)", () => {
     const viaCanonical = resolveE2EWebPort("/repo", { NOTEBENCH_NAMESPACE: "team-a" }, {
-      exists: (p: string) => p === join("/repo", ".tmp", "ports", "team-a", "web.port"),
+      exists: (p: string) => p === path.join("/repo", ".tmp", "ports", "team-a", "web.port"),
       readFile: () => "3221",
     });
     expect(viaCanonical).toBe(3221);
     const viaAlias = resolveE2EWebPort("/repo", { NB_NAMESPACE: "team-b" }, {
-      exists: (p: string) => p === join("/repo", ".tmp", "ports", "team-b", "web.port"),
+      exists: (p: string) => p === path.join("/repo", ".tmp", "ports", "team-b", "web.port"),
       readFile: () => "3222",
     });
     expect(viaAlias).toBe(3222);
@@ -725,8 +739,8 @@ describe("ticket 03: namespace-aware end-to-end port reader", () => {
   it("prefers the flat web.port over the pre-orchestrator e2e-web.port residue", () => {
     const port = resolveE2EWebPort("/repo", {}, {
       exists: (p: string) =>
-        p === join("/repo", ".tmp", "ports", "e2e-web.port") ||
-        p === join("/repo", ".tmp", "ports", "web.port"),
+        p === path.join("/repo", ".tmp", "ports", "e2e-web.port") ||
+        p === path.join("/repo", ".tmp", "ports", "web.port"),
       readFile: (p: string) => (p.endsWith("e2e-web.port") ? "3111" : "3222"),
     });
     expect(port).toBe(3222);
@@ -747,7 +761,7 @@ describe("ticket 03: namespace-aware end-to-end port reader", () => {
     );
     expect(explicitWithBadNamespace).toBe("http://example.invalid:9999");
     const derived = resolveE2EBaseUrl("/repo", {}, {
-      exists: (p: string) => p === join("/repo", ".tmp", "ports", "default", "web.port"),
+      exists: (p: string) => p === path.join("/repo", ".tmp", "ports", "default", "web.port"),
       readFile: () => "3233",
     });
     expect(derived).toBe("http://127.0.0.1:3233");
@@ -756,7 +770,7 @@ describe("ticket 03: namespace-aware end-to-end port reader", () => {
 
 describe("ticket 03: spawn tees child output for failure tails", () => {
   it("forwards child stdout/stderr to the injected output handler with shell:false", async () => {
-    const seen: Array<{ exe: string; argv: string[]; shell: unknown }> = [];
+    const seen: { exe: string; argv: string[]; shell: unknown }[] = [];
     const child = spawnChild(
       {
         executable: process.execPath,
@@ -765,12 +779,12 @@ describe("ticket 03: spawn tees child output for failure tails", () => {
         namespace: "default",
         runId: "run-tee",
         logFile: "/tmp/tee.log",
-        onOutput: () => undefined,
+        onOutput: () => {},
       },
       {
         spawnFn: (exe, argv, options) => {
           seen.push({ exe, argv, shell: options.shell });
-          return { pid: 4243, on: () => undefined };
+          return { pid: 4243, on: () => {} };
         },
       }
     );
@@ -789,7 +803,7 @@ describe("ticket 03: orchestrator contract pins (spec 5.7, 7.2)", () => {
 
   it("locates the pre-orchestrator nested port-file residue exactly", () => {
     expect(nestedServerPortResidue("/repo")).toBe(
-      join("/repo", "apps", "server", ".tmp", "ports", "server.port")
+      path.join("/repo", "apps", "server", ".tmp", "ports", "server.port")
     );
   });
 
@@ -802,28 +816,28 @@ describe("ticket 03: backend startup end-to-end (real processes)", () => {
   it("starts the server before the web hook and gates the hook on a real /healthz success", async () => {
     const root = makeTempRoot();
     const { logLine } = silentLogs();
-    let hookSawHealthy = false;
+    let isHookSawHealthy = false;
     const handle = await startBackendPhase(
       { root, argv: ["--namespace", "order-ns"], env: {} },
       {
         logLine,
         createServerSpawn: healthySpawn,
-        runBuild: () => undefined,
+        runBuild: () => {},
         onServerReady: (ctx: ServerReadyContext) => {
           expect(ctx.namespace).toBe("order-ns");
           expect(ctx.serverPort).toBeGreaterThan(0);
           const timings: ServerReadyTimings = ctx.timings;
           expect(timings.healthAttempts).toBeGreaterThanOrEqual(1);
-          hookSawHealthy = true;
+          isHookSawHealthy = true;
         },
       }
     );
     try {
       const res = await fetch(`http://${ORCHESTRATOR_HOST}:${handle.serverPort}${SERVER_HEALTH_PATH}`);
       expect(res.status).toBe(200);
-      expect(hookSawHealthy).toBe(true);
+      expect(isHookSawHealthy).toBe(true);
       expect(existsSync(handle.paths.serverPortFile)).toBe(true);
-      expect(readFileSync(handle.paths.serverPortFile, "utf-8").trim()).toBe(String(handle.serverPort));
+      expect(readFileSync(handle.paths.serverPortFile, "utf8").trim()).toBe(String(handle.serverPort));
       expect(existsSync(handle.paths.serverPidFile)).toBe(true);
       expect(existsSync(handle.paths.identityFile)).toBe(true);
     } finally {
@@ -849,7 +863,7 @@ http.createServer((req, res) => {
       { root, argv: ["--namespace", "passthru-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: (ctx: ServerSpawnContext) => {
           expect(ctx.port).toBeGreaterThan(0);
           expect(ctx.host).toBe(ORCHESTRATOR_HOST);
@@ -866,7 +880,7 @@ http.createServer((req, res) => {
       // the child (the fixture script itself legitimately contains `||`,
       // so assert structural passthrough rather than script text).
       expect(seenArgv[0]).toEqual(["-e", envProbeScript]);
-      const logContent = readFileSync(handle.paths.serverLogFile, "utf-8");
+      const logContent = readFileSync(handle.paths.serverLogFile, "utf8");
       expect(logContent).toContain(`HOST=127.0.0.1 PORT=${handle.serverPort}`);
       expect(logContent).toContain(`PORTFILE=${handle.paths.serverPortFile}`);
       expect(logContent).toMatch(/^RUNID=\S+$/m);
@@ -879,16 +893,18 @@ http.createServer((req, res) => {
     const root = makeTempRoot();
     const { logLine } = silentLogs();
     const paths = resolveRunPaths(root, "crash-ns");
-    const failure = await startBackendPhase(
-      { root, argv: ["--namespace", "crash-ns"], env: {} },
-      {
-        logLine,
-        runBuild: () => undefined,
-        createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", CRASHING_SCRIPT] }),
-      }
-    ).then(
-      () => null,
-      (error: unknown) => error
+    const failure = await captureFailure(() =>
+      startBackendPhase(
+        { root, argv: ["--namespace", "crash-ns"], env: {} },
+        {
+          logLine,
+          runBuild: () => {},
+          createServerSpawn: () => ({
+            executable: process.execPath,
+            argv: ["-e", CRASHING_SCRIPT],
+          }),
+        }
+      )
     );
     expect(failure).not.toBeNull();
     const message = failure instanceof Error ? failure.message : String(failure);
@@ -911,7 +927,7 @@ http.createServer((req, res) => {
       { root, argv: ["--namespace", "hang-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         serverDeadlineMs: 800,
         pollIntervalMs: 100,
         createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", NEVER_LISTENING_SCRIPT] }),
@@ -936,10 +952,10 @@ http.createServer((req, res) => {
       createdAt: new Date().toISOString(),
     };
     await writeIdentity(paths.identityFile, stale);
-    const nestedResidue = join(root, "apps", "server", ".tmp", "ports", "server.port");
+    const nestedResidue = path.join(root, "apps", "server", ".tmp", "ports", "server.port");
     const { mkdirSync, writeFileSync } = await import("node:fs");
-    mkdirSync(join(root, "apps", "server", ".tmp", "ports"), { recursive: true });
-    writeFileSync(nestedResidue, "9999", "utf-8");
+    mkdirSync(path.join(root, "apps", "server", ".tmp", "ports"), { recursive: true });
+    writeFileSync(nestedResidue, "9999", "utf8");
     // Liveness *checks* are the verification mechanism (not signals): the
     // run must consult identity, find both PIDs stale, and recover by
     // removal. Signaling is covered at the teardown seam (ticket 02: a
@@ -954,12 +970,11 @@ http.createServer((req, res) => {
       { root, argv: ["--namespace", "stale-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: healthySpawn,
         isPidLive: (pid: number, startTimeMs: number) => {
           checked.push(pid);
-          if (pid === 2_147_483_646 || pid === 2_147_483_645) return false;
-          return osLive(pid, startTimeMs);
+          return pid === 2_147_483_646 || pid === 2_147_483_645 ? false : osLive(pid, startTimeMs);
         },
       }
     );
@@ -967,7 +982,7 @@ http.createServer((req, res) => {
       expect(checked).toContain(2_147_483_646);
       expect(existsSync(nestedResidue)).toBe(false);
       expect(existsSync(paths.identityFile)).toBe(true);
-      const fresh = readFileSync(paths.identityFile, "utf-8");
+      const fresh = readFileSync(paths.identityFile, "utf8");
       expect(fresh).not.toContain("run-stale");
     } finally {
       await handle.shutdown();
@@ -988,26 +1003,25 @@ http.createServer((req, res) => {
       createdAt: new Date().toISOString(),
     };
     await writeIdentity(paths.identityFile, live);
-    let spawned = false;
-    const failure = await startBackendPhase(
-      { root, argv: ["--namespace", "busy-ns"], env: {} },
-      {
-        logLine,
-        runBuild: () => undefined,
-        createServerSpawn: () => {
-          spawned = true;
-          return healthySpawn();
-        },
-      }
-    ).then(
-      () => null,
-      (error: unknown) => error
+    let isSpawned = false;
+    const failure = await captureFailure(() =>
+      startBackendPhase(
+        { root, argv: ["--namespace", "busy-ns"], env: {} },
+        {
+          logLine,
+          runBuild: () => {},
+          createServerSpawn: () => {
+            isSpawned = true;
+            return healthySpawn();
+          },
+        }
+      )
     );
     expect(failure).not.toBeNull();
     const message = failure instanceof Error ? failure.message : String(failure);
     expect(message).toContain("busy-ns");
     expect(message).toContain(String(process.pid));
-    expect(spawned).toBe(false);
+    expect(isSpawned).toBe(false);
   }, 30_000);
 
   it("tears down the owned child and records on interrupt shutdown (reverse order, owned only)", async () => {
@@ -1018,7 +1032,7 @@ http.createServer((req, res) => {
       { root, argv: ["--namespace", "int-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: healthySpawn,
         onSignal: (signal: string, handler: () => void) => {
           handlers.set(signal, handler);
@@ -1047,7 +1061,7 @@ http.createServer((req, res) => {
       { root, argv: ["--namespace", "gate-signal-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({
           executable: process.execPath,
           argv: ["-e", NEVER_LISTENING_SCRIPT],
@@ -1055,7 +1069,7 @@ http.createServer((req, res) => {
         // The gate never passes on its own: the run sits inside the server
         // health window with its records already written.
         probeHealth: () => Promise.resolve(false),
-        serverDeadlineMs: 3_000,
+        serverDeadlineMs: 3000,
         pollIntervalMs: 100,
         onSignal: (signal: string, handler: () => void) => {
           handlers.set(signal, handler);
@@ -1091,7 +1105,7 @@ http.createServer((req, res) => {
     const OWN_START = Date.now() - process.uptime() * 1000;
 
     function fakeSpawn(
-      exitListeners: Array<(...args: unknown[]) => void>
+      exitListeners: ((...args: unknown[]) => void)[]
     ): SpawnFn {
       return () => ({
         pid: DEAD_PID,
@@ -1102,11 +1116,10 @@ http.createServer((req, res) => {
     }
 
     it("keeps ownership when the PID exists but its start time cannot be read", async () => {
-      const execFile = () => Promise.reject(new Error("powershell timed out"));
       const ownership = createOsPidOwnershipChecker({
         platform: "win32",
         pidExists: () => true,
-        execFile,
+        execFile: execFileTimesOut,
       });
       await expect(ownership(4242, 1000)).resolves.toBe(true);
       // Signal-safety stays strict: the same state is never treated as an
@@ -1114,7 +1127,7 @@ http.createServer((req, res) => {
       const strict = createOsPidLivenessChecker({
         platform: "win32",
         pidExists: () => true,
-        execFile,
+        execFile: execFileTimesOut,
       });
       await expect(strict(4242, 1000)).resolves.toBe(false);
     }, 30_000);
@@ -1130,7 +1143,7 @@ http.createServer((req, res) => {
     }, 30_000);
 
     it("reads POSIX start times locale-proof and falls back to /proc on Linux", async () => {
-      const calls: Array<{ command: string; env: Record<string, string> | undefined }> = [];
+      const calls: { command: string; env: Record<string, string> | undefined }[] = [];
       const parsed = await getProcessStartTimeMs(4242, {
         platform: "linux",
         execFile: (command: string, _args: string[], env?: Record<string, string>) => {
@@ -1152,27 +1165,25 @@ http.createServer((req, res) => {
         readFile: () => Promise.resolve(`4242 (node) S ${zeros} ${ticks} 0 0\n`),
       });
       expect(viaProc).not.toBeNull();
-      expect(Math.abs((viaProc as number) - Date.now())).toBeLessThan(5000);
+      if (viaProc === null) throw new Error("no start time reconstructed from /proc");
+      expect(Math.abs(viaProc - Date.now())).toBeLessThan(5000);
     }, 30_000);
 
     it("claims the run record before freshness so a concurrent start fails busy", async () => {
       const root = makeTempRoot();
       const { logLine } = silentLogs();
       const paths = resolveRunPaths(root, "race-ns");
-      let releaseBuild: () => void = () => undefined;
-      const buildGate = new Promise<void>((resolve) => {
-        releaseBuild = resolve;
-      });
-      let buildEntered = false;
-      const exitListeners: Array<(...args: unknown[]) => void> = [];
+      const buildGate = Promise.withResolvers<boolean>();
+      let isBuildEntered = false;
+      const exitListeners: ((...args: unknown[]) => void)[] = [];
       const aPromise = startBackendPhase(
         { root, argv: ["--namespace", "race-ns"], env: {} },
         {
           logLine,
           randomRunId: () => "run-a",
           runBuild: async () => {
-            buildEntered = true;
-            await buildGate;
+            isBuildEntered = true;
+            await buildGate.promise;
           },
           createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", ""] }),
           spawnFn: fakeSpawn(exitListeners),
@@ -1187,37 +1198,39 @@ http.createServer((req, res) => {
         }
         // The claim exists while the first run is still inside freshness.
         expect(existsSync(paths.identityFile)).toBe(true);
-        expect(buildEntered).toBe(true);
+        expect(isBuildEntered).toBe(true);
 
-        let bBuildEntered = false;
-        const failure = await startBackendPhase(
-          { root, argv: ["--namespace", "race-ns"], env: {} },
-          {
-            logLine,
-            randomRunId: () => "run-b",
-            runBuild: () => {
-              bBuildEntered = true;
-            },
-            createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", ""] }),
-            spawnFn: fakeSpawn([]),
-            probeHealth: () => Promise.resolve(true),
-          }
-        ).then(
-          () => null,
-          (error: unknown) => error
+        let isBBuildEntered = false;
+        const failure = await captureFailure(() =>
+          startBackendPhase(
+            { root, argv: ["--namespace", "race-ns"], env: {} },
+            {
+              logLine,
+              randomRunId: () => "run-b",
+              runBuild: () => {
+                isBBuildEntered = true;
+              },
+              createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", ""] }),
+              spawnFn: fakeSpawn([]),
+              probeHealth: () => Promise.resolve(true),
+            }
+          )
         );
         expect(failure).not.toBeNull();
         const message = failure instanceof Error ? failure.message : String(failure);
         expect(message).toContain("race-ns");
         // The loser never reaches its freshness builds, and the winner's
         // claim survives untouched.
-        expect(bBuildEntered).toBe(false);
+        expect(isBBuildEntered).toBe(false);
         const claimed = await readIdentity(paths.identityFile);
         expect(claimed?.runId).toBe("run-a");
       } finally {
-        releaseBuild();
-        if (handle === null) {
-          handle = await aPromise.catch(() => null);
+        buildGate.resolve(true);
+        try {
+          handle = await aPromise;
+        } catch {
+          // The first run rejects when the busy second start wins; there is
+          // then no handle left to reap.
         }
         if (handle !== null) {
           const shutdownPromise = handle.shutdown();
@@ -1240,27 +1253,26 @@ http.createServer((req, res) => {
         createdAt: new Date().toISOString(),
       };
       await writeIdentity(paths.identityFile, planted);
-      let bBuildEntered = false;
-      const failure = await startBackendPhase(
-        { root, argv: ["--namespace", "overlap-ns"], env: {} },
-        {
-          logLine,
-          runBuild: () => {
-            bBuildEntered = true;
-          },
-          createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", ""] }),
-          spawnFn: fakeSpawn([]),
-          probeHealth: () => Promise.resolve(true),
-        }
-      ).then(
-        () => null,
-        (error: unknown) => error
+      let isBBuildEntered = false;
+      const failure = await captureFailure(() =>
+        startBackendPhase(
+          { root, argv: ["--namespace", "overlap-ns"], env: {} },
+          {
+            logLine,
+            runBuild: () => {
+              isBBuildEntered = true;
+            },
+            createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", ""] }),
+            spawnFn: fakeSpawn([]),
+            probeHealth: () => Promise.resolve(true),
+          }
+        )
       );
       expect(failure).not.toBeNull();
       const message = failure instanceof Error ? failure.message : String(failure);
       expect(message).toContain("overlap-ns");
       expect(message).toContain("run-first");
-      expect(bBuildEntered).toBe(false);
+      expect(isBBuildEntered).toBe(false);
       const untouched = await readIdentity(paths.identityFile);
       expect(untouched?.runId).toBe("run-first");
     }, 60_000);
@@ -1274,27 +1286,26 @@ http.createServer((req, res) => {
       const { logLine } = silentLogs();
       const paths = resolveRunPaths(root, "id-dir-ns");
       mkdirSync(paths.identityFile, { recursive: true });
-      let spawned = false;
-      const failure = await startBackendPhase(
-        { root, argv: ["--namespace", "id-dir-ns"], env: {} },
-        {
-          logLine,
-          runBuild: () => undefined,
-          createServerSpawn: () => {
-            spawned = true;
-            return healthySpawn();
-          },
-          spawnFn: () => ({ pid: 2_147_483_500, on: () => undefined }),
-          probeHealth: () => Promise.resolve(true),
-        }
-      ).then(
-        () => null,
-        (error: unknown) => error
+      let isSpawned = false;
+      const failure = await captureFailure(() =>
+        startBackendPhase(
+          { root, argv: ["--namespace", "id-dir-ns"], env: {} },
+          {
+            logLine,
+            runBuild: () => {},
+            createServerSpawn: () => {
+              isSpawned = true;
+              return healthySpawn();
+            },
+            spawnFn: () => ({ pid: 2_147_483_500, on: () => {} }),
+            probeHealth: () => Promise.resolve(true),
+          }
+        )
       );
       expect(failure).not.toBeNull();
       // The claim precedes the freshness builds and the spawn, so a
       // failed claim leaves no child behind at all.
-      expect(spawned).toBe(false);
+      expect(isSpawned).toBe(false);
     }, 30_000);
 
     it("tears down the just-spawned server when the PID write fails", async () => {
@@ -1324,10 +1335,10 @@ http.createServer((req, res) => {
           { root, argv: ["--namespace", "pid-dir-ns"], env: {} },
           {
             logLine,
-            runBuild: () => undefined,
+            runBuild: () => {},
             createServerSpawn: healthySpawn,
             spawnFn: captureSpawn,
-            isPidLive: (pid: number) => defaultPidExists(pid),
+            isPidLive: (pid: number) => isDefaultPidExists(pid),
             probeHealth: () => Promise.resolve(true),
           }
         );
@@ -1360,7 +1371,7 @@ http.createServer((req, res) => {
         logLine,
         // Freshness rebuilds are covered with fakes above; the real `pnpm`
         // build is a Windows-shell concern, not this test's seam.
-        runBuild: () => undefined,
+        runBuild: () => {},
       }
     );
     try {
@@ -1369,7 +1380,7 @@ http.createServer((req, res) => {
       expect(res.status).toBe(200);
       const body = (await res.json()) as { status: string };
       expect(body).toEqual({ status: "ok" });
-      expect(readFileSync(handle.paths.serverPortFile, "utf-8").trim()).toBe(String(serverPort));
+      expect(readFileSync(handle.paths.serverPortFile, "utf8").trim()).toBe(String(serverPort));
     } finally {
       await handle.shutdown();
     }

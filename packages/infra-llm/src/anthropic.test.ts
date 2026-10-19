@@ -20,7 +20,7 @@ afterEach(async () => {
     openServers.splice(0).map(
       (s) =>
         new Promise<void>((resolve) => {
-          s.close(() => resolve());
+          s.close(() => { resolve(); });
         })
     )
   );
@@ -43,7 +43,7 @@ async function startFakeAnthropic(
     res.end(JSON.stringify(pages[key] ?? pages["first"]));
   });
   await new Promise<void>((resolve) => {
-    server.listen(0, "127.0.0.1", () => resolve());
+    server.listen(0, "127.0.0.1", () => { resolve(); });
   });
   openServers.push(server);
   const address = server.address();
@@ -111,7 +111,7 @@ describe("AnthropicAdapter against fake provider server (Ticket 04 RED, Seam A)"
       res.end(JSON.stringify({ type: "error", error: { type: "api_error", message: "nope" } }));
     });
     await new Promise<void>((resolve) => {
-      server.listen(0, "127.0.0.1", () => resolve());
+      server.listen(0, "127.0.0.1", () => { resolve(); });
     });
     openServers.push(server);
     const address = server.address();
@@ -119,12 +119,15 @@ describe("AnthropicAdapter against fake provider server (Ticket 04 RED, Seam A)"
       throw new Error("Fake server did not bind a port");
     }
     const adapter = new AnthropicAdapter();
-    const failure = await adapter
-      .listModels({ baseUrl: `http://127.0.0.1:${String(address.port)}`, apiKey: randomKey() })
-      .then(
-        () => null,
-        (err: unknown) => err
-      );
+    let failure: unknown = null;
+    try {
+      await adapter.listModels({
+        baseUrl: `http://127.0.0.1:${String(address.port)}`,
+        apiKey: randomKey(),
+      });
+    } catch (error: unknown) {
+      failure = error;
+    }
     expect(failure).toBeInstanceOf(ProviderError);
     expect((failure as ProviderError).category).toBe(category);
   });

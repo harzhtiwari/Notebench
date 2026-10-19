@@ -9,14 +9,38 @@ import type {
 import { sqliteSchema } from "../schema/index.js";
 
 /**
- * SQLite Drizzle adapter for the append-only Artifact Version DAG (Decisions 4.3, 4.5).
- */
+SQLite Drizzle adapter for the append-only Artifact Version DAG (Decisions 4.3, 4.5).
+*/
 export class SqliteArtifactVersionRepository
   implements ArtifactVersionRepositoryPort
 {
   constructor(
     private readonly db: BetterSQLite3Database<typeof sqliteSchema>
   ) {}
+
+  private mapRowToEntity(
+    row: typeof sqliteSchema.artifactVersions.$inferSelect
+  ): ArtifactVersion {
+    let parsedContent: unknown;
+    try {
+      parsedContent = JSON.parse(row.content);
+    } catch {
+      parsedContent = row.content;
+    }
+
+    return {
+      id: row.id,
+      artifactId: row.artifactId,
+      number: row.number,
+      createdBy: row.createdBy === "ai" ? "ai" : "user",
+      ...(row.model && { model: row.model }),
+      ...(row.instruction && { instruction: row.instruction }),
+      ...(row.parentVersionId && { parentVersionId: row.parentVersionId }),
+      content: parsedContent,
+      ...(row.contentDigest && { contentDigest: row.contentDigest }),
+      createdAt: row.createdAt,
+    };
+  }
 
   public async createVersion(
     params: CreateArtifactVersionParams
@@ -47,11 +71,11 @@ export class SqliteArtifactVersionRepository
       artifactId: params.artifactId,
       number: params.number ?? 1,
       createdBy: params.createdBy,
-      ...(params.model ? { model: params.model } : {}),
-      ...(params.instruction ? { instruction: params.instruction } : {}),
-      ...(params.parentVersionId ? { parentVersionId: params.parentVersionId } : {}),
+      ...(params.model && { model: params.model }),
+      ...(params.instruction && { instruction: params.instruction }),
+      ...(params.parentVersionId && { parentVersionId: params.parentVersionId }),
       content: typeof params.content === "string" ? JSON.parse(params.content) : params.content,
-      ...(params.contentDigest ? { contentDigest: params.contentDigest } : {}),
+      ...(params.contentDigest && { contentDigest: params.contentDigest }),
       createdAt,
     };
   }
@@ -66,11 +90,7 @@ export class SqliteArtifactVersionRepository
       .limit(1);
 
     const row = rows[0];
-    if (!row) {
-      return null;
-    }
-
-    return this.mapRowToEntity(row);
+    return row ? this.mapRowToEntity(row) : null;
   }
 
   public async listVersions(
@@ -96,34 +116,6 @@ export class SqliteArtifactVersionRepository
       .limit(1);
 
     const row = rows[0];
-    if (!row) {
-      return null;
-    }
-
-    return this.mapRowToEntity(row);
-  }
-
-  private mapRowToEntity(
-    row: typeof sqliteSchema.artifactVersions.$inferSelect
-  ): ArtifactVersion {
-    let parsedContent: unknown;
-    try {
-      parsedContent = JSON.parse(row.content);
-    } catch {
-      parsedContent = row.content;
-    }
-
-    return {
-      id: row.id,
-      artifactId: row.artifactId,
-      number: row.number,
-      createdBy: row.createdBy === "ai" ? "ai" : "user",
-      ...(row.model ? { model: row.model } : {}),
-      ...(row.instruction ? { instruction: row.instruction } : {}),
-      ...(row.parentVersionId ? { parentVersionId: row.parentVersionId } : {}),
-      content: parsedContent,
-      ...(row.contentDigest ? { contentDigest: row.contentDigest } : {}),
-      createdAt: row.createdAt,
-    };
+    return row ? this.mapRowToEntity(row) : null;
   }
 }

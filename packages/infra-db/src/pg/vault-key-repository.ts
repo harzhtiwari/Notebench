@@ -7,18 +7,18 @@ import type {
 } from "../sqlite/vault-key-repository.js";
 
 /**
- * Ticket 28 — PostgreSQL implementation of the vault ciphertext storage port.
- *
- * Mirrors `SqliteVaultKeyRepository` (sqlite/vault-key-repository.ts):
- * `save` is a replace by (provider, keyId, userId), `delete` reports whether a
- * row was removed, and `list` is scoped to one user. The port type is declared
- * in the SQLite module because `infra-db` cannot import `@notebench/infra-vault`
- * (guard check 11); both implementations shape-match `VaultStorage`.
- *
- * The `provider_keys` table is created by `initializePgSchema` (bootstrap.ts),
- * not by the constructor — PostgreSQL DDL is applied once per database by the
- * migrator path in `migrator/runner.ts`.
- */
+Ticket 28 — PostgreSQL implementation of the vault ciphertext storage port.
+
+Mirrors `SqliteVaultKeyRepository` (sqlite/vault-key-repository.ts):
+`save` is a replace by (provider, keyId, userId), `delete` reports whether a
+row was removed, and `list` is scoped to one user. The port type is declared
+in the SQLite module because `infra-db` cannot import `@notebench/infra-vault`
+(guard check 11); both implementations shape-match `VaultStorage`.
+
+The `provider_keys` table is created by `initializePgSchema` (bootstrap.ts),
+not by the constructor — PostgreSQL DDL is applied once per database by the
+migrator path in `migrator/runner.ts`.
+*/
 export class PgVaultKeyRepository implements VaultKeyStorage {
   constructor(
     private readonly db: NodePgDatabase<{ providerKeys: typeof providerKeys }>
@@ -88,7 +88,7 @@ export class PgVaultKeyRepository implements VaultKeyStorage {
       .select()
       .from(providerKeys)
       .where(eq(providerKeys.userId, userId));
-    return rows.map(toRecord);
+    return rows.map((row) => toRecord(row));
   }
 }
 

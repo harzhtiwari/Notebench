@@ -4,35 +4,49 @@ import {
   type ButtonVariant,
   type StandardButtonProps,
 } from "./button.js";
-import { XCircle } from "./icons.js";
+import { XCircleIcon } from "./icons.js";
 
 export interface CancelButtonProps
   extends Omit<StandardButtonProps, "children" | "variant" | "size"> {
-  /** Optional AbortController whose abort() will be called on click. */
+  /**
+  Optional AbortController whose abort() will be called on click.
+  */
   controller?: AbortController | undefined;
-  /** Optional AbortSignal to track external cancellation. */
+  /**
+  Optional AbortSignal to track external cancellation.
+  */
   signal?: AbortSignal | undefined;
-  /** Callback fired when cancellation is triggered. */
+  /**
+  Callback fired when cancellation is triggered.
+  */
   onCancel?: (() => void) | undefined;
-  /** Custom label when idle/running. Defaults to "Cancel". */
+  /**
+  Custom label when idle/running. Defaults to "Cancel".
+  */
   label?: string | undefined;
-  /** Custom label when aborted/cancelled. Defaults to "Cancelled". */
+  /**
+  Custom label when aborted/cancelled. Defaults to "Cancelled".
+  */
   cancelledLabel?: string | undefined;
-  /** Button style variant. Defaults to canonical "nb_btn_secondary". */
+  /**
+  Button style variant. Defaults to canonical "nb_btn_secondary".
+  */
   variant?: ButtonVariant | undefined;
-  /** Button height/padding size. Defaults to "nb_btn_sm". */
+  /**
+  Button height/padding size. Defaults to "nb_btn_sm".
+  */
   size?: "nb_btn_sm" | "nb_btn_md" | "nb_btn_lg" | undefined;
   children?: React.ReactNode | undefined;
 }
 
 /**
- * Reusable cancellation button for streaming generation/jobs (Ticket 13).
- * Integrates with AbortController / AbortSignal, disables on abort, and maintains
- * accessible icon + label pairs (never color-alone). Composes the canonical
- * Button (`nb_btn_secondary` / `nb_btn_sm`; board `.btn`) and routes the icon
- * through the `leadingIcon` channel so the board icon canon applies
- * (`--nb-size-icon-sm`, bold at the small size).
- */
+Reusable cancellation button for streaming generation/jobs (Ticket 13).
+Integrates with AbortController / AbortSignal, disables on abort, and maintains
+accessible icon + label pairs (never color-alone). Composes the canonical
+Button (`nb_btn_secondary` / `nb_btn_sm`; board `.btn`) and routes the icon
+through the `leadingIcon` channel so the board icon canon applies
+(`--nb-size-icon-sm`, bold at the small size).
+*/
 const CancelButton = React.forwardRef<HTMLButtonElement, CancelButtonProps>(
   (
     {
@@ -63,7 +77,7 @@ const CancelButton = React.forwardRef<HTMLButtonElement, CancelButtonProps>(
         setIsAborted(true);
         return;
       }
-      const onAbort = () => setIsAborted(true);
+      const onAbort = () => { setIsAborted(true); };
       effectiveSignal.addEventListener("abort", onAbort, { once: true });
       return () => {
         effectiveSignal.removeEventListener("abort", onAbort);
@@ -89,7 +103,7 @@ const CancelButton = React.forwardRef<HTMLButtonElement, CancelButtonProps>(
         type="button"
         variant={variant}
         size={size}
-        leadingIcon={XCircle}
+        leadingIcon={XCircleIcon}
         disabled={disabled || isAborted}
         onClick={handleClick}
         className={className}

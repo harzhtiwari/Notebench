@@ -2,7 +2,7 @@ export type ScreenId = "setup" | "login" | "health" | "dashboard" | "notebook" |
 
 export interface ParsedRoute {
   screen: ScreenId;
-  slug: Array<string>;
+  slug: string[];
   path: string;
   search: string;
   hash: string;
@@ -13,12 +13,12 @@ function splitPath(input: string): { path: string; search: string; hash: string 
   let hash = "";
   let search = "";
   const hashIndex = rest.indexOf("#");
-  if (hashIndex >= 0) {
+  if (hashIndex !== -1) {
     hash = rest.slice(hashIndex);
     rest = rest.slice(0, hashIndex);
   }
   const searchIndex = rest.indexOf("?");
-  if (searchIndex >= 0) {
+  if (searchIndex !== -1) {
     search = rest.slice(searchIndex);
     rest = rest.slice(0, searchIndex);
   }
@@ -28,10 +28,7 @@ function splitPath(input: string): { path: string; search: string; hash: string 
 function normalizePathname(path: string): string {
   if (path === "") return "/";
   const withLeading = path.startsWith("/") ? path : `/${path}`;
-  if (withLeading.length > 1 && withLeading.endsWith("/")) {
-    return withLeading.slice(0, -1);
-  }
-  return withLeading;
+  return withLeading.length > 1 && withLeading.endsWith("/") ? withLeading.slice(0, -1) : withLeading;
 }
 
 const PATH_SCREENS: Record<string, ScreenId> = {
@@ -74,33 +71,26 @@ export interface ClickIntent {
 }
 
 /**
- * Resolves an in-shell link to the app-absolute URL the owned router would
- * serve, or null when the link stays browser-native: external URLs, pure
- * same-screen hash anchors (the browser scrolls without a document request),
- * and anything outside the app path space. Relative hrefs resolve against the
- * current path, so in-shell links never fall through to a document reload.
- */
+Resolves an in-shell link to the app-absolute URL the owned router would
+serve, or null when the link stays browser-native: external URLs, pure
+same-screen hash anchors (the browser scrolls without a document request),
+and anything outside the app path space. Relative hrefs resolve against the
+current path, so in-shell links never fall through to a document reload.
+*/
 export function resolveAppPath(href: string, currentPath: string): string | null {
-  if (href.startsWith("#")) return null;
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href)) return null;
-  if (href.startsWith("//")) return null;
+  if (href.startsWith("#") || /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href) || href.startsWith("//")) return null;
   const current = parseRoute(currentPath === "" ? "/" : currentPath);
-  const currentBase = `http://app.local${current.path}${current.search}`;
+  const currentBase = `https://app.local${current.path}${current.search}`;
   const resolved = new URL(href, currentBase);
   const path = normalizePathname(resolved.pathname);
   const currentFull = `${current.path}${current.search}`;
   const resolvedHead = `${path}${resolved.search}`;
-  if (resolvedHead === currentFull && resolved.hash !== "") return null;
-  return `${path}${resolved.search}${resolved.hash}`;
+  return resolvedHead === currentFull && resolved.hash !== "" ? null : `${path}${resolved.search}${resolved.hash}`;
 }
 
 export function shouldInterceptNavigation(intent: ClickIntent): boolean {
   const target = resolveAppPath(intent.href, intent.currentPath ?? "/");
-  if (target === null) return false;
-  if (intent.target === "_blank") return false;
-  if (intent.download === true || typeof intent.download === "string") return false;
-  if (intent.metaKey === true || intent.ctrlKey === true) return false;
-  if (intent.shiftKey === true || intent.altKey === true) return false;
+  if ((target === null) || (intent.target === "_blank") || intent.download === true || typeof intent.download === "string" || intent.metaKey === true || intent.ctrlKey === true || intent.shiftKey === true || intent.altKey === true) return false;
   if (intent.button !== undefined && intent.button !== 0) return false;
   return true;
 }
@@ -122,20 +112,28 @@ export interface MemoryRouter {
 
 export function createMemoryRouter(initialPath: string): MemoryRouter {
   const initial = parseRoute(initialPath);
-  const entries: Array<RouterEntry> = [
+  const entries: RouterEntry[] = [
     { path: initial.path, search: initial.search, hash: initial.hash },
   ];
   let index = 0;
   const listeners = new Set<(entry: RouterEntry) => void>();
 
+  function currentEntry(): RouterEntry {
+    const entry = entries[index];
+    if (entry === undefined) {
+      throw new Error("Router history index is out of bounds.");
+    }
+    return entry;
+  }
+
   function notify(): void {
-    const entry = entries[index] as RouterEntry;
+    const entry = currentEntry();
     for (const listener of listeners) listener(entry);
   }
 
   return {
     get current(): RouterEntry {
-      return entries[index] as RouterEntry;
+      return currentEntry();
     },
     reloads: 0,
     navigate(to: string): void {
@@ -146,16 +144,20 @@ export function createMemoryRouter(initialPath: string): MemoryRouter {
       notify();
     },
     back(): void {
-      if (index > 0) {
-        index -= 1;
-        notify();
+      if (!(index > 0)) {
+        return;
       }
+
+      index -= 1;
+      notify();
     },
     forward(): void {
-      if (index < entries.length - 1) {
-        index += 1;
-        notify();
+      if (!(index < entries.length - 1)) {
+        return;
       }
+
+      index += 1;
+      notify();
     },
     subscribe(listener: (entry: RouterEntry) => void): () => void {
       listeners.add(listener);

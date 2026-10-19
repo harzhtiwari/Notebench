@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Button, Card, IconButton } from "../primitives/index.js";
-import { ArrowUp, ArrowDown, PencilSimple } from "../primitives/icons.js";
+import { ArrowUpIcon, ArrowDownIcon, PencilSimpleIcon } from "../primitives/icons.js";
 import { DiffView } from "./diff-view.js";
 import { cn } from "../../lib/utils.js";
 
@@ -26,10 +26,10 @@ export interface PlanCardProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 /**
- * PlanCard: board `.plan` pattern (ticket 16).
- * Shows step outline before expensive generation runs, with reordering,
- * cost estimation, and approve/edit action triggers.
- */
+PlanCard: board `.plan` pattern (ticket 16).
+Shows step outline before expensive generation runs, with reordering,
+cost estimation, and approve/edit action triggers.
+*/
 const PlanCard = React.forwardRef<HTMLDivElement, PlanCardProps>(
   (
     {
@@ -61,9 +61,9 @@ const PlanCard = React.forwardRef<HTMLDivElement, PlanCardProps>(
           <h4 className="font-[family-name:var(--nb-font-ui)] text-[length:var(--nb-text-md)] font-bold leading-[var(--nb-leading-ui)] text-[var(--nb-ink)]">
             {title}
           </h4>
-          {description !== undefined ? (
+          {description === undefined ? null : (
             <p className="mt-[var(--nb-space-1)] text-xs text-[var(--nb-ink-3)]">{description}</p>
-          ) : null}
+          )}
         </div>
 
         {children ?? (
@@ -79,31 +79,31 @@ const PlanCard = React.forwardRef<HTMLDivElement, PlanCardProps>(
                 />
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-[var(--nb-ink)]">{item.title}</div>
-                  {item.description !== undefined ? (
+                  {item.description === undefined ? null : (
                     <div className="text-xs text-[var(--nb-ink-3)]">{item.description}</div>
-                  ) : null}
+                  )}
                 </div>
                 <div className="flex items-center gap-[var(--nb-space-1)]">
                   {item.actions ?? (
                     <>
-                      {item.onMoveUp !== undefined ? (
+                      {item.onMoveUp === undefined ? null : (
                         <IconButton
                           variant="nb_btn_ghost"
                           size="nb_btn_icon_sm"
-                          icon={ArrowUp}
+                          icon={ArrowUpIcon}
                           onClick={item.onMoveUp}
                           aria-label={`Move step ${index + 1} up`}
                         />
-                      ) : null}
-                      {item.onMoveDown !== undefined ? (
+                      )}
+                      {item.onMoveDown === undefined ? null : (
                         <IconButton
                           variant="nb_btn_ghost"
                           size="nb_btn_icon_sm"
-                          icon={ArrowDown}
+                          icon={ArrowDownIcon}
                           onClick={item.onMoveDown}
                           aria-label={`Move step ${index + 1} down`}
                         />
-                      ) : null}
+                      )}
                     </>
                   )}
                 </div>
@@ -113,21 +113,21 @@ const PlanCard = React.forwardRef<HTMLDivElement, PlanCardProps>(
         )}
 
         <div className="plan-actions flex flex-wrap items-center gap-[var(--nb-space-2)] p-[var(--nb-space-4)]">
-          {costEstimate !== undefined ? (
+          {costEstimate === undefined ? null : (
             <span className="plan-cost mr-auto text-xs text-[var(--nb-ink-3)]">{costEstimate}</span>
-          ) : null}
+          )}
           {actions ?? (
             <>
-              {onEdit !== undefined ? (
+              {onEdit === undefined ? null : (
                 <Button variant="nb_btn_ghost" onClick={onEdit}>
                   {editLabel}
                 </Button>
-              ) : null}
-              {onApprove !== undefined ? (
+              )}
+              {onApprove === undefined ? null : (
                 <Button variant="nb_btn_primary" onClick={onApprove}>
                   {approveLabel}
                 </Button>
-              ) : null}
+              )}
             </>
           )}
         </div>
@@ -155,10 +155,10 @@ export interface ReviewCardProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 /**
- * ReviewCard: board `.review` pattern (ticket 16).
- * Presents surgical block change diffs, verify invariance proof row,
- * and Keep/Undo action triggers.
- */
+ReviewCard: board `.review` pattern (ticket 16).
+Presents surgical block change diffs, verify invariance proof row,
+and Keep/Undo action triggers.
+*/
 const ReviewCard = React.forwardRef<HTMLDivElement, ReviewCardProps>(
   (
     {
@@ -192,7 +192,7 @@ const ReviewCard = React.forwardRef<HTMLDivElement, ReviewCardProps>(
         {...props}
       >
         <div className="review-head flex items-center gap-[var(--nb-space-2)] px-[var(--nb-space-4)] py-[var(--nb-space-3)] font-[family-name:var(--nb-font-ui)] text-sm font-bold text-[var(--nb-ink)]">
-          {icon ?? <PencilSimple size={16} weight="fill" aria-hidden="true" />}
+          {icon ?? <PencilSimpleIcon size={16} weight="fill" aria-hidden="true" />}
           <span>{title}</span>
         </div>
 
@@ -220,9 +220,9 @@ const ReviewCard = React.forwardRef<HTMLDivElement, ReviewCardProps>(
                     />
                     <div className="min-w-0">
                       <div className="text-sm font-semibold text-[var(--nb-ink)]">{item.title}</div>
-                      {item.description !== undefined ? (
+                      {item.description === undefined ? null : (
                         <div className="text-xs text-[var(--nb-ink-3)]">{item.description}</div>
-                      ) : null}
+                      )}
                     </div>
                   </li>
                 ))}
@@ -232,21 +232,21 @@ const ReviewCard = React.forwardRef<HTMLDivElement, ReviewCardProps>(
         )}
 
         <div className="review-actions flex flex-wrap items-center gap-[var(--nb-space-2)] px-[var(--nb-space-4)] pb-[var(--nb-space-4)] pt-[var(--nb-space-2)]">
-          {cost !== undefined ? (
+          {cost === undefined ? null : (
             <span className="review-cost mr-auto text-xs text-[var(--nb-ink-3)]">{cost}</span>
-          ) : null}
+          )}
           {actions ?? (
             <>
-              {onKeep !== undefined ? (
+              {onKeep === undefined ? null : (
                 <Button variant="nb_btn_primary" onClick={onKeep}>
                   {keepLabel}
                 </Button>
-              ) : null}
-              {onUndo !== undefined ? (
+              )}
+              {onUndo === undefined ? null : (
                 <Button variant="nb_btn_secondary" onClick={onUndo}>
                   {undoLabel}
                 </Button>
-              ) : null}
+              )}
             </>
           )}
         </div>

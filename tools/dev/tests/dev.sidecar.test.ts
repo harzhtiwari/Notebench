@@ -5,55 +5,60 @@ import net from "node:net";
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import getPort from "get-port";
 import { makeTempRoot as createTempRoot, removeTempRoots, silentLogs } from "./temp-dir.js";
 import type { ServerReadyContext } from "../src/composer.js";
 import type { SpawnFn } from "../src/spawn.js";
 
 /**
- * Ticket 04 suites after the CLI cutover (open-design parity): the web
- * child runs the real `next dev` CLI, so the genuine Next.js startup block
- * comes from Next itself.
- *
- * Seams under test (public boundaries only):
- * - config: apps/web/next.config.js sidecar branch observed by evaluation
- *   (distDir isolation, API-split rewrites, loopback refusal).
- * - composer: web-phase supervision observed via real processes running
- *   fixture entries (order, records, reverse teardown, crashes).
- * - cli: one real `next dev` boot proving pages serve and /api reaches the
- *   backend through the config rewrites.
- * - contract pins: spec literals (env names, exit codes).
- *
- * Vocabulary: orchestrator, server, web sidecar, namespace (spec section 1).
- */
+Ticket 04 suites after the CLI cutover (open-design parity): the web
+child runs the real `next dev` CLI, so the genuine Next.js startup block
+comes from Next itself.
+
+Seams under test (public boundaries only):
+- config: apps/web/next.config.js sidecar branch observed by evaluation
+  (distDir isolation, API-split rewrites, loopback refusal).
+- composer: web-phase supervision observed via real processes running
+  fixture entries (order, records, reverse teardown, crashes).
+- cli: one real `next dev` boot proving pages serve and /api reaches the
+  backend through the config rewrites.
+- contract pins: spec literals (env names, exit codes).
+
+Vocabulary: orchestrator, server, web sidecar, namespace (spec section 1).
+*/
 
 const servers: Server[] = [];
 
+async function closeServerWithRetries(server: Server): Promise<void> {
+  // Closing can transiently fail while the machine is saturated; retry
+  // lock errors briefly. An already-closed server is not an error.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error: unknown) => {
+          if (error instanceof Error) reject(error);
+          else resolve();
+        });
+      });
+      return;
+    } catch (error: unknown) {
+      const code = (error as { code?: string }).code;
+      if (code === "ERR_SERVER_NOT_RUNNING") return;
+      if ((code === "EPERM" || code === "EBUSY") && attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
 afterEach(async () => {
   while (servers.length > 0) {
-    const server = servers.pop() as Server;
-    // Closing can transiently fail while the machine is saturated; retry
-    // lock errors briefly. An already-closed server is not an error.
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          server.close((error: unknown) => {
-            if (error instanceof Error) reject(error);
-            else resolve();
-          });
-        });
-        break;
-      } catch (error: unknown) {
-        const code = (error as { code?: string }).code;
-        if (code === "ERR_SERVER_NOT_RUNNING") break;
-        if ((code === "EPERM" || code === "EBUSY") && attempt < 2) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
-          continue;
-        }
-        throw error;
-      }
-    }
+    const server = servers.pop();
+    if (server === undefined) break;
+    await closeServerWithRetries(server);
   }
 });
 
@@ -80,23 +85,52 @@ function listen(server: Server): Promise<number> {
   });
 }
 
+async function loadWebConfig(): Promise<Record<string, unknown>> {
+  // The config reads process.env at evaluation time: drop the module
+  // cache so each load observes the current environment.
+  vi.resetModules();
+  const module = (await import("../../../apps/web/next.config.js")) as {
+    default: Record<string, unknown>;
+  };
+  return module.default;
+}
+
+async function pollPortFile(path: string): Promise<string> {
+  const timeoutMs = 30_000;
+  const start = Date.now();
+  for (;;) {
+    try {
+      const content = readFileSync(path, "utf8").trim();
+      if (content !== "") return content;
+    } catch {
+      // Not written yet.
+    }
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`timed out waiting for ${path}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+
+async function expectRefused(url: string): Promise<void> {
+  let isRefused = false;
+  try {
+    await fetch(url);
+  } catch {
+    isRefused = true;
+  }
+  expect(isRefused).toBe(true);
+}
+
+const fakeSpawnFn: SpawnFn = () => ({ pid: 99_999, on: () => {} });
+
 describe("ticket 04: web config carries an explicit sidecar branch", () => {
   const DIST_DIR_ENV = "NOTEBENCH_WEB_DIST_DIR";
   const DIST_DIR_ENV_ALIAS = "NB_WEB_DIST_DIR";
 
-  async function loadWebConfig(): Promise<Record<string, unknown>> {
-    // The config reads process.env at evaluation time: drop the module
-    // cache so each load observes the current environment.
-    vi.resetModules();
-    const module = (await import("../../../apps/web/next.config.js")) as {
-      default: Record<string, unknown>;
-    };
-    return module.default;
-  }
-
   it("keeps the production export branch without sidecar env (spec 5.10)", async () => {
-    delete process.env[DIST_DIR_ENV];
-    delete process.env[DIST_DIR_ENV_ALIAS];
+    Reflect.deleteProperty(process.env, DIST_DIR_ENV);
+    Reflect.deleteProperty(process.env, DIST_DIR_ENV_ALIAS);
     const config = await loadWebConfig();
     expect(config["output"]).toBe("export");
     expect(config["distDir"]).toBe("out");
@@ -108,26 +142,24 @@ describe("ticket 04: web config carries an explicit sidecar branch", () => {
       const config = await loadWebConfig();
       // The dev bundler joins distDir onto the app dir, so the branch
       // relativizes the absolute env value against apps/web.
-      const { relative: rel, join: joinPath } = await import("node:path");
-      const webDir = joinPath(process.cwd(), "apps", "web");
-      expect(config["distDir"]).toBe(rel(webDir, "/tmp/build/ns/web-dist"));
+      const webDir = path.join(process.cwd(), "apps", "web");
+      expect(config["distDir"]).toBe(path.relative(webDir, "/tmp/build/ns/web-dist"));
       expect(config["output"]).toBeUndefined();
     } finally {
-      delete process.env[DIST_DIR_ENV];
+      Reflect.deleteProperty(process.env, DIST_DIR_ENV);
     }
   });
 
   it("accepts the NB_ alias for the sidecar distDir (spec 7.2)", async () => {
-    delete process.env[DIST_DIR_ENV];
+    Reflect.deleteProperty(process.env, DIST_DIR_ENV);
     process.env[DIST_DIR_ENV_ALIAS] = "/tmp/build/other/web-dist";
     try {
       const config = await loadWebConfig();
-      const { relative: rel, join: joinPath } = await import("node:path");
-      const webDir = joinPath(process.cwd(), "apps", "web");
-      expect(config["distDir"]).toBe(rel(webDir, "/tmp/build/other/web-dist"));
+      const webDir = path.join(process.cwd(), "apps", "web");
+      expect(config["distDir"]).toBe(path.relative(webDir, "/tmp/build/other/web-dist"));
       expect(config["output"]).toBeUndefined();
     } finally {
-      delete process.env[DIST_DIR_ENV_ALIAS];
+      Reflect.deleteProperty(process.env, DIST_DIR_ENV_ALIAS);
     }
   });
 
@@ -137,10 +169,10 @@ describe("ticket 04: web config carries an explicit sidecar branch", () => {
     try {
       const config = await loadWebConfig();
       expect(typeof config["rewrites"]).toBe("function");
-      const rules = (await (config["rewrites"] as () => Promise<unknown[]>)()) as Array<{
+      const rules = (await (config["rewrites"] as () => Promise<unknown[]>)()) as {
         source: string;
         destination: string;
-      }>;
+      }[];
       const pairs = rules.map((rule) => `${rule.source} -> ${rule.destination}`);
       for (const prefix of ["/api", "/artifacts", "/frames"]) {
         expect(pairs).toContain(`${prefix} -> http://127.0.0.1:57570${prefix}`);
@@ -149,7 +181,7 @@ describe("ticket 04: web config carries an explicit sidecar branch", () => {
         );
       }
     } finally {
-      delete process.env[DIST_DIR_ENV];
+      Reflect.deleteProperty(process.env, DIST_DIR_ENV);
       delete process.env["NOTEBENCH_SERVER_ORIGIN"];
     }
   });
@@ -159,15 +191,15 @@ describe("ticket 04: web config carries an explicit sidecar branch", () => {
     process.env["NB_SERVER_ORIGIN"] = "http://localhost:4123";
     try {
       const config = await loadWebConfig();
-      const rules = (await (config["rewrites"] as () => Promise<unknown[]>)()) as Array<{
+      const rules = (await (config["rewrites"] as () => Promise<unknown[]>)()) as {
         destination: string;
-      }>;
+      }[];
       expect(rules.length).toBeGreaterThan(0);
       for (const rule of rules) {
         expect(rule.destination.startsWith("http://localhost:4123")).toBe(true);
       }
     } finally {
-      delete process.env[DIST_DIR_ENV];
+      Reflect.deleteProperty(process.env, DIST_DIR_ENV);
       delete process.env["NB_SERVER_ORIGIN"];
     }
   });
@@ -178,7 +210,7 @@ describe("ticket 04: web config carries an explicit sidecar branch", () => {
     try {
       await expect(loadWebConfig()).rejects.toThrow();
     } finally {
-      delete process.env[DIST_DIR_ENV];
+      Reflect.deleteProperty(process.env, DIST_DIR_ENV);
       delete process.env["NOTEBENCH_SERVER_ORIGIN"];
     }
   });
@@ -189,22 +221,22 @@ describe("ticket 04: web config carries an explicit sidecar branch", () => {
     try {
       const config = await loadWebConfig();
       expect(typeof config["rewrites"]).toBe("function");
-      const rules = (await (config["rewrites"] as () => Promise<unknown[]>)()) as Array<{
+      const rules = (await (config["rewrites"] as () => Promise<unknown[]>)()) as {
         destination: string;
-      }>;
+      }[];
       expect(rules.length).toBeGreaterThan(0);
       for (const rule of rules) {
         expect(rule.destination.startsWith("http://[::1]:57570")).toBe(true);
       }
     } finally {
-      delete process.env[DIST_DIR_ENV];
+      Reflect.deleteProperty(process.env, DIST_DIR_ENV);
       delete process.env["NOTEBENCH_SERVER_ORIGIN"];
     }
   });
 
   it("exposes no rewrites on the production export branch", async () => {
-    delete process.env[DIST_DIR_ENV];
-    delete process.env[DIST_DIR_ENV_ALIAS];
+    Reflect.deleteProperty(process.env, DIST_DIR_ENV);
+    Reflect.deleteProperty(process.env, DIST_DIR_ENV_ALIAS);
     delete process.env["NOTEBENCH_SERVER_ORIGIN"];
     delete process.env["NB_SERVER_ORIGIN"];
     const config = await loadWebConfig();
@@ -212,30 +244,30 @@ describe("ticket 04: web config carries an explicit sidecar branch", () => {
   });
 });
 
-describe("ticket 04: web child runs the real Next.js CLI", () => {
-  async function killTree(child: ChildProcess): Promise<void> {
-    const pid = child.pid;
-    if (pid === undefined) return;
-    if (process.platform === "win32") {
-      const { execFile } = await import("node:child_process");
-      const { promisify } = await import("node:util");
-      try {
-        await promisify(execFile)("taskkill", ["/T", "/F", "/PID", String(pid)], {
-          shell: false,
-          windowsHide: true,
-        });
-      } catch {
-        // Already gone.
-      }
-      return;
-    }
+async function killTree(child: ChildProcess): Promise<void> {
+  const pid = child.pid;
+  if (pid === undefined) return;
+  if (process.platform === "win32") {
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
     try {
-      process.kill(0 - pid, "SIGKILL");
+      await promisify(execFile)("taskkill", ["/T", "/F", "/PID", String(pid)], {
+        shell: false,
+        windowsHide: true,
+      });
     } catch {
       // Already gone.
     }
+    return;
   }
+  try {
+    process.kill(0 - pid, "SIGKILL");
+  } catch {
+    // Already gone.
+  }
+}
 
+describe("ticket 04: web child runs the real Next.js CLI", () => {
   it("serves pages from the CLI and rewrites /api to the backend (turbopack)", async () => {
     const { resolveNextBin } = await import("../src/composer.js");
     const backendHits: string[] = [];
@@ -251,10 +283,12 @@ describe("ticket 04: web child runs the real Next.js CLI", () => {
         const timer = setInterval(() => {
           n += 1;
           res.write(`data: chunk${n}\n\n`);
-          if (n >= 3) {
-            clearInterval(timer);
-            res.end();
+          if (!(n >= 3)) {
+            return;
           }
+
+          clearInterval(timer);
+          res.end();
         }, 300);
         return;
       }
@@ -263,13 +297,13 @@ describe("ticket 04: web child runs the real Next.js CLI", () => {
     });
     servers.push(backend);
     const backendPort = await listen(backend);
-    const webDir = join(process.cwd(), "apps", "web");
+    const webDir = path.join(process.cwd(), "apps", "web");
     // distDir must live inside the workspace: the real CLI rejects
     // out-of-tree distDirs (InvalidDistDirError). Production already does
     // this (.tmp/build/<ns>/web-dist); the test mirrors it.
-    const distNsDir = join(process.cwd(), ".tmp", "build", "cli-e2e-ns");
-    const distDir = join(distNsDir, "web-dist");
-    const nextDirBefore = existsSync(join(webDir, ".next"));
+    const distNsDir = path.join(process.cwd(), ".tmp", "build", "cli-e2e-ns");
+    const distDir = path.join(distNsDir, "web-dist");
+    const isNextDirBefore = existsSync(path.join(webDir, ".next"));
     const webPort = await getPort({ host: "127.0.0.1" });
     const bootT0 = Date.now();
     const child = spawn(
@@ -293,40 +327,43 @@ describe("ticket 04: web child runs the real Next.js CLI", () => {
     const remember = (chunk: unknown): void => {
       for (const line of String(chunk).split("\n")) {
         const trimmed = line.trim();
-        if (trimmed !== "") {
-          tail.push(trimmed);
-          if (tail.length > 40) tail.shift();
+        if (trimmed === "") {
+          continue;
         }
+
+        tail.push(trimmed);
+        if (tail.length > 40) tail.shift();
       }
     };
-    child.stdout?.on("data", remember);
-    child.stderr?.on("data", remember);
+    child.stdout.on("data", remember);
+    child.stderr.on("data", remember);
     child.on("error", (error: unknown) => {
       remember(`spawn error: ${error instanceof Error ? error.message : String(error)}`);
     });
     try {
       const deadline = Date.now() + 180_000;
-      let pageOk = false;
-      let apiOk = false;
-      while (Date.now() < deadline && !(pageOk && apiOk)) {
+      let isPageOk = false;
+      let isApiOk = false;
+      while (Date.now() < deadline && !(isPageOk && isApiOk)) {
         try {
           const page = await fetch(`http://127.0.0.1:${webPort}/`);
-          if (page.status === 200 && (await page.text()).includes("<html")) pageOk = true;
+          const pageText = await page.text();
+          if (page.status === 200 && pageText.includes("<html")) isPageOk = true;
           const api = await fetch(`http://127.0.0.1:${webPort}/api/smoke`);
           if (api.status === 200) {
             const body = (await api.json()) as { marker?: string };
-            if (body.marker === "backend-v1") apiOk = true;
+            if (body.marker === "backend-v1") isApiOk = true;
           }
         } catch {
           // Not listening yet.
         }
-        if (!(pageOk && apiOk)) await new Promise((resolve) => setTimeout(resolve, 1000));
+        if (!(isPageOk && isApiOk)) await new Promise((resolve) => setTimeout(resolve, 1000));
       }
-      if (!(pageOk && apiOk)) {
+      if (!(isPageOk && isApiOk)) {
         console.log(`CLI tail:\n${tail.join("\n")}`);
       }
-      expect(pageOk).toBe(true);
-      expect(apiOk).toBe(true);
+      expect(isPageOk).toBe(true);
+      expect(isApiOk).toBe(true);
       console.log(
         `[cli-e2e] turbopack route-ready in ${String(Date.now() - bootT0)}ms`
       );
@@ -335,7 +372,7 @@ describe("ticket 04: web child runs the real Next.js CLI", () => {
       backendHits.length = 0;
       const apix = await fetch(`http://127.0.0.1:${webPort}/apix`);
       const apixBody = await apix.text();
-      expect(backendHits.some((hit) => hit === "/apix")).toBe(false);
+      expect(backendHits.includes("/apix")).toBe(false);
       expect(apixBody.includes("backend-v1")).toBe(false);
 
       // SSE (spec 5.9): the rewrite streams chunks incrementally. Identity
@@ -355,7 +392,10 @@ describe("ticket 04: web child runs the real Next.js CLI", () => {
       let chunks = 0;
       let firstChunkMs = -1;
       for (;;) {
-        const { done, value } = await reader.read();
+        const { done, value } = (await reader.read()) as {
+          done: boolean;
+          value?: Uint8Array;
+        };
         if (value !== undefined) {
           chunks += 1;
           if (firstChunkMs < 0) firstChunkMs = Date.now() - sseStart;
@@ -394,13 +434,12 @@ describe("ticket 04: web child runs the real Next.js CLI", () => {
             resolve(`timeout:${data.slice(0, 80)}`);
           }, 8000);
           sock.on("data", (chunk: Buffer) => {
-            data += chunk.toString("utf-8");
-            if (data.includes("\r\n\r\n")) {
-              clearTimeout(timer);
-              const statusLine = data.split("\r\n")[0] ?? "";
-              sock.destroy();
-              resolve(statusLine);
-            }
+            data += chunk.toString("utf8");
+            if (!data.includes("\r\n\r\n")) return;
+            clearTimeout(timer);
+            const statusLine = data.split("\r\n", 1)[0] ?? "";
+            sock.destroy();
+            resolve(statusLine);
           });
           sock.on("close", () => {
             clearTimeout(timer);
@@ -419,7 +458,7 @@ describe("ticket 04: web child runs the real Next.js CLI", () => {
       expect(await probeUpgrade("/api/smoke")).not.toContain("101");
 
       // Backend down (spec story 8): outage is a 5xx, never an HTML page.
-      await new Promise<void>((resolve) => backend.close(() => resolve()));
+      await new Promise<void>((resolve) => backend.close(() => { resolve(); }));
       await new Promise((resolve) => setTimeout(resolve, 500));
       const down = await fetch(`http://127.0.0.1:${webPort}/api/smoke`);
       const downBody = await down.text();
@@ -434,7 +473,7 @@ describe("ticket 04: web child runs the real Next.js CLI", () => {
       // (guarded: a stale pre-existing dir is the environment's, not ours).
       const { readdirSync } = await import("node:fs");
       expect(readdirSync(distDir).length).toBeGreaterThan(0);
-      if (!nextDirBefore) expect(existsSync(join(webDir, ".next"))).toBe(false);
+      if (!isNextDirBefore) expect(existsSync(path.join(webDir, ".next"))).toBe(false);
     } finally {
       await killTree(child);
       const { rmSync } = await import("node:fs");
@@ -524,32 +563,6 @@ http.createServer((req, res) => {
 });
 `;
 
-  async function pollPortFile(path: string, timeoutMs: number): Promise<string> {
-    const start = Date.now();
-    for (;;) {
-      try {
-        const content = readFileSync(path, "utf-8").trim();
-        if (content !== "") return content;
-      } catch {
-        // Not written yet.
-      }
-      if (Date.now() - start > timeoutMs) {
-        throw new Error(`timed out waiting for ${path}`);
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-  }
-
-  async function expectRefused(url: string): Promise<void> {
-    let refused = false;
-    try {
-      await fetch(url);
-    } catch {
-      refused = true;
-    }
-    expect(refused).toBe(true);
-  }
-
   it("starts the sidecar after server health and publishes web records", async () => {
     const { runDevCommand } = await import("../src/composer.js");
     const { resolveRunPaths } = await import("../src/paths.js");
@@ -562,7 +575,7 @@ http.createServer((req, res) => {
       { root, argv: ["--namespace", "web-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", SERVER_HEALTHY_SCRIPT] }),
         createWebSpawn: () => ({ executable: process.execPath, argv: ["-e", WEB_HEALTHY_SCRIPT] }),
         onSignal: (signal: string, handler: () => void) => {
@@ -571,22 +584,22 @@ http.createServer((req, res) => {
       }
     );
     try {
-      const webPort = await pollPortFile(paths.webPortFile, 30_000);
+      const webPort = await pollPortFile(paths.webPortFile);
       expect(Number(webPort)).toBeGreaterThan(0);
       // Route-ready: a real request through the sidecar serves the page.
       const page = await fetch(`http://127.0.0.1:${webPort}/`);
       expect(page.status).toBe(200);
       expect(await page.text()).toContain("web");
       // Records: web port/PID files plus a joint run identity.
-      expect(readFileSync(paths.webPortFile, "utf-8").trim()).toBe(webPort);
-      expect(Number(readFileSync(paths.webPidFile, "utf-8").trim())).toBeGreaterThan(0);
-      const identity = JSON.parse(readFileSync(paths.identityFile, "utf-8")) as {
+      expect(readFileSync(paths.webPortFile, "utf8").trim()).toBe(webPort);
+      expect(Number(readFileSync(paths.webPidFile, "utf8").trim())).toBeGreaterThan(0);
+      const identity = JSON.parse(readFileSync(paths.identityFile, "utf8")) as {
         children: Record<string, unknown>;
       };
       expect(identity.children["server"]).toBeDefined();
       expect(identity.children["web"]).toBeDefined();
       // The sidecar child received the live origin and namespaced distDir.
-      const webLog = readFileSync(paths.webLogFile, "utf-8");
+      const webLog = readFileSync(paths.webLogFile, "utf8");
       expect(webLog).toMatch(/^ORIGIN=http:\/\/127\.0\.0\.1:\d+$/m);
       expect(webLog).toContain(`DISTDIR=${paths.buildDir}`);
     } finally {
@@ -623,7 +636,7 @@ http.createServer((req, res) => {
       { root, argv: ["--namespace", "gate-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", SERVER_HEALTHY_SCRIPT] }),
         createWebSpawn: () => ({ executable: process.execPath, argv: ["-e", flakyThenHealthy] }),
         onSignal: (signal: string, handler: () => void) => {
@@ -633,7 +646,7 @@ http.createServer((req, res) => {
     );
     try {
       // The port file appears only after the probe succeeds (third attempt).
-      const webPort = await pollPortFile(paths.webPortFile, 30_000);
+      const webPort = await pollPortFile(paths.webPortFile);
       const page = await fetch(`http://127.0.0.1:${webPort}/`);
       expect(page.status).toBe(200);
     } finally {
@@ -650,16 +663,13 @@ http.createServer((req, res) => {
     const paths = resolveRunPaths(root, "handler-ns");
     const handlers = new Map<string, () => void>();
     let probes = 0;
-    let releaseWarmup: () => void = () => undefined;
-    const warmupHeld = new Promise<boolean>((resolve) => {
-      releaseWarmup = () => resolve(true);
-    });
+    const warmupHeld = Promise.withResolvers<boolean>();
 
     const runPromise = runDevCommand(
       { root, argv: ["--namespace", "handler-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", SERVER_HEALTHY_SCRIPT] }),
         createWebSpawn: () => ({ executable: process.execPath, argv: ["-e", WEB_HEALTHY_SCRIPT] }),
         onSignal: (signal: string, handler: () => void) => {
@@ -670,24 +680,24 @@ http.createServer((req, res) => {
         // record below is observed while the run is still mid-startup.
         probeWeb: () => {
           probes += 1;
-          return probes === 1 ? Promise.resolve(true) : warmupHeld;
+          return probes === 1 ? Promise.resolve(true) : warmupHeld.promise;
         },
       }
     );
     try {
-      const webPort = await pollPortFile(paths.webPortFile, 30_000);
+      const webPort = await pollPortFile(paths.webPortFile);
       expect(Number(webPort)).toBeGreaterThan(0);
       // The record is observable; a signal at this instant must not be lost.
       expect(handlers.has("SIGINT")).toBe(true);
       expect(handlers.has("SIGTERM")).toBe(true);
     } finally {
-      releaseWarmup();
+      warmupHeld.resolve(true);
       // Let the run finish starting (its ready line), never signaling while
       // startup is mid-flight, then stop it through its own handlers.
       const deadline = Date.now() + 30_000;
       while (
         !handlers.has("SIGINT") ||
-        !lines.some((line) => line.startsWith("[dev] ready"))
+        lines.every((line) => !line.startsWith("[dev] ready"))
       ) {
         if (Date.now() > deadline) break;
         await new Promise((resolve) => setTimeout(resolve, 50));
@@ -704,19 +714,16 @@ http.createServer((req, res) => {
     const { lines, logLine } = silentLogs();
     const paths = resolveRunPaths(root, "webstop-ns");
     const handlers = new Map<string, () => void>();
-    let releaseWebSpawn: () => void = () => undefined;
-    const webSpawned = new Promise<void>((resolve) => {
-      releaseWebSpawn = () => resolve();
-    });
+    const webSpawned = Promise.withResolvers<boolean>();
 
     const runPromise = runDevCommand(
       { root, argv: ["--namespace", "webstop-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", SERVER_HEALTHY_SCRIPT] }),
         createWebSpawn: () => {
-          releaseWebSpawn();
+          webSpawned.resolve(true);
           // Never listens: the run stays inside the sidecar wait.
           return { executable: process.execPath, argv: ["-e", "setInterval(() => {}, 1000);"] };
         },
@@ -728,7 +735,7 @@ http.createServer((req, res) => {
       }
     );
     try {
-      await webSpawned;
+      await webSpawned.promise;
       expect(handlers.has("SIGINT")).toBe(true);
       // A user stop mid-startup is a clean shutdown (spec section 7.6),
       // not a child failure.
@@ -754,7 +761,7 @@ http.createServer((req, res) => {
       { root, argv: ["--namespace", "webhang-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", SERVER_HEALTHY_SCRIPT] }),
         createWebSpawn: () => ({ executable: process.execPath, argv: ["-e", "setInterval(() => {}, 1000);"] }),
         webDeadlineMs: 1200,
@@ -781,12 +788,12 @@ http.createServer((req, res) => {
       { root, argv: ["--namespace", "webcrash-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", SERVER_HEALTHY_SCRIPT] }),
         createWebSpawn: () => ({ executable: process.execPath, argv: ["-e", WEB_CRASHING_SCRIPT] }),
       }
     );
-    const serverPort = await pollPortFile(paths.serverPortFile, 30_000);
+    const serverPort = await pollPortFile(paths.serverPortFile);
     const code = await runPromise;
     expect(code).toBe(1);
     expect(lines.join("\n")).toContain("web-fatal-error");
@@ -806,13 +813,13 @@ http.createServer((req, res) => {
       { root, argv: ["--namespace", "servercrash-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", SERVER_CRASHING_SCRIPT] }),
         createWebSpawn: () => ({ executable: process.execPath, argv: ["-e", WEB_HEALTHY_SCRIPT] }),
       }
     );
     // Wait until the web phase published its port, proving both ran.
-    const webPort = await pollPortFile(paths.webPortFile, 30_000);
+    const webPort = await pollPortFile(paths.webPortFile);
     const code = await runPromise;
     expect(code).toBe(1);
     expect(lines.join("\n")).toContain("server-fatal-error");
@@ -831,7 +838,7 @@ http.createServer((req, res) => {
       { root, argv: ["--namespace", "gate-crash-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({
           executable: process.execPath,
           argv: ["-e", SERVER_DYING_DURING_WEB_GATE_SCRIPT],
@@ -840,7 +847,7 @@ http.createServer((req, res) => {
           executable: process.execPath,
           argv: ["-e", "setInterval(() => {}, 1000);"],
         }),
-        webDeadlineMs: 8_000,
+        webDeadlineMs: 8000,
         pollIntervalMs: 100,
       }
     );
@@ -884,28 +891,30 @@ setInterval(() => {}, 1000);
     // Ordered existence transitions prove the record is never re-created
     // after the crash teardown deleted it.
     const transitions: string[] = [];
-    let identitySeen = existsSync(paths.identityFile);
+    let isIdentitySeen = existsSync(paths.identityFile);
     const watcher = setInterval(() => {
-      const identityExists = existsSync(paths.identityFile);
-      if (identityExists !== identitySeen) {
-        identitySeen = identityExists;
-        transitions.push(identityExists ? "created" : "deleted");
+      const isIdentityExists = existsSync(paths.identityFile);
+      if (isIdentityExists === isIdentitySeen) {
+        return;
       }
+
+      isIdentitySeen = isIdentityExists;
+      transitions.push(isIdentityExists ? "created" : "deleted");
     }, 25);
 
-    let code = -1;
+    let code: number;
     try {
       code = await runDevCommand(
         { root, argv: ["--namespace", "crash-record-ns"], env: {} },
         {
           logLine,
-          runBuild: () => undefined,
+          runBuild: () => {},
           createServerSpawn: () => ({
             executable: process.execPath,
             argv: ["-e", SERVER_DYING_DURING_WEB_GATE_SCRIPT],
           }),
           createWebSpawn: () => ({ executable: process.execPath, argv: ["-e", webListeningLate] }),
-          webDeadlineMs: 8_000,
+          webDeadlineMs: 8000,
           pollIntervalMs: 100,
         }
       );
@@ -939,7 +948,7 @@ setInterval(() => {}, 1000);
       { root, argv: ["--namespace", "late-web-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({
           executable: process.execPath,
           argv: ["-e", SERVER_DYING_DURING_WEB_GATE_SCRIPT],
@@ -950,11 +959,11 @@ setInterval(() => {}, 1000);
         startWebPhase: async () => {
           await new Promise((resolve) => setTimeout(resolve, 2500));
           return {
-            pid: 99999,
+            pid: 99_999,
             startTimeMs: Date.now(),
-            exited: new Promise<never>(() => undefined),
+            exited: new Promise<never>(() => {}),
             logFile: paths.webLogFile,
-            port: 65000,
+            port: 65_000,
           };
         },
       }
@@ -971,13 +980,13 @@ setInterval(() => {}, 1000);
     mkdirSync(paths.portsDir, { recursive: true });
     mkdirSync(paths.pidsDir, { recursive: true });
     mkdirSync(paths.runDir, { recursive: true });
-    const serverRecords: Array<[string, string]> = [
+    const serverRecords: [string, string][] = [
       [paths.serverPortFile, "server-port-sentinel\n"],
       [paths.serverPidFile, "server-pid-sentinel\n"],
       [paths.identityFile, "identity-sentinel\n"],
     ];
     for (const [file, content] of serverRecords) {
-      writeFileSync(file, content, "utf-8");
+      writeFileSync(file, content, "utf8");
     }
 
     // The gateway child is fake: it never exits, so the route gate runs out
@@ -985,17 +994,16 @@ setInterval(() => {}, 1000);
     // Only the web records may go; the live server's records must survive.
     // The fake pid reports dead so teardown never signals (or waits on) an
     // OS process it does not own.
-    const fakeSpawnFn: SpawnFn = () => ({ pid: 99999, on: () => undefined });
     const ctx: ServerReadyContext = {
       root,
       namespace: "webfail-ns",
       runId: "webfail-run",
       host: "127.0.0.1",
-      serverPort: 39999,
-      reservedWebPort: 39998,
+      serverPort: 39_999,
+      reservedWebPort: 39_998,
       paths,
       serverChild: {
-        pid: 99998,
+        pid: 99_998,
         startTimeMs: 1,
         service: "server",
         namespace: "webfail-ns",
@@ -1003,7 +1011,7 @@ setInterval(() => {}, 1000);
         logFile: paths.serverLogFile,
         executable: process.execPath,
         argv: [],
-        exited: new Promise<never>(() => undefined),
+        exited: new Promise<never>(() => {}),
       },
       timings: { healthAttempts: 1, healthElapsedMs: 1 },
       isRunOver: () => false,
@@ -1013,7 +1021,7 @@ setInterval(() => {}, 1000);
       startDefaultWebPhase(
         ctx,
         {
-          logLine: () => undefined,
+          logLine: () => {},
           spawnFn: fakeSpawnFn,
           isPidLive: () => false,
           webDeadlineMs: 400,
@@ -1024,7 +1032,7 @@ setInterval(() => {}, 1000);
     ).rejects.toThrow("web readiness timed out");
 
     for (const [file, content] of serverRecords) {
-      expect(readFileSync(file, "utf-8")).toBe(content);
+      expect(readFileSync(file, "utf8")).toBe(content);
     }
   }, 60_000);
 });

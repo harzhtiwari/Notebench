@@ -17,8 +17,9 @@ function parseCompatList(bodyText: string): readonly ModelRef[] {
   if (!isRecord(parsed) || !Array.isArray(parsed["data"])) {
     throw new ProviderError("server_error", "Provider returned an unexpected model list shape");
   }
+  const data = parsed["data"];
   const models: ModelRef[] = [];
-  for (const entry of parsed["data"]) {
+  for (const entry of data) {
     if (isRecord(entry) && typeof entry["id"] === "string" && entry["id"].length > 0) {
       models.push({ id: entry["id"] });
     }
@@ -27,20 +28,17 @@ function parseCompatList(bodyText: string): readonly ModelRef[] {
 }
 
 /**
- * OpenAI-compatible adapter: `GET {baseUrl}/v1/models` in the common
- * OpenAI envelope. The key header is sent only when a key is configured —
- * many local servers accept an empty key.
- */
+OpenAI-compatible adapter: `GET {baseUrl}/v1/models` in the common
+OpenAI envelope. The key header is sent only when a key is configured —
+many local servers accept an empty key.
+*/
 export class OpenAiCompatibleAdapter implements ProviderAdapter {
   readonly id = "openai-compatible" as const;
   readonly defaultBaseUrl = "";
   readonly isLocal = false;
 
   private headers(apiKey: string): Record<string, string> {
-    if (apiKey.length === 0) {
-      return {};
-    }
-    return { authorization: `Bearer ${apiKey}` };
+    return apiKey.length === 0 ? {} : { authorization: `Bearer ${apiKey}` };
   }
 
   async listModels(params: ProviderCallParams): Promise<readonly ModelRef[]> {
@@ -56,12 +54,12 @@ export class OpenAiCompatibleAdapter implements ProviderAdapter {
     const started = Date.now();
     try {
       await this.listModels(params);
-    } catch (err: unknown) {
-      const failed = toFailedTestResult(err);
+    } catch (error: unknown) {
+      const failed = toFailedTestResult(error);
       if (failed) {
         return failed;
       }
-      throw err;
+      throw error;
     }
     return { ok: true, latencyMs: Date.now() - started };
   }

@@ -116,17 +116,17 @@ describe("System Health 6-Point Diagnostic Suite (Ticket 24 - RED phase)", () =>
       expect(result.id).toBe("python_worker");
       expect(result.status).toBe("fail");
       expect(result.message.toLowerCase()).toContain("timeout");
-    }, 10000);
+    }, 10_000);
   });
 
   describe("Probe 3: SQLite WAL Mode", () => {
     const walProbe = getHealthProbe("sqlite_wal");
 
     it("passes when journal_mode is 'wal'", async () => {
-      const mockDb: SqliteHealthProbeTarget = {
+      const mockDb = {
         pragma: vi.fn().mockReturnValue("wal"),
         prepare: vi.fn(),
-      };
+      } satisfies SqliteHealthProbeTarget;
 
       const result = await walProbe.run({
         sqliteDb: mockDb,

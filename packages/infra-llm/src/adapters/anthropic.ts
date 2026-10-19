@@ -26,8 +26,9 @@ function parseAnthropicPage(bodyText: string): AnthropicPage {
   if (!isRecord(parsed) || !Array.isArray(parsed["data"])) {
     throw new ProviderError("server_error", "Provider returned an unexpected model list shape");
   }
+  const data = parsed["data"];
   const models: ModelRef[] = [];
-  for (const entry of parsed["data"]) {
+  for (const entry of data) {
     if (!isRecord(entry) || typeof entry["id"] !== "string" || entry["id"].length === 0) {
       continue;
     }
@@ -55,9 +56,9 @@ function parseAnthropicPage(bodyText: string): AnthropicPage {
 }
 
 /**
- * Anthropic adapter: `GET {baseUrl}/v1/models` with `x-api-key` and
- * `anthropic-version: 2023-06-01`, paging via `after_id` while `has_more`.
- */
+Anthropic adapter: `GET {baseUrl}/v1/models` with `x-api-key` and
+`anthropic-version: 2023-06-01`, paging via `after_id` while `has_more`.
+*/
 export class AnthropicAdapter implements ProviderAdapter {
   readonly id = "anthropic" as const;
   readonly defaultBaseUrl = "https://api.anthropic.com";
@@ -97,12 +98,12 @@ export class AnthropicAdapter implements ProviderAdapter {
         this.headers(params.apiKey),
         params.timeoutMs
       );
-    } catch (err: unknown) {
-      const failed = toFailedTestResult(err);
+    } catch (error: unknown) {
+      const failed = toFailedTestResult(error);
       if (failed) {
         return failed;
       }
-      throw err;
+      throw error;
     }
     return { ok: true, latencyMs: Date.now() - started };
   }

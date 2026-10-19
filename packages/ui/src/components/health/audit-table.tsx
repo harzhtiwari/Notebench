@@ -1,6 +1,6 @@
 import * as React from "react";
 import type { TargetMilestone } from "@notebench/contracts";
-import { CheckCircle, XCircle } from "../primitives/icons.js";
+import { CheckCircleIcon, XCircleIcon } from "../primitives/icons.js";
 import { VersionBadge } from "../primitives/badges.js";
 import { cn } from "../../lib/utils.js";
 
@@ -23,9 +23,9 @@ export interface AuditTableProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 /**
- * AuditTable renders a control / reader / writer / pass-fail table with board styling.
- * Reuses VersionBadge for roadmap milestone labelling.
- */
+AuditTable renders a control / reader / writer / pass-fail table with board styling.
+Reuses VersionBadge for roadmap milestone labelling.
+*/
 export const AuditTable = React.forwardRef<HTMLDivElement, AuditTableProps>(
   (
     {
@@ -117,15 +117,15 @@ export const AuditTable = React.forwardRef<HTMLDivElement, AuditTableProps>(
                       )}
                     </th>
                     <td className="px-[var(--nb-space-3)] py-[var(--nb-space-2)] align-top font-[family-name:var(--nb-font-mono)] text-[length:var(--nb-text-xs)] text-[var(--nb-ink-2)]">
-                      {row.reader || "—"}
+                      {row.reader ?? "—"}
                     </td>
                     <td className="px-[var(--nb-space-3)] py-[var(--nb-space-2)] align-top font-[family-name:var(--nb-font-mono)] text-[length:var(--nb-text-xs)] text-[var(--nb-ink-2)]">
-                      {row.writer || "—"}
+                      {row.writer ?? "—"}
                     </td>
                     <td className="px-[var(--nb-space-3)] py-[var(--nb-space-2)] align-top whitespace-nowrap">
                       {isPass ? (
                         <span className="inline-flex items-center gap-[var(--nb-space-1)] font-[number:var(--nb-weight-bold)] text-[var(--nb-ok)]">
-                          <CheckCircle
+                          <CheckCircleIcon
                             size={16}
                             weight="bold"
                             aria-hidden="true"
@@ -134,7 +134,7 @@ export const AuditTable = React.forwardRef<HTMLDivElement, AuditTableProps>(
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-[var(--nb-space-1)] font-[number:var(--nb-weight-bold)] text-[var(--nb-danger)]">
-                          <XCircle
+                          <XCircleIcon
                             size={16}
                             weight="bold"
                             aria-hidden="true"

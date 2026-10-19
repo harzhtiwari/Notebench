@@ -5,7 +5,6 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import {
   ExportMenu,
   getExportFormatsForArtifactType,
-  type ExportFormat,
   type ExportFormatOption,
 } from "./index.js";
 
@@ -136,7 +135,7 @@ describe("ExportMenu (Ticket 18: export menu reuse)", () => {
         "anki",
         expect.objectContaining({
           format: "anki",
-          extension: expect.stringMatching(/^\.(txt|tsv)$/),
+          extension: ".txt",
         })
       );
     });
@@ -162,7 +161,7 @@ describe("ExportMenu (Ticket 18: export menu reuse)", () => {
 
     it("supports custom formats override list", () => {
       const customFormats: ExportFormatOption[] = [
-        { format: "markdown" as ExportFormat, label: "Custom Markdown", extension: ".md" },
+        { format: "markdown", label: "Custom Markdown", extension: ".md" },
       ];
 
       render(

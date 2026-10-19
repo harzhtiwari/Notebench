@@ -1,13 +1,14 @@
 import * as React from "react";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import type { TargetMilestone } from "@notebench/contracts";
 import { VersionBadge } from "../primitives/badges.js";
 import {
-  Cards,
-  FileText,
-  ListChecks,
-  Question,
-  Slideshow,
-  Sparkle,
+  CardsIcon,
+  FileTextIcon,
+  ListChecksIcon,
+  QuestionIcon,
+  SlideshowIcon,
+  SparkleIcon,
 } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
@@ -24,10 +25,10 @@ export interface StudioToolItem {
 }
 
 /**
- * Unified 10-tool artifact catalog definition (NOTEBENCH_0.1 Decision 1.8).
- * 5 active formats (Report, Study Guide, FAQ, Flashcards, Quiz) and
- * 5 roadmap formats (Audio Overview, Slide Deck, Video Overview, Mind Map, Data Table).
- */
+Unified 10-tool artifact catalog definition (NOTEBENCH_0.1 Decision 1.8).
+5 active formats (Report, Study Guide, FAQ, Flashcards, Quiz) and
+5 roadmap formats (Audio Overview, Slide Deck, Video Overview, Mind Map, Data Table).
+*/
 export const STUDIO_TOOL_CATALOG: readonly StudioToolItem[] = [
   {
     id: "report",
@@ -130,38 +131,40 @@ export function getStudioTool(idOrType: string): StudioToolItem | undefined {
   );
 }
 
-export function getStudioToolIcon(
-  typeOrId: string
-): React.ComponentType<{
-  size?: number | undefined;
-  className?: string | undefined;
-  style?: React.CSSProperties | undefined;
-  "aria-hidden"?: boolean | "true" | "false" | undefined;
-}> {
+export function getStudioToolIcon(typeOrId: string): PhosphorIcon {
   switch (typeOrId) {
-    case "report":
-      return FileText;
-    case "study_guide":
-      return ListChecks;
-    case "faq":
-      return Sparkle;
-    case "flashcards":
-      return Cards;
-    case "quiz":
-      return Question;
+    case "report": {
+      return FileTextIcon;
+    }
+    case "study_guide": {
+      return ListChecksIcon;
+    }
+    case "faq": {
+      return SparkleIcon;
+    }
+    case "flashcards": {
+      return CardsIcon;
+    }
+    case "quiz": {
+      return QuestionIcon;
+    }
     case "deck":
-    case "slides":
-      return Slideshow;
-    case "video":
-      return Slideshow;
-    case "mindmap":
-      return Sparkle;
+    case "slides": {
+      return SlideshowIcon;
+    }
+    case "video": {
+      return SlideshowIcon;
+    }
+    case "mindmap": {
+      return SparkleIcon;
+    }
     case "datatable":
-    case "timeline":
-      return ListChecks;
-    case "audio":
-    default:
-      return Sparkle;
+    case "timeline": {
+      return ListChecksIcon;
+    }
+    default: {
+      return SparkleIcon;
+    }
   }
 }
 
@@ -185,9 +188,9 @@ const TOOL_COLOR_CLASSES: Record<string, string> = {
 };
 
 /**
- * ToolTile: board `.tool` pattern (docs/ui/board.test.html:529-532).
- * Renders an active or roadmap artifact generator tile.
- */
+ToolTile: board `.tool` pattern (docs/ui/board.test.html:529-532).
+Renders an active or roadmap artifact generator tile.
+*/
 export const ToolTile = React.forwardRef<HTMLButtonElement, ToolTileProps>(
   (
     {
@@ -239,13 +242,13 @@ export const ToolTile = React.forwardRef<HTMLButtonElement, ToolTileProps>(
           </span>
         )}
         <span className="truncate">{tool.label}</span>
-        {badge !== undefined ? (
-          <span className="ml-auto shrink-0">{badge}</span>
-        ) : isRoadmap && tool.milestone ? (
+        {badge === undefined ? (isRoadmap && tool.milestone ? (
           <span className="ml-auto shrink-0">
-            <VersionBadge milestone={tool.milestone as TargetMilestone} />
+            <VersionBadge milestone={tool.milestone} />
           </span>
-        ) : null}
+        ) : null) : (
+          <span className="ml-auto shrink-0">{badge}</span>
+        )}
       </button>
     );
   }

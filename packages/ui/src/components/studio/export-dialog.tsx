@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "../primitives/overlays.js";
 import { Button } from "../primitives/button.js";
-import { Download } from "../primitives/icons.js";
+import { DownloadIcon } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
 export interface ExportDialogFormatOption {
@@ -36,7 +36,9 @@ export interface FormatOptionRowProps
     React.ButtonHTMLAttributes<HTMLButtonElement>,
     "role" | "aria-checked"
   > {
-  /** Format icon component or React element (Archive, FileZip, FileDoc, etc.). */
+  /**
+  Format icon component or React element (Archive, FileZip, FileDoc, etc.).
+  */
   icon?:
     | React.ReactNode
     | React.ComponentType<{
@@ -45,15 +47,25 @@ export interface FormatOptionRowProps
         "aria-hidden"?: boolean | "true" | "false";
       }>
     | undefined;
-  /** Primary label for the format (e.g. "ZIP archive", "DOCX"). */
+  /**
+  Primary label for the format (e.g. "ZIP archive", "DOCX").
+  */
   label?: React.ReactNode | undefined;
-  /** Explanatory description below the label. */
+  /**
+  Explanatory description below the label.
+  */
   description?: React.ReactNode | undefined;
-  /** Whether this format option is currently selected. */
+  /**
+  Whether this format option is currently selected.
+  */
   selected?: boolean | undefined;
-  /** Alias for selected. */
+  /**
+  Alias for selected.
+  */
   checked?: boolean | undefined;
-  /** Callback when option is selected. */
+  /**
+  Callback when option is selected.
+  */
   onSelect?: (() => void) | undefined;
 }
 
@@ -72,9 +84,9 @@ function renderIcon(icon: FormatOptionRowProps["icon"]) {
 }
 
 /**
- * Format option row (ticket 19): selectable row showing format icon,
- * label, description, and selection radio indicator.
- */
+Format option row (ticket 19): selectable row showing format icon,
+label, description, and selection radio indicator.
+*/
 const FormatOptionRow = React.forwardRef<
   HTMLButtonElement,
   FormatOptionRowProps
@@ -127,11 +139,11 @@ const FormatOptionRow = React.forwardRef<
           <div className="truncate text-sm font-semibold text-[var(--nb-ink)]">
             {displayLabel}
           </div>
-          {description !== undefined ? (
+          {description === undefined ? null : (
             <div className="text-xs text-[var(--nb-ink-3)]">
               {description}
             </div>
-          ) : null}
+          )}
         </div>
         <span
           aria-hidden="true"
@@ -154,40 +166,64 @@ FormatOptionRow.displayName = "FormatOptionRow";
 
 export interface ExportDialogProps {
   open: boolean;
-  onOpenChange?: ((open: boolean) => void) | undefined;
-  /** Dialog title, defaults to "Export" */
+  onOpenChange?: ((isOpen: boolean) => void) | undefined;
+  /**
+  Dialog title, defaults to "Export"
+  */
   title?: string | undefined;
-  /** Optional helper description beneath the title */
+  /**
+  Optional helper description beneath the title
+  */
   description?: string | undefined;
-  /** List of export formats to display */
+  /**
+  List of export formats to display
+  */
   formats?: ExportDialogFormatOption[] | undefined;
-  /** Alias for formats */
+  /**
+  Alias for formats
+  */
   options?: ExportDialogFormatOption[] | undefined;
-  /** Preselected format ID (uncontrolled or fallback) */
+  /**
+  Preselected format ID (uncontrolled or fallback)
+  */
   defaultFormat?: string | undefined;
-  /** Controlled selected format ID */
+  /**
+  Controlled selected format ID
+  */
   selectedFormat?: string | undefined;
-  /** Callback when format selection changes */
+  /**
+  Callback when format selection changes
+  */
   onFormatChange?: ((format: string) => void) | undefined;
-  /** Callback when primary Export button is clicked */
+  /**
+  Callback when primary Export button is clicked
+  */
   onExport?: ((format: string) => void) | undefined;
-  /** Label for the export button, defaults to "Export" */
+  /**
+  Label for the export button, defaults to "Export"
+  */
   exportLabel?: string | undefined;
-  /** Label for the cancel button, defaults to "Cancel" */
+  /**
+  Label for the cancel button, defaults to "Cancel"
+  */
   cancelLabel?: string | undefined;
-  /** Whether export is in progress */
+  /**
+  Whether export is in progress
+  */
   isExporting?: boolean | undefined;
-  /** Custom children to render in or alongside the format list */
+  /**
+  Custom children to render in or alongside the format list
+  */
   children?: React.ReactNode | undefined;
   className?: string | undefined;
 }
 
 /**
- * Multi-format export dialog (ticket 19): presents export targets with
- * a preselected default format and an Export action.
- */
+Multi-format export dialog (ticket 19): presents export targets with
+a preselected default format and an Export action.
+*/
 const ExportDialog = React.forwardRef<
-  React.ElementRef<typeof DialogContent>,
+  React.ComponentRef<typeof DialogContent>,
   ExportDialogProps
 >(
   (
@@ -223,17 +259,15 @@ const ExportDialog = React.forwardRef<
 
     const prevDefaultFormatRef = React.useRef(defaultFormat);
     React.useEffect(() => {
-      if (
-        prevDefaultFormatRef.current !== defaultFormat &&
-        defaultFormat !== undefined
-      ) {
-        prevDefaultFormatRef.current = defaultFormat;
-        setInternalFormat(defaultFormat);
+      if (defaultFormat === undefined || prevDefaultFormatRef.current === defaultFormat) {
+        return;
       }
+
+      prevDefaultFormatRef.current = defaultFormat;
+      setInternalFormat(defaultFormat);
     }, [defaultFormat]);
 
-    const activeFormat =
-      selectedFormat !== undefined ? selectedFormat : internalFormat;
+    const activeFormat = selectedFormat ?? internalFormat;
 
     const handleSelect = (formatId: string) => {
       if (selectedFormat === undefined) {
@@ -271,8 +305,8 @@ const ExportDialog = React.forwardRef<
             className="gap-[var(--nb-space-2)]"
           >
             {formatList.map((item) => {
-              const itemId = item.id ?? item.value ?? "";
-              const itemLabel = item.label ?? item.name ?? "";
+              const itemId = item.id;
+              const itemLabel = item.label;
               return (
                 <FormatOptionRow
                   key={itemId}
@@ -281,7 +315,7 @@ const ExportDialog = React.forwardRef<
                   description={item.description}
                   selected={activeFormat === itemId}
                   disabled={item.disabled}
-                  onSelect={() => handleSelect(itemId)}
+                  onSelect={() => { handleSelect(itemId); }}
                 />
               );
             })}
@@ -298,7 +332,7 @@ const ExportDialog = React.forwardRef<
               type="button"
               variant="nb_btn_primary"
               size="nb_btn_sm"
-              leadingIcon={Download}
+              leadingIcon={DownloadIcon}
               disabled={!activeFormat || isExporting}
               onClick={() => {
                 if (activeFormat) {

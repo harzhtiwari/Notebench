@@ -3,47 +3,51 @@ import type { HealthProbeResult, HealthProbeStatus } from "@notebench/contracts"
 import { Button } from "../primitives/button.js";
 import { Badge, type BadgeVariant } from "../primitives/badges.js";
 import {
-  ArrowClockwise,
-  CheckCircle,
-  WarningCircle,
-  XCircle,
+  ArrowClockwiseIcon,
+  CheckCircleIcon,
+  WarningCircleIcon,
+  XCircleIcon,
 } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
 export interface StatusCardProps extends React.HTMLAttributes<HTMLElement> {
   probe: HealthProbeResult;
-  /** Descriptor threshold text (e.g. ">= 22.0.0"). Rendered when provided. */
+  /**
+  Descriptor threshold text (e.g. ">= 22.0.0"). Rendered when provided.
+  */
   thresholdLabel?: string | undefined;
-  /** Optional retry action (e.g. re-ping the worker). Rendered when provided. */
+  /**
+  Optional retry action (e.g. re-ping the worker). Rendered when provided.
+  */
   onRetry?: (() => void) | undefined;
   retryLabel?: string | undefined;
 }
 
 const STATUS_META: Record<
   HealthProbeStatus,
-  { label: string; variant: BadgeVariant; Icon: typeof CheckCircle }
+  { label: string; variant: BadgeVariant; Icon: typeof CheckCircleIcon }
 > = {
   pass: {
     label: "Pass",
     variant: "ok",
-    Icon: CheckCircle,
+    Icon: CheckCircleIcon,
   },
   warn: {
     label: "Warning",
     variant: "warn",
-    Icon: WarningCircle,
+    Icon: WarningCircleIcon,
   },
   fail: {
     label: "Fail",
     variant: "danger",
-    Icon: XCircle,
+    Icon: XCircleIcon,
   },
 };
 
 /**
- * Health probe status card (issue 23). Presentational only: probe result in,
- * board `.badge` status out. Status is never color-alone — icon + label always.
- */
+Health probe status card (issue 23). Presentational only: probe result in,
+board `.badge` status out. Status is never color-alone — icon + label always.
+*/
 const StatusCard = React.forwardRef<HTMLElement, StatusCardProps>(
   ({ className, probe, thresholdLabel, onRetry, retryLabel = "Retry", ...props }, ref) => {
     const meta = STATUS_META[probe.status];
@@ -70,24 +74,24 @@ const StatusCard = React.forwardRef<HTMLElement, StatusCardProps>(
           </Badge>
         </div>
         <p className="text-[length:var(--nb-text-xs)] text-[var(--nb-ink-2)]">{probe.message}</p>
-        {thresholdLabel !== undefined ? (
+        {thresholdLabel === undefined ? null : (
           <p className="font-[family-name:var(--nb-font-mono)] text-[length:var(--nb-text-xs)] text-[var(--nb-ink-3)]">
             {thresholdLabel}
           </p>
-        ) : null}
-        {onRetry !== undefined ? (
+        )}
+        {onRetry === undefined ? null : (
           <div className="flex">
             <Button
               type="button"
               variant="nb_btn_ghost"
               size="nb_btn_sm"
               onClick={onRetry}
-              leadingIcon={ArrowClockwise}
+              leadingIcon={ArrowClockwiseIcon}
             >
               {retryLabel}
             </Button>
           </div>
-        ) : null}
+        )}
       </section>
     );
   }

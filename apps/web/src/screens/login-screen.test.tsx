@@ -17,7 +17,18 @@ function stubFetch(handler: (url: string, init?: RequestInit) => Response | Prom
 }
 
 function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), { status });
+  return Response.json(payload, { status });
+}
+
+/**
+Reads the JSON body a stubbed request received; every stub here posts JSON text.
+*/
+function jsonBody(init: RequestInit | undefined): unknown {
+  const body = init?.body;
+  if (typeof body !== "string") {
+    throw new TypeError("Expected a JSON string request body.");
+  }
+  return JSON.parse(body);
 }
 
 describe("login screen (ticket 02)", () => {
@@ -42,8 +53,8 @@ describe("login screen (ticket 02)", () => {
       throw new Error(`unexpected request: ${url}`);
     });
 
-    const seen: Array<string> = [];
-    render(<LoginScreen navigate={(to) => seen.push(to)} />);
+    const seen: string[] = [];
+    render(<LoginScreen navigate={(to) => { seen.push(to); }} />);
     await waitFor(() => {
       expect(seen).toEqual(["/setup"]);
     });
@@ -60,8 +71,8 @@ describe("login screen (ticket 02)", () => {
       throw new Error(`unexpected request: ${url}`);
     });
 
-    const seen: Array<string> = [];
-    render(<LoginScreen navigate={(to) => seen.push(to)} />);
+    const seen: string[] = [];
+    render(<LoginScreen navigate={(to) => { seen.push(to); }} />);
     await screen.findByRole("dialog", { name: "Unlock Notebench" });
 
     fireEvent.change(screen.getByLabelText("Passcode"), {
@@ -80,7 +91,7 @@ describe("login screen (ticket 02)", () => {
         return json({ setupComplete: true, requiresPasscode: true });
       }
       if (url.endsWith("/api/session/login") && init?.method === "POST") {
-        const body = JSON.parse(String(init.body)) as { passcode: string };
+        const body = jsonBody(init) as { passcode: string };
         if (body.passcode === "locked-out") {
           return json(
             {

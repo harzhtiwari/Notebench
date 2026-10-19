@@ -19,23 +19,23 @@ const CELL_CLASS =
   "px-[var(--nb-space-3)] py-[var(--nb-space-2)] text-sm text-[var(--nb-ink)]";
 
 /**
- * List-view row. Cells render from the single `DASHBOARD_COLUMNS_CONFIG`
- * (parent ticket 05, §5 reuse rule) — all 7 columns, same order as the
- * header the parent renders from the same config. Display-only; actions
- * come through `children`.
- */
+List-view row. Cells render from the single `DASHBOARD_COLUMNS_CONFIG`
+(parent ticket 05, §5 reuse rule) — all 7 columns, same order as the
+header the parent renders from the same config. Display-only; actions
+come through `children`.
+*/
 const NotebookRow = React.forwardRef<HTMLTableRowElement, NotebookRowProps>(
   ({ className, notebook, onOpen, children, ...props }, ref) => {
-    if (!notebook) return null;
     const renderCell = (column: DashboardColumnId): React.ReactNode => {
       switch (column) {
-        case "emblem":
+        case "emblem": {
           return (
             <td key={column} className={cn(CELL_CLASS, "text-center")}>
               <NotebookEmblem />
             </td>
           );
-        case "title":
+        }
+        case "title": {
           return (
             <td key={column} className={cn(CELL_CLASS, "font-medium")}>
               <Button
@@ -51,31 +51,36 @@ const NotebookRow = React.forwardRef<HTMLTableRowElement, NotebookRowProps>(
               </Button>
             </td>
           );
-        case "sourcesCount":
+        }
+        case "sourcesCount": {
           return (
             <td key={column} className={CELL_CLASS}>
               {notebook.sourcesCount}
             </td>
           );
-        case "artifactsCount":
+        }
+        case "artifactsCount": {
           return (
             <td key={column} className={CELL_CLASS}>
               {notebook.artifactsCount}
             </td>
           );
-        case "storageFootprint":
+        }
+        case "storageFootprint": {
           return (
             <td key={column} className={CELL_CLASS}>
               {formatBytes(notebook.storageBytes)}
             </td>
           );
-        case "lastUpdated":
+        }
+        case "lastUpdated": {
           return (
             <td key={column} className={CELL_CLASS}>
               {formatRelativeTime(notebook.updatedAt)}
             </td>
           );
-        case "actions":
+        }
+        case "actions": {
           return (
             <td key={column} className={CELL_CLASS}>
               <div
@@ -88,6 +93,7 @@ const NotebookRow = React.forwardRef<HTMLTableRowElement, NotebookRowProps>(
               </div>
             </td>
           );
+        }
       }
     };
 

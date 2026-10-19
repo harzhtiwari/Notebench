@@ -15,20 +15,20 @@ describe("Domain Account: Settings Service (@notebench/domain-account)", () => {
     it("throws NotFoundError when setting ID does not exist in registry", () => {
       expect(() => {
         validateSettingUpdate("invalid.setting.key", "value");
-      }).toThrowError(NotFoundError);
+      }).toThrow(NotFoundError);
     });
 
     it("throws ValidationError when attempting to modify a disabled setting", () => {
       // account.multiUser is disabled until 0.3
       expect(() => {
         validateSettingUpdate("account.multiUser", true);
-      }).toThrowError(ValidationError);
+      }).toThrow(ValidationError);
 
       try {
         validateSettingUpdate("account.multiUser", true);
-      } catch (err: unknown) {
-        expect(err).toBeInstanceOf(ValidationError);
-        const validationErr = err as ValidationError;
+      } catch (error: unknown) {
+        expect(error).toBeInstanceOf(ValidationError);
+        const validationErr = error as ValidationError;
         expect(validationErr.message).toContain("disabled until version 0.3");
       }
     });
@@ -37,7 +37,7 @@ describe("Domain Account: Settings Service (@notebench/domain-account)", () => {
       // preferences.theme must be "light" | "dark" | "system"
       expect(() => {
         validateSettingUpdate("preferences.theme", "neon-rainbow");
-      }).toThrowError(ValidationError);
+      }).toThrow(ValidationError);
     });
 
     it("returns parsed and validated value for valid update", () => {

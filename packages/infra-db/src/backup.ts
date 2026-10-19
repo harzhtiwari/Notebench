@@ -5,7 +5,7 @@ import {
   statSync,
   unlinkSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import path from "node:path";
 import Database from "better-sqlite3";
 import { InvarianceViolationError, NotFoundError } from "@notebench/contracts";
 import type { Logger } from "@notebench/logger";
@@ -23,8 +23,8 @@ export const RETENTION_WINDOW_DAYS = 14;
 const MS_PER_DAY = 86_400_000;
 
 export function defaultBackupDir(repoRoot: string = process.cwd()): string {
-  return join(
-    resolve(repoRoot),
+  return path.join(
+    path.resolve(repoRoot),
     NOTEBOOK_DIR_NAME,
     SQLITE_DB_DIR_NAME,
     SQLITE_BACKUP_DIR_NAME
@@ -42,24 +42,25 @@ function compareNewestFirst(
   a: BackupSnapshotEntry,
   b: BackupSnapshotEntry
 ): number {
-  if (b.mtimeMs !== a.mtimeMs) return b.mtimeMs - a.mtimeMs;
-  return b.name.localeCompare(a.name);
+  return b.mtimeMs === a.mtimeMs ? b.name.localeCompare(a.name) : b.mtimeMs - a.mtimeMs;
 }
 
-/** List `.sqlite` snapshots in a backup dir, newest first. */
+/**
+List `.sqlite` snapshots in a backup dir, newest first.
+*/
 export function listBackupSnapshots(backupDir: string): BackupSnapshotEntry[] {
   if (!existsSync(backupDir)) return [];
   const entries: BackupSnapshotEntry[] = [];
-  for (const entry of readdirSync(backupDir, { withFileTypes: true })) {
-    if (!entry.isFile()) continue;
-    if (!entry.name.endsWith(".sqlite")) continue;
-    const path = join(backupDir, entry.name);
-    const metaPath = `${path}.meta.json`;
+  const dirEntries = readdirSync(backupDir, { withFileTypes: true });
+  for (const entry of dirEntries) {
+    if (!entry.isFile() || !entry.name.endsWith(".sqlite")) continue;
+    const snapshotPath = path.join(backupDir, entry.name);
+    const metaPath = `${snapshotPath}.meta.json`;
     entries.push({
       name: entry.name,
-      path,
+      path: snapshotPath,
       metaPath: existsSync(metaPath) ? metaPath : undefined,
-      mtimeMs: statSync(path).mtimeMs,
+      mtimeMs: statSync(snapshotPath).mtimeMs,
     });
   }
   entries.sort(compareNewestFirst);
@@ -73,9 +74,9 @@ export interface RetentionOptions {
 }
 
 /**
- * Pure retention selector: keep the newest `maxRetained` plus every snapshot
- * inside the day window (union keeps more); the newest entry is always kept.
- */
+Pure retention selector: keep the newest `maxRetained` plus every snapshot
+inside the day window (union keeps more); the newest entry is always kept.
+*/
 export function selectBackupsToPrune(
   entries: BackupSnapshotEntry[],
   options: RetentionOptions = {}
@@ -85,7 +86,7 @@ export function selectBackupsToPrune(
     retentionDays = RETENTION_WINDOW_DAYS,
     nowMs = Date.now(),
   } = options;
-  const sorted = [...entries].sort(compareNewestFirst);
+  const sorted = entries.toSorted(compareNewestFirst);
   if (sorted.length === 0) return [];
   const cutoffMs = nowMs - retentionDays * MS_PER_DAY;
   const keep = new Set<number>();
@@ -93,9 +94,8 @@ export function selectBackupsToPrune(
   for (let i = 0; i < sorted.length && i < countCap; i++) {
     keep.add(i);
   }
-  for (let i = 0; i < sorted.length; i++) {
-    const entry = sorted[i];
-    if (entry !== undefined && entry.mtimeMs >= cutoffMs) {
+  for (const [i, entry] of sorted.entries()) {
+    if (entry.mtimeMs >= cutoffMs) {
       keep.add(i);
     }
   }
@@ -112,7 +112,9 @@ export interface PruneBackupsOptions extends RetentionOptions {
   logger?: Logger | undefined;
 }
 
-/** Apply the retention policy; `.sqlite` and `.meta.json` are deleted together. */
+/**
+Apply the retention policy; `.sqlite` and `.meta.json` are deleted together.
+*/
 export function pruneBackups(
   backupDir: string,
   options: PruneBackupsOptions = {}
@@ -145,17 +147,17 @@ export interface OnlineBackupResult {
 }
 
 /**
- * Hot backup of a live database via the SQLite Online Backup API
- * (better-sqlite3 db.backup(); raw file copy is banned by spec 8.1).
- * The promise is awaited BEFORE any close: closing aborts pending backups.
- */
+Hot backup of a live database via the SQLite Online Backup API
+(better-sqlite3 db.backup(); raw file copy is banned by spec 8.1).
+The promise is awaited BEFORE any close: closing aborts pending backups.
+*/
 export async function backupLiveDatabase(
   activeDb: Database.Database,
   destPath: string,
-  logger?: Logger | undefined
+  logger?: Logger  
 ): Promise<OnlineBackupResult> {
-  const dest = resolve(destPath);
-  mkdirSync(dirname(dest), { recursive: true });
+  const dest = path.resolve(destPath);
+  mkdirSync(path.dirname(dest), { recursive: true });
   if (existsSync(dest)) unlinkSync(dest);
   logger?.info({ dest }, "Starting SQLite online backup");
   const progress = await activeDb.backup(dest);
@@ -173,18 +175,18 @@ export interface IntegrityReport {
 }
 
 /**
- * Verify a backup by opening a FRESH READ-WRITE handle and running
- * PRAGMA integrity_check (read-only WAL opens are unreliable: sqlite.org WAL §5).
- */
+Verify a backup by opening a FRESH READ-WRITE handle and running
+PRAGMA integrity_check (read-only WAL opens are unreliable: sqlite.org WAL §5).
+*/
 export function verifyBackupIntegrity(backupDbPath: string): IntegrityReport {
   if (!existsSync(backupDbPath)) {
     throw new NotFoundError(`Backup file not found at ${backupDbPath}`);
   }
   const probe = new Database(backupDbPath);
   try {
-    const rows = probe.pragma("integrity_check") as Array<{
+    const rows = probe.pragma("integrity_check") as {
       integrity_check: string;
-    }>;
+    }[];
     const first = rows[0];
     if (first?.integrity_check !== "ok") {
       throw new InvarianceViolationError(
@@ -203,27 +205,27 @@ export interface WalShmRemoval {
 }
 
 /**
- * Unlink `<db>-wal` / `<db>-shm` residue files. Production rollback (spec 8.3)
- * ALWAYS closes the database first: unlinking while open fails with EBUSY on
- * Windows and the files auto-vanish on the last clean close anyway.
- */
+Unlink `<db>-wal` / `<db>-shm` residue files. Production rollback (spec 8.3)
+ALWAYS closes the database first: unlinking while open fails with EBUSY on
+Windows and the files auto-vanish on the last clean close anyway.
+*/
 export function removeWalShmFiles(
   activeDbPath: string,
-  logger?: Logger | undefined
+  logger?: Logger  
 ): WalShmRemoval {
-  let walRemoved = false;
-  let shmRemoved = false;
+  let isWalRemoved = false;
+  let isShmRemoved = false;
   const walPath = `${activeDbPath}-wal`;
   if (existsSync(walPath)) {
     logger?.info({ walPath }, "Unlinking orphaned WAL file");
     unlinkSync(walPath);
-    walRemoved = true;
+    isWalRemoved = true;
   }
   const shmPath = `${activeDbPath}-shm`;
   if (existsSync(shmPath)) {
     logger?.info({ shmPath }, "Unlinking orphaned SHM file");
     unlinkSync(shmPath);
-    shmRemoved = true;
+    isShmRemoved = true;
   }
-  return { walRemoved, shmRemoved };
+  return { walRemoved: isWalRemoved, shmRemoved: isShmRemoved };
 }

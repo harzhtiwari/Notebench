@@ -35,7 +35,7 @@ describe("SqliteVectorStore & SqliteFtsStore (Ticket #15 - RED phase)", () => {
     });
 
     it("converts Float32Array to Buffer preserving byte offsets", () => {
-      const f32 = new Float32Array([1.0, -1.0, 0.5]);
+      const f32 = new Float32Array([1, -1, 0.5]);
       const buf = toVectorBlob(f32);
 
       expect(buf).toBeInstanceOf(Buffer);
@@ -61,7 +61,7 @@ describe("SqliteVectorStore & SqliteFtsStore (Ticket #15 - RED phase)", () => {
 
     it("returns empty string for empty or whitespace query", () => {
       expect(sanitizeFtsQuery("")).toBe("");
-      expect(sanitizeFtsQuery("   ")).toBe("");
+      expect(sanitizeFtsQuery(' '.repeat(3))).toBe("");
     });
   });
 
@@ -115,7 +115,7 @@ describe("SqliteVectorStore & SqliteFtsStore (Ticket #15 - RED phase)", () => {
 
       expect(results).toHaveLength(2);
       expect(results[0]?.chunkRowid).toBe(1);
-      expect(results[0]?.distance).toBeCloseTo(0.0, 3);
+      expect(results[0]?.distance).toBeCloseTo(0, 3);
       expect(results[1]?.chunkRowid).toBe(2);
     });
 

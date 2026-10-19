@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { join } from "node:path";
+import path from "node:path";
 import getPort from "get-port";
 import { startBackendPhase } from "../src/composer.js";
 import type { ServerReadyContext } from "../src/composer.js";
@@ -18,9 +18,9 @@ import type { RouteProbe, UiProbeResult, WarmupGateTiming, WarmupResult } from "
 import { makeTempRoot as createTempRoot, removeTempRoots, silentLogs } from "./temp-dir.js";
 
 /**
- * The browser automation dependency is mocked so probe-contract tests never
- * launch a real Chromium (warmup-browser imports it lazily at probe time).
- */
+The browser automation dependency is mocked so probe-contract tests never
+launch a real Chromium (warmup-browser imports it lazily at probe time).
+*/
 const playwrightMock = vi.hoisted(() => ({
   launch: vi.fn(),
 }));
@@ -30,20 +30,20 @@ vi.mock("@playwright/test", () => ({
 }));
 
 /**
- * Ticket 07 RED suite (written before implementation).
- *
- * Seams under test (public boundaries only):
- * - route level: real-gate polling with per-gate timings (deadline, no fixed
- *   sleeps), timeout surfaces the sidecar-preparation exit code.
- * - ui level: ready is withheld until the browser probe reports the mounted
- *   marker plus a screen control; failure exits 5 with diagnostics naming
- *   the origin, the last probe state, and the timings.
- * - ready line: always states both origins, the verified level, and timings;
- *   a route-level line never carries ui timings (listening and UI-warmed are
- *   never conflated).
- *
- * Vocabulary: orchestrator, namespace, run identity (spec section 1).
- */
+Ticket 07 RED suite (written before implementation).
+
+Seams under test (public boundaries only):
+- route level: real-gate polling with per-gate timings (deadline, no fixed
+  sleeps), timeout surfaces the sidecar-preparation exit code.
+- ui level: ready is withheld until the browser probe reports the mounted
+  marker plus a screen control; failure exits 5 with diagnostics naming
+  the origin, the last probe state, and the timings.
+- ready line: always states both origins, the verified level, and timings;
+  a route-level line never carries ui timings (listening and UI-warmed are
+  never conflated).
+
+Vocabulary: orchestrator, namespace, run identity (spec section 1).
+*/
 
 function controllableTime(): { now: () => number; sleep: (ms: number) => Promise<void> } {
   let t = 1_000_000;
@@ -51,6 +51,38 @@ function controllableTime(): { now: () => number; sleep: (ms: number) => Promise
     now: () => t,
     sleep: async (ms: number) => {
       t += ms;
+    },
+  };
+}
+
+class TimeoutError extends Error {
+  constructor() {
+    super("Timeout 30000ms exceeded.");
+    this.name = "TimeoutError";
+  }
+}
+
+async function captureFailure(promise: Promise<unknown>): Promise<unknown> {
+  try {
+    await promise;
+    return null;
+  } catch (error: unknown) {
+    return error;
+  }
+}
+
+function mountedAfter(callsToPass: number): {
+  probe: (webOrigin: string) => Promise<UiProbeResult>;
+  seen: string[];
+} {
+  const seen: string[] = [];
+  let calls = 0;
+  return {
+    seen,
+    probe: async (webOrigin: string) => {
+      seen.push(webOrigin);
+      calls += 1;
+      return calls >= callsToPass ? { mounted: true, screenControl: "Complete Setup" } : { mounted: false, screenControl: null };
     },
   };
 }
@@ -92,13 +124,9 @@ describe("ticket 07: browser probe observation contract (P21)", () => {
     };
   }
 
-  function timeoutError(message: string): Error {
-    return Object.assign(new Error(message), { name: "TimeoutError" });
-  }
-
   it("returns an unmounted observation when the mount marker never appears in budget", async () => {
     const page = makePage({
-      waitForSelector: vi.fn().mockRejectedValue(timeoutError("Timeout 30000ms exceeded.")),
+      waitForSelector: vi.fn().mockRejectedValue(new TimeoutError()),
     });
     const browser = makeBrowser(page);
     playwrightMock.launch.mockResolvedValue(browser);
@@ -112,7 +140,7 @@ describe("ticket 07: browser probe observation contract (P21)", () => {
 
   it("returns an unmounted observation when navigation times out", async () => {
     const page = makePage({
-      goto: vi.fn().mockRejectedValue(timeoutError("Timeout 30000ms exceeded.")),
+      goto: vi.fn().mockRejectedValue(new TimeoutError()),
     });
     const browser = makeBrowser(page);
     playwrightMock.launch.mockResolvedValue(browser);
@@ -132,9 +160,8 @@ describe("ticket 07: browser probe observation contract (P21)", () => {
     const browser = makeBrowser(page);
     browser.close = vi.fn().mockRejectedValue(new Error("browser close failed"));
     playwrightMock.launch.mockResolvedValue(browser);
-    const error = await probeAppMounted("http://127.0.0.1:41002", { timeoutMs: 50 }).then(
-      () => null,
-      (e: unknown) => e
+    const error = await captureFailure(
+      probeAppMounted("http://127.0.0.1:41002", { timeoutMs: 50 })
     );
     expect(error).toBe(primary);
   });
@@ -224,7 +251,7 @@ describe("ticket 07: route readiness level", () => {
   // (with its own log tail), not the web sidecar.
   it("names the first dead service on the route-gate abort (P13)", async () => {
     const { now, sleep } = controllableTime();
-    const error = await verifyWarmup(
+    const error = await captureFailure(verifyWarmup(
       {
         mode: "route",
         serverOrigin: "http://127.0.0.1:41001",
@@ -240,10 +267,7 @@ describe("ticket 07: route readiness level", () => {
         firstDeadService: () => "server",
         getLogTail: () => ["server-fatal-boot-error"],
       }
-    ).then(
-      () => null,
-      (e: unknown) => e
-    );
+    ));
     expect(error).toBeInstanceOf(OrchestratorError);
     expect((error as OrchestratorError).exitCode).toBe(1);
     const message = (error as Error).message;
@@ -254,7 +278,7 @@ describe("ticket 07: route readiness level", () => {
 
   it("route gate timeout fails with the sidecar-preparation exit code", async () => {
     const { now, sleep } = controllableTime();
-    const error = await verifyWarmup(
+    const error = await captureFailure(verifyWarmup(
       {
         mode: "route",
         serverOrigin: "http://127.0.0.1:41001",
@@ -264,33 +288,13 @@ describe("ticket 07: route readiness level", () => {
         intervalMs: 150,
       },
       { now, sleep }
-    ).then(
-      () => null,
-      (e: unknown) => e
-    );
+    ));
     expect(error).toBeInstanceOf(OrchestratorError);
     expect((error as OrchestratorError).exitCode).toBe(4);
   });
 });
 
 describe("ticket 07: ui readiness level", () => {
-  function mountedAfter(callsToPass: number): {
-    probe: (webOrigin: string) => Promise<UiProbeResult>;
-    seen: string[];
-  } {
-    const seen: string[] = [];
-    let calls = 0;
-    return {
-      seen,
-      probe: async (webOrigin: string) => {
-        seen.push(webOrigin);
-        calls += 1;
-        if (calls >= callsToPass) return { mounted: true, screenControl: "Complete Setup" };
-        return { mounted: false, screenControl: null };
-      },
-    };
-  }
-
   it("withholds ready until the marker and a screen control pass", async () => {
     const { now, sleep } = controllableTime();
     const { probe, seen } = mountedAfter(3);
@@ -318,7 +322,7 @@ describe("ticket 07: ui readiness level", () => {
 
   it("ui failure exits 5 with the origin, last probe state, and timings", async () => {
     const { now, sleep } = controllableTime();
-    const error = await verifyWarmup(
+    const error = await captureFailure(verifyWarmup(
       {
         mode: "ui",
         serverOrigin: "http://127.0.0.1:41001",
@@ -329,10 +333,7 @@ describe("ticket 07: ui readiness level", () => {
         intervalMs: 150,
       },
       { now, sleep }
-    ).then(
-      () => null,
-      (e: unknown) => e
-    );
+    ));
     expect(error).toBeInstanceOf(OrchestratorError);
     expect((error as OrchestratorError).exitCode).toBe(5);
     const message = (error as Error).message;
@@ -343,7 +344,7 @@ describe("ticket 07: ui readiness level", () => {
 
   it("a crashing browser probe still fails visibly with exit 5, not a raw throw", async () => {
     const { now, sleep } = controllableTime();
-    const error = await verifyWarmup(
+    const error = await captureFailure(verifyWarmup(
       {
         mode: "ui",
         serverOrigin: "http://127.0.0.1:41001",
@@ -356,10 +357,7 @@ describe("ticket 07: ui readiness level", () => {
         intervalMs: 150,
       },
       { now, sleep }
-    ).then(
-      () => null,
-      (e: unknown) => e
-    );
+    ));
     expect(error).toBeInstanceOf(OrchestratorError);
     expect((error as OrchestratorError).exitCode).toBe(5);
     expect((error as Error).message).toContain("missing browser binary");
@@ -367,7 +365,7 @@ describe("ticket 07: ui readiness level", () => {
 
   it("ui gate honors its own deadline, not the route budget", async () => {
     const { now, sleep } = controllableTime();
-    const error = await verifyWarmup(
+    const error = await captureFailure(verifyWarmup(
       {
         mode: "ui",
         serverOrigin: "http://127.0.0.1:41001",
@@ -379,10 +377,7 @@ describe("ticket 07: ui readiness level", () => {
         intervalMs: 150,
       },
       { now, sleep }
-    ).then(
-      () => null,
-      (e: unknown) => e
-    );
+    ));
     expect(error).toBeInstanceOf(OrchestratorError);
     expect((error as OrchestratorError).exitCode).toBe(5);
     expect((error as Error).message).toContain("within 900ms");
@@ -390,7 +385,7 @@ describe("ticket 07: ui readiness level", () => {
 
   it("bounds each probe attempt by the remaining ui budget (P7)", async () => {
     const started = Date.now();
-    const error = await verifyWarmup({
+    const error = await captureFailure(verifyWarmup({
       mode: "ui",
       serverOrigin: "http://127.0.0.1:41001",
       webOrigin: "http://127.0.0.1:41002",
@@ -398,27 +393,24 @@ describe("ticket 07: ui readiness level", () => {
       probeUi: () =>
         new Promise<UiProbeResult>((resolve) => {
           const timer = setTimeout(
-            () => resolve({ mounted: true, screenControl: "form" }),
-            3_000
+            () => { resolve({ mounted: true, screenControl: "form" }); },
+            3000
           );
           timer.unref();
         }),
       deadlineMs: 35_000,
       uiDeadlineMs: 150,
       intervalMs: 20,
-    }).then(
-      () => null,
-      (e: unknown) => e
-    );
+    }));
     expect(error).toBeInstanceOf(OrchestratorError);
     expect((error as OrchestratorError).exitCode).toBe(5);
     expect((error as Error).message).toContain("within 150ms");
-    expect(Date.now() - started).toBeLessThan(1_500);
+    expect(Date.now() - started).toBeLessThan(1500);
   });
 
   it("exit-5 failure carries the failing service log tail (P7, spec 7.6)", async () => {
     const { now, sleep } = controllableTime();
-    const error = await verifyWarmup(
+    const error = await captureFailure(verifyWarmup(
       {
         mode: "ui",
         serverOrigin: "http://127.0.0.1:41001",
@@ -429,10 +421,7 @@ describe("ticket 07: ui readiness level", () => {
         intervalMs: 150,
       },
       { now, sleep, getLogTail: () => ["compiling / (1)…", "ready in 1200ms"] }
-    ).then(
-      () => null,
-      (e: unknown) => e
-    );
+    ));
     expect(error).toBeInstanceOf(OrchestratorError);
     expect((error as OrchestratorError).exitCode).toBe(5);
     const message = (error as Error).message;
@@ -447,7 +436,7 @@ describe("ticket 07: ui readiness level", () => {
     // The route gate passes while both services are alive; the server dies
     // right after it, so the ui loop is the gate that observes the death.
     let dead: "server" | null = null;
-    const error = await verifyWarmup(
+    const error = await captureFailure(verifyWarmup(
       {
         mode: "ui",
         serverOrigin: "http://127.0.0.1:41001",
@@ -467,10 +456,7 @@ describe("ticket 07: ui readiness level", () => {
         firstDeadService: () => dead,
         getLogTail: () => ["server-fatal-boot-error"],
       }
-    ).then(
-      () => null,
-      (e: unknown) => e
-    );
+    ));
     expect(error).toBeInstanceOf(OrchestratorError);
     expect((error as OrchestratorError).exitCode).toBe(1);
     const message = (error as Error).message;
@@ -481,7 +467,7 @@ describe("ticket 07: ui readiness level", () => {
 
   it("ui mode without a browser probe fails fast instead of hanging", async () => {
     const { now, sleep } = controllableTime();
-    const error = await verifyWarmup(
+    const error = await captureFailure(verifyWarmup(
       {
         mode: "ui",
         serverOrigin: "http://127.0.0.1:41001",
@@ -491,10 +477,7 @@ describe("ticket 07: ui readiness level", () => {
         intervalMs: 150,
       },
       { now, sleep }
-    ).then(
-      () => null,
-      (e: unknown) => e
-    );
+    ));
     expect(error).toBeInstanceOf(OrchestratorError);
     expect((error as OrchestratorError).exitCode).toBe(1);
   });
@@ -588,14 +571,14 @@ http.createServer((req, res) => {
       service: "web",
       namespace: ctx.namespace,
       runId: ctx.runId,
-      logFile: join(root, "web-fixture.log"),
+      logFile: path.join(root, "web-fixture.log"),
       cwd: root,
     });
     return {
       pid: child.pid,
       startTimeMs: child.startTimeMs,
       exited: child.exited,
-      logFile: join(root, "web-fixture.log"),
+      logFile: path.join(root, "web-fixture.log"),
       port,
     };
   }
@@ -608,7 +591,7 @@ http.createServer((req, res) => {
       { root, argv: ["--namespace", "warmup-route-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", HEALTHY_SCRIPT] }),
         startWebPhase: (ctx) => startWebFixture(ctx, root),
         probeWeb: () => Promise.resolve(true),
@@ -642,7 +625,7 @@ http.createServer((req, res) => {
       { root, argv: ["--namespace", "warmup-hook-ns"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", HEALTHY_SCRIPT] }),
         startWebPhase: (ctx) => startWebFixture(ctx, root),
         probeWeb: () => Promise.resolve(true),
@@ -664,11 +647,11 @@ http.createServer((req, res) => {
   it("ui mode with a failing probe withholds ready and fails with exit 5", async () => {
     const root = makeTempRoot();
     const { lines, logLine } = silentLogs();
-    const failure = await startBackendPhase(
+    const failure = await captureFailure(startBackendPhase(
       { root, argv: ["--namespace", "warmup-ui-fail-ns", "--warmup", "ui"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", HEALTHY_SCRIPT] }),
         startWebPhase: (ctx) => startWebFixture(ctx, root),
         probeWeb: () => Promise.resolve(true),
@@ -677,10 +660,7 @@ http.createServer((req, res) => {
         warmupUiDeadlineMs: 400,
         pollIntervalMs: 25,
       }
-    ).then(
-      () => null,
-      (error: unknown) => error
-    );
+    ));
     expect(failure).toBeInstanceOf(OrchestratorError);
     expect((failure as OrchestratorError).exitCode).toBe(5);
     expect(lines.some((line) => line.includes("level="))).toBe(false);
@@ -693,7 +673,7 @@ http.createServer((req, res) => {
       { root, argv: ["--namespace", "warmup-ui-pass-ns", "--warmup", "ui"], env: {} },
       {
         logLine,
-        runBuild: () => undefined,
+        runBuild: () => {},
         createServerSpawn: () => ({ executable: process.execPath, argv: ["-e", HEALTHY_SCRIPT] }),
         startWebPhase: (ctx) => startWebFixture(ctx, root),
         probeWeb: () => Promise.resolve(true),

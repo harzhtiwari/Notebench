@@ -24,9 +24,8 @@ interface PersistedLayout {
 function readStored(): PersistedLayout | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(workspaceLayout.storageKey);
-    if (raw === null) return null;
-    return JSON.parse(raw) as PersistedLayout;
+    const raw = globalThis.localStorage.getItem(workspaceLayout.storageKey);
+    return raw === null ? null : (JSON.parse(raw) as PersistedLayout);
   } catch {
     return null;
   }
@@ -36,15 +35,15 @@ function asWidth(value: unknown, fallback: number): number {
   return typeof value === "number" ? clampPanelWidth(value) : fallback;
 }
 
-function asFlag(value: unknown): boolean {
+function isStoredFlag(value: unknown): boolean {
   return value === true;
 }
 
 /**
- * Single hook owning workspace layout state (ticket 12 one-hook rule).
- * Serves both side panels; widths persist in localStorage and survive reload.
- * Mounted guard avoids hydration mismatch on static export.
- */
+Single hook owning workspace layout state (ticket 12 one-hook rule).
+Serves both side panels; widths persist in localStorage and survive reload.
+Mounted guard avoids hydration mismatch on static export.
+*/
 export function useWorkspaceLayout(): WorkspaceLayoutState {
   const [leftWidth, setLeftWidthState] = React.useState<number>(
     workspaceLayout.leftDefault
@@ -63,8 +62,8 @@ export function useWorkspaceLayout(): WorkspaceLayoutState {
       setRightWidthState(
         asWidth(stored.rightWidth, workspaceLayout.rightDefault)
       );
-      setLeftCollapsed(asFlag(stored.leftCollapsed));
-      setRightCollapsed(asFlag(stored.rightCollapsed));
+      setLeftCollapsed(isStoredFlag(stored.leftCollapsed));
+      setRightCollapsed(isStoredFlag(stored.rightCollapsed));
     }
     setIsHydrated(true);
   }, []);
@@ -72,7 +71,7 @@ export function useWorkspaceLayout(): WorkspaceLayoutState {
   React.useEffect(() => {
     if (!isHydrated || typeof window === "undefined") return;
     try {
-      window.localStorage.setItem(
+      globalThis.localStorage.setItem(
         workspaceLayout.storageKey,
         JSON.stringify({ leftWidth, rightWidth, leftCollapsed, rightCollapsed })
       );

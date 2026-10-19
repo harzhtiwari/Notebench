@@ -23,14 +23,16 @@ import {
 } from "../index.js";
 
 /**
- * In-memory AccountRepositoryPort implementation for session unit tests.
- * The atomic passcode change reaches into the session fake's rows, mirroring
- * the single SQLite database the real repositories share.
- */
+In-memory AccountRepositoryPort implementation for session unit tests.
+The atomic passcode change reaches into the session fake's rows, mirroring
+the single SQLite database the real repositories share.
+*/
 class InMemoryAccountRepository implements AccountRepositoryPort {
   private owner: UserRecord | null = null;
 
-  /** Test hook: simulates the owner row vanishing between findOwner() and the write. */
+  /**
+  Test hook: simulates the owner row vanishing between findOwner() and the write.
+  */
   vanishOnWrite = false;
 
   constructor(private readonly sessions: InMemorySessionRepository) {}
@@ -63,7 +65,7 @@ class InMemoryAccountRepository implements AccountRepositoryPort {
     passcodeHash: string,
     keepSessionId: string
   ): Promise<PasscodeChangeResult | null> {
-    if (this.vanishOnWrite || !this.owner || this.owner.id !== userId) {
+    if (this.vanishOnWrite || this.owner?.id !== userId) {
       return null;
     }
     this.owner = { ...this.owner, passcodeHash, updatedAt: new Date().toISOString() };
@@ -73,8 +75,8 @@ class InMemoryAccountRepository implements AccountRepositoryPort {
 }
 
 /**
- * In-memory SessionRepositoryPort implementation for session unit tests.
- */
+In-memory SessionRepositoryPort implementation for session unit tests.
+*/
 class InMemorySessionRepository implements SessionRepositoryPort {
   readonly rows = new Map<string, SessionRecord>();
 
@@ -119,10 +121,12 @@ class InMemorySessionRepository implements SessionRepositoryPort {
   async deleteOtherSessions(userId: string, currentSessionId: string): Promise<number> {
     let revoked = 0;
     for (const [id, row] of this.rows) {
-      if (row.userId === userId && id !== currentSessionId) {
-        this.rows.delete(id);
-        revoked += 1;
+      if (id === currentSessionId || row.userId !== userId) {
+        continue;
       }
+
+      this.rows.delete(id);
+      revoked += 1;
     }
     return revoked;
   }
@@ -130,16 +134,18 @@ class InMemorySessionRepository implements SessionRepositoryPort {
   async deleteAllSessions(userId: string): Promise<number> {
     let revoked = 0;
     for (const [id, row] of this.rows) {
-      if (row.userId === userId) {
-        this.rows.delete(id);
-        revoked += 1;
+      if (row.userId !== userId) {
+        continue;
       }
+
+      this.rows.delete(id);
+      revoked += 1;
     }
     return revoked;
   }
 
   async listSessions(userId: string): Promise<SessionRecord[]> {
-    return [...this.rows.values()].filter((row) => row.userId === userId);
+    return this.rows.values().filter((row) => row.userId === userId).toArray();
   }
 }
 
@@ -199,9 +205,9 @@ describe("SessionService (Ticket 02 - RED Phase)", () => {
       try {
         await service.login({ passcode: `wrong-passphrase-number-${attempt}-ok` });
         expect.unreachable();
-      } catch (err: unknown) {
-        expect(err).toBeInstanceOf(ValidationError);
-        expect((err as ValidationError).details?.["attemptsRemaining"]).toBe(5 - attempt);
+      } catch (error: unknown) {
+        expect(error).toBeInstanceOf(ValidationError);
+        expect((error as ValidationError).details?.["attemptsRemaining"]).toBe(5 - attempt);
       }
     }
 
@@ -209,9 +215,9 @@ describe("SessionService (Ticket 02 - RED Phase)", () => {
     try {
       await service.login({ passcode: PASSCODE });
       expect.unreachable();
-    } catch (err: unknown) {
-      expect(err).toBeInstanceOf(RateLimitedError);
-      const details = (err as RateLimitedError).details ?? {};
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(RateLimitedError);
+      const details = (error as RateLimitedError).details ?? {};
       expect(details["retryAfterSeconds"]).toBe(SESSION_CONFIG.lockoutWindowSeconds);
     }
 
@@ -271,9 +277,9 @@ describe("SessionService (Ticket 02 - RED Phase)", () => {
         newPasscode: "a-brand-new-secure-passphrase-here",
       });
       expect.unreachable();
-    } catch (err: unknown) {
-      expect(err).toBeInstanceOf(ValidationError);
-      expect((err as ValidationError).details?.["reason"]).toBe("owner_missing");
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(ValidationError);
+      expect((error as ValidationError).details?.["reason"]).toBe("owner_missing");
     }
 
     // The failed change leaves the current session untouched.

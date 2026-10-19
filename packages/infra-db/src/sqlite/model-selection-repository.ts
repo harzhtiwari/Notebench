@@ -5,9 +5,9 @@ import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { providerModelSelections } from "../schema/sqlite.js";
 
 /**
- * Migration DDL creating the provider_model_selections table (Ticket 04, D6/D7).
- * Mirrors the Drizzle schema in ../schema/sqlite.ts (providerModelSelections).
- */
+Migration DDL creating the provider_model_selections table (Ticket 04, D6/D7).
+Mirrors the Drizzle schema in ../schema/sqlite.ts (providerModelSelections).
+*/
 export const INIT_MODEL_SELECTIONS_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS provider_model_selections (
   id TEXT PRIMARY KEY,
@@ -23,13 +23,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS provider_model_selections_user_kind
 `;
 
 /**
- * Executes the provider_model_selections table migration on a SQLite database.
- */
+Executes the provider_model_selections table migration on a SQLite database.
+*/
 export function migrateModelSelectionsTable(sqlite: Database.Database): void {
   sqlite.exec(INIT_MODEL_SELECTIONS_TABLE_SQL);
 }
 
-/** Chat vs embedding selection kinds (PRD D6: stored separately). */
+/**
+Chat vs embedding selection kinds (PRD D6: stored separately).
+*/
 export type ModelSelectionKind = "chat" | "embedding";
 
 export interface ModelSelection {
@@ -59,10 +61,10 @@ function toSelection(row: typeof providerModelSelections.$inferSelect): StoredMo
 }
 
 /**
- * SQLite persistence for selected chat/embedding models (Ticket 04, D6/D7).
- * One row per (user_id, kind): saving a kind replaces only that kind.
- * Custom typed model IDs persist verbatim — no allowlist here.
- */
+SQLite persistence for selected chat/embedding models (Ticket 04, D6/D7).
+One row per (user_id, kind): saving a kind replaces only that kind.
+Custom typed model IDs persist verbatim — no allowlist here.
+*/
 export class SqliteModelSelectionRepository {
   constructor(
     private readonly db: BetterSQLite3Database<{ providerModelSelections: typeof providerModelSelections }>,
@@ -117,7 +119,7 @@ export class SqliteModelSelectionRepository {
     return record;
   }
 
-  async get(userId: string, kind: ModelSelectionKind): Promise<StoredModelSelection | null> {
+  get(userId: string, kind: ModelSelectionKind): Promise<StoredModelSelection | null> {
     const row = this.db
       .select()
       .from(providerModelSelections)
@@ -126,18 +128,15 @@ export class SqliteModelSelectionRepository {
       )
       .limit(1)
       .get();
-    if (!row) {
-      return null;
-    }
-    return toSelection(row);
+    return Promise.resolve(row ? toSelection(row) : null);
   }
 
-  async list(userId: string): Promise<StoredModelSelection[]> {
+  list(userId: string): Promise<StoredModelSelection[]> {
     const rows = this.db
       .select()
       .from(providerModelSelections)
       .where(eq(providerModelSelections.userId, userId))
       .all();
-    return rows.map(toSelection);
+    return Promise.resolve(rows.map((row) => toSelection(row)));
   }
 }

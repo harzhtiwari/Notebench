@@ -111,19 +111,21 @@ describe("Declarative Settings Registry Contract (@notebench/contracts)", () => 
         const parseResult = setting.valueSchema.safeParse(setting.defaultValue);
         expect(
           parseResult.success,
-          `Setting ${setting.id} defaultValue failed valueSchema: ${parseResult.error?.message}`
+          `Setting ${setting.id} defaultValue failed valueSchema: ${parseResult.error?.message ?? ""}`
         ).toBe(true);
       }
     });
 
     it("enforces Requirement C2: every disabled setting has a roadmap milestone and explanation >= 10 chars", () => {
       for (const setting of SETTINGS_REGISTRY) {
-        if (setting.status.state === "disabled") {
-          expect(["0.2", "0.3", "later"]).toContain(setting.status.until);
-          expect(setting.status.reason.length).toBeGreaterThanOrEqual(10);
-          expect(setting.status.reason.toLowerCase()).not.toBe("tbd");
-          expect(setting.status.reason.toLowerCase()).not.toBe("coming soon");
+        if (setting.status.state !== "disabled") {
+          continue;
         }
+
+        expect(["0.2", "0.3", "later"]).toContain(setting.status.until);
+        expect(setting.status.reason.length).toBeGreaterThanOrEqual(10);
+        expect(setting.status.reason.toLowerCase()).not.toBe("tbd");
+        expect(setting.status.reason.toLowerCase()).not.toBe("coming soon");
       }
     });
 
@@ -199,8 +201,12 @@ describe("Declarative Settings Registry Contract (@notebench/contracts)", () => 
       for (const page of SettingsPageIdSchema.options) {
         const pageSections = getSectionsForPage(page);
         expect(pageSections.length).toBeGreaterThan(0);
-        for (let i = 1; i < pageSections.length; i++) {
-          expect(pageSections[i]!.order).toBeGreaterThanOrEqual(pageSections[i - 1]!.order);
+        let previousOrder: number | undefined;
+        for (const section of pageSections) {
+          if (previousOrder !== undefined) {
+            expect(section.order).toBeGreaterThanOrEqual(previousOrder);
+          }
+          previousOrder = section.order;
         }
       }
     });

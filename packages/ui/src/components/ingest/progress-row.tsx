@@ -1,5 +1,5 @@
 import * as React from "react";
-import { FilePdf, FileText, Globe, CheckCircle, resolveIconProps } from "../primitives/icons.js";
+import { FilePdfIcon, FileTextIcon, GlobeIcon, CheckCircleIcon, resolveIconProps } from "../primitives/icons.js";
 import { Badge } from "../primitives/badges.js";
 import { cn } from "../../lib/utils.js";
 
@@ -12,32 +12,35 @@ export type IngestState =
   | "failed";
 
 export interface ProgressRowProps extends React.HTMLAttributes<HTMLDivElement> {
-  /** Source display name; also the progressbar accessible name. */
+  /**
+  Source display name; also the progressbar accessible name.
+  */
   name: string;
   format: IngestFormat;
   state: IngestState;
-  /** 0–100 completion. */
+  /**
+  0–100 completion.
+  */
   value: number;
-  /** Server-sanitised failure reason, shown only when state is failed. */
+  /**
+  Server-sanitised failure reason, shown only when state is failed.
+  */
   error?: string | undefined;
 }
 
 function FormatIcon({ format }: { format: IngestFormat }): React.JSX.Element {
   if (format === "pdf") {
-    return <FilePdf size={20} aria-hidden="true" />;
+    return <FilePdfIcon size={20} aria-hidden="true" />;
   }
-  if (format === "web") {
-    return <Globe size={20} aria-hidden="true" />;
-  }
-  return <FileText size={20} aria-hidden="true" />;
+  return format === "web" ? <GlobeIcon size={20} aria-hidden="true" /> : <FileTextIcon size={20} aria-hidden="true" />;
 }
 
 /**
- * Per-Source ingest progress (ticket 08): board `.progress` bar with
- * `role="progressbar"` exactly like the job-progress section, plus a format
- * tile and an ok-role `Indexed` badge when ready. Presentational only — queue
- * states and values arrive via props (SSE lands with the parent ticket).
- */
+Per-Source ingest progress (ticket 08): board `.progress` bar with
+`role="progressbar"` exactly like the job-progress section, plus a format
+tile and an ok-role `Indexed` badge when ready. Presentational only — queue
+states and values arrive via props (SSE lands with the parent ticket).
+*/
 const ProgressRow = React.forwardRef<HTMLDivElement, ProgressRowProps>(
   ({ className, name, format, state, value, error, ...props }, ref) => (
     <div
@@ -77,7 +80,7 @@ const ProgressRow = React.forwardRef<HTMLDivElement, ProgressRowProps>(
         {state === "ready" ? (
           <Badge
             variant="ok"
-            icon={<CheckCircle {...resolveIconProps({ size: "sm", weight: "fill" })} />}
+            icon={<CheckCircleIcon {...resolveIconProps({ size: "sm", weight: "fill" })} />}
           >
             Indexed
           </Badge>

@@ -4,6 +4,7 @@ import { render, screen, fireEvent, cleanup, act } from "@testing-library/react"
 import * as React from "react";
 
 import { Flashcard, QuizQuestion, AutosaveDot, DraftRecoveryBanner } from "./index.js";
+import type { QuizQuestionDraft } from "./quiz-question.js";
 import { autosavePolicy } from "../../lib/autosave-policy.js";
 import { useAutosave } from "../../hooks/use-autosave.js";
 import type { FlashcardItem, QuizQuestion as QuizQuestionType } from "@notebench/contracts";
@@ -39,7 +40,7 @@ describe("workbench flashcard and quiz patterns (ticket 15)", () => {
       expect(autosavePolicy).toBeDefined();
       expect(autosavePolicy.draftDebounceMs).toBe(300);
       expect(autosavePolicy.commitQuietMs).toBe(2000);
-      expect(autosavePolicy.commitCeilingMs).toBe(30000);
+      expect(autosavePolicy.commitCeilingMs).toBe(30_000);
     });
 
     it("300ms draft write fires on edit; no commit during typing", async () => {
@@ -59,7 +60,7 @@ describe("workbench flashcard and quiz patterns (ticket 15)", () => {
             <input
               aria-label="editor"
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => { setText(e.target.value); }}
             />
             <span data-testid="status">{status}</span>
           </div>
@@ -105,7 +106,7 @@ describe("workbench flashcard and quiz patterns (ticket 15)", () => {
             <input
               aria-label="editor"
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => { setText(e.target.value); }}
             />
             <span data-testid="status">{status}</span>
           </div>
@@ -148,7 +149,7 @@ describe("workbench flashcard and quiz patterns (ticket 15)", () => {
           <input
             aria-label="editor"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => { setText(e.target.value); }}
           />
         );
       }
@@ -183,7 +184,7 @@ describe("workbench flashcard and quiz patterns (ticket 15)", () => {
           <input
             aria-label="editor"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => { setText(e.target.value); }}
             onBlur={() => {
               void commit();
             }}
@@ -220,7 +221,7 @@ describe("workbench flashcard and quiz patterns (ticket 15)", () => {
             <input
               aria-label="editor"
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => { setText(e.target.value); }}
             />
             <span data-testid="status">{status}</span>
             {error && <span data-testid="error">{error.message}</span>}
@@ -420,7 +421,11 @@ describe("workbench flashcard and quiz patterns (ticket 15)", () => {
       const options = screen.getAllByRole("radio");
       expect(options).toHaveLength(3);
 
-      fireEvent.click(options[1]!);
+      const secondOption = options[1];
+      if (secondOption === undefined) {
+        throw new Error("Expected a second quiz option to click");
+      }
+      fireEvent.click(secondOption);
       expect(onSelectOption).toHaveBeenCalledWith("c3333333-3333-4333-8333-333333333332");
     });
 
@@ -469,7 +474,7 @@ describe("workbench flashcard and quiz patterns (ticket 15)", () => {
     });
 
     it("supports edit mode for prompt, options and explanation", () => {
-      const onSave = vi.fn();
+      const onSave = vi.fn<(updated: QuizQuestionDraft) => void>();
       render(
         <QuizQuestion
           question={sampleQuestion}
@@ -486,7 +491,10 @@ describe("workbench flashcard and quiz patterns (ticket 15)", () => {
       fireEvent.click(saveBtn);
 
       expect(onSave).toHaveBeenCalled();
-      const savedData = onSave.mock.calls[0]![0];
+      const savedData = onSave.mock.calls[0]?.[0];
+      if (savedData === undefined) {
+        throw new Error("Expected onSave to be called with a draft");
+      }
       expect(savedData.prompt).toBe("Updated prompt");
       expect(savedData.correctOptionId).toBe(sampleQuestion.correctOptionId);
     });

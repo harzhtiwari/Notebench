@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import {
@@ -22,17 +22,17 @@ function parseNonNegativeInt(
   flag: string
 ): number | undefined {
   if (value === undefined) return undefined;
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed < 0) {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
     throw new Error(`Invalid value for ${flag}: ${value}`);
   }
   return parsed;
 }
 
 /**
- * Thin process entry for scripts/backup.sh and scripts/restore.sh.
- * All policy lives in backup.js; this file only maps argv to it.
- */
+Thin process entry for scripts/backup.sh and scripts/restore.sh.
+All policy lives in backup.js; this file only maps argv to it.
+*/
 export async function runBackupCli(argv: string[]): Promise<number> {
   const command = argv[0];
   try {
@@ -43,10 +43,10 @@ export async function runBackupCli(argv: string[]): Promise<number> {
         if (dbPath === undefined || destPath === undefined) {
           return usageError("backup requires <dbPath> <destPath>");
         }
-        const db = new Database(resolve(dbPath), { fileMustExist: true });
+        const db = new Database(path.resolve(dbPath), { fileMustExist: true });
         try {
           // Awaited before close: closing aborts pending backups.
-          const result = await backupLiveDatabase(db, resolve(destPath));
+          const result = await backupLiveDatabase(db, path.resolve(destPath));
           console.log(JSON.stringify(result));
           return 0;
         } finally {
@@ -56,7 +56,7 @@ export async function runBackupCli(argv: string[]): Promise<number> {
       case "verify": {
         const dbPath = argv[1];
         if (dbPath === undefined) return usageError("verify requires <dbPath>");
-        const report = verifyBackupIntegrity(resolve(dbPath));
+        const report = verifyBackupIntegrity(path.resolve(dbPath));
         console.log(JSON.stringify(report));
         return 0;
       }
@@ -72,15 +72,15 @@ export async function runBackupCli(argv: string[]): Promise<number> {
           } else if (token === "--days") {
             days = parseNonNegativeInt(argv[i + 1], "--days");
             i++;
-          } else if (token !== undefined && !token.startsWith("--") && dir === undefined) {
+          } else if (dir === undefined && token !== undefined && !token.startsWith("--")) {
             dir = token;
           } else {
             return usageError(`unexpected argument: ${token ?? ""}`);
           }
         }
-        const result = pruneBackups(resolve(dir ?? defaultBackupDir()), {
-          ...(max === undefined ? {} : { maxRetained: max }),
-          ...(days === undefined ? {} : { retentionDays: days }),
+        const result = pruneBackups(path.resolve(dir ?? defaultBackupDir()), {
+          ...(max !== undefined && { maxRetained: max }),
+          ...(days !== undefined && { retentionDays: days }),
         });
         console.log(JSON.stringify(result));
         return 0;
@@ -90,7 +90,7 @@ export async function runBackupCli(argv: string[]): Promise<number> {
         if (dbPath === undefined) {
           return usageError("unlink-wal-shm requires <dbPath>");
         }
-        const result = removeWalShmFiles(resolve(dbPath));
+        const result = removeWalShmFiles(path.resolve(dbPath));
         console.log(JSON.stringify(result));
         return 0;
       }
@@ -98,13 +98,13 @@ export async function runBackupCli(argv: string[]): Promise<number> {
         return usageError(`unknown command: ${command ?? "(none)"}`);
       }
     }
-  } catch (err) {
-    console.error(`backup-cli failed: ${err instanceof Error ? err.message : String(err)}`);
+  } catch (error) {
+    console.error(`backup-cli failed: ${error instanceof Error ? error.message : String(error)}`);
     return 1;
   }
 }
 
-if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
+if (path.resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
   const code = await runBackupCli(process.argv.slice(2));
-  process.exit(code);
+  process.exitCode = code;
 }

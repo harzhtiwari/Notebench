@@ -257,9 +257,9 @@ describe("EmptyState Primitive", () => {
       fireEvent.click(paste);
       expect(handlePaste).toHaveBeenCalledTimes(1);
 
-      const addUrls = screen.getByRole("button", { name: "Add URLs" });
-      expect(addUrls.className).toContain("bg-[var(--nb-sheet)]");
-      fireEvent.click(addUrls);
+      const urlsButton = screen.getByRole("button", { name: "Add URLs" });
+      expect(urlsButton.className).toContain("bg-[var(--nb-sheet)]");
+      fireEvent.click(urlsButton);
       expect(handleAddUrl).toHaveBeenCalledTimes(1);
 
       expect(root.className).toContain("bg-[var(--nb-well)]");

@@ -75,8 +75,7 @@ describe("RFC 8785 (JCS) SHA-256 Cryptographic Sibling Invariance (Decision 4.2,
       ],
     };
 
-    expect(() =>
-      verifySiblingInvariance(currentDoc, proposedDoc, VALID_UUID_2)
+    expect(() => { verifySiblingInvariance(currentDoc, proposedDoc, VALID_UUID_2); }
     ).not.toThrow();
 
     const patched = applySurgicalPatch(currentDoc, {
@@ -117,15 +116,14 @@ describe("RFC 8785 (JCS) SHA-256 Cryptographic Sibling Invariance (Decision 4.2,
       ],
     };
 
-    expect(() =>
-      verifySiblingInvariance(currentDoc, taintedDoc, VALID_UUID_2)
-    ).toThrowError(InvarianceViolationError);
+    expect(() => { verifySiblingInvariance(currentDoc, taintedDoc, VALID_UUID_2); }
+    ).toThrow(InvarianceViolationError);
 
     try {
       verifySiblingInvariance(currentDoc, taintedDoc, VALID_UUID_2);
-    } catch (err: unknown) {
-      expect(err).toBeInstanceOf(InvarianceViolationError);
-      expect((err as InvarianceViolationError).code).toBe("INVARIANCE_VIOLATION");
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(InvarianceViolationError);
+      expect((error as InvarianceViolationError).code).toBe("INVARIANCE_VIOLATION");
     }
   });
 
@@ -146,9 +144,8 @@ describe("RFC 8785 (JCS) SHA-256 Cryptographic Sibling Invariance (Decision 4.2,
       ],
     };
 
-    expect(() =>
-      verifySiblingInvariance(currentDoc, truncatedDoc, VALID_UUID_2)
-    ).toThrowError(InvarianceViolationError);
+    expect(() => { verifySiblingInvariance(currentDoc, truncatedDoc, VALID_UUID_2); }
+    ).toThrow(InvarianceViolationError);
   });
 
   it("applies surgical patch and invariance uniformly across flashcards and quizzes (reuse rule)", () => {
@@ -169,10 +166,12 @@ describe("RFC 8785 (JCS) SHA-256 Cryptographic Sibling Invariance (Decision 4.2,
     const card1 = updatedFc.cards[1];
     expect(card0).toBeDefined();
     expect(card1).toBeDefined();
-    if (card0 && card1) {
-      expect(card0.front).toBe("F1 updated");
-      expect(card1.front).toBe("F2");
+    if (!(card0 && card1)) {
+      return;
     }
+
+    expect(card0.front).toBe("F1 updated");
+    expect(card1.front).toBe("F2");
   });
 
   it("enforces expectedPreHash: rejects a stale target digest, accepts a matching one", () => {
@@ -199,7 +198,7 @@ describe("RFC 8785 (JCS) SHA-256 Cryptographic Sibling Invariance (Decision 4.2,
         replacement,
         expectedPreHash: "0".repeat(64),
       })
-    ).toThrowError(InvarianceViolationError);
+    ).toThrow(InvarianceViolationError);
 
     const patched = applySurgicalPatch(currentDoc, {
       targetId: VALID_UUID_2,
@@ -233,7 +232,7 @@ describe("RFC 8785 (JCS) SHA-256 Cryptographic Sibling Invariance (Decision 4.2,
         replacement,
         expectedSiblingHashes: { [VALID_UUID_1]: "f".repeat(64) },
       })
-    ).toThrowError(InvarianceViolationError);
+    ).toThrow(InvarianceViolationError);
 
     const patched = applySurgicalPatch(currentDoc, {
       targetId: VALID_UUID_2,

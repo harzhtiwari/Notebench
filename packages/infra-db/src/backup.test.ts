@@ -7,7 +7,7 @@ import {
   copyFileSync,
   utimesSync,
 } from "node:fs";
-import { resolve, join } from "node:path";
+import path from "node:path";
 import Database from "better-sqlite3";
 import {
   MAX_RETAINED_BACKUPS,
@@ -23,20 +23,20 @@ import {
 import { runBackupCli } from "./backup-cli.js";
 import { rollbackFromBackup } from "./migrator/pre-migration-backup.js";
 
-const TEST_ROOT = resolve(`.tmp/build/t26-backup-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
+const TEST_ROOT = path.resolve(`.tmp/build/t26-backup-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
 
 /**
- * Windows holds file locks briefly after sqlite handles close, longer under
- * parallel suites: retry transient lock errors with a generous budget.
- */
-async function removeDirWithRetry(dir: string): Promise<void> {
+Windows holds file locks briefly after sqlite handles close, longer under
+parallel suites: retry transient lock errors with a generous budget.
+*/
+async function removeDirWithRetry(): Promise<void> {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     try {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(TEST_ROOT, { recursive: true, force: true });
       return;
     } catch (error: unknown) {
-      const code = (error as { code?: string }).code;
-      if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
+      const code = (error as { code?: string }).code ?? "";
+      if (["EPERM", "EBUSY", "ENOTEMPTY"].includes(code) && attempt < 59) {
         await new Promise((resolve) => setTimeout(resolve, 250));
         continue;
       }
@@ -46,7 +46,7 @@ async function removeDirWithRetry(dir: string): Promise<void> {
 }
 
 function freshCase(name: string): string {
-  const dir = join(TEST_ROOT, name);
+  const dir = path.join(TEST_ROOT, name);
   mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -57,9 +57,9 @@ function openWalDb(dbPath: string): Database.Database {
   return db;
 }
 
-function rowCount(db: Database.Database, table: string): number {
+function rowCount(db: Database.Database): number {
   const row = db
-    .prepare(`SELECT COUNT(*) AS c FROM ${table}`)
+    .prepare("SELECT COUNT(*) AS c FROM note")
     .get() as { c: number };
   return row.c;
 }
@@ -72,7 +72,7 @@ describe("ticket-26 live-WAL online backup", () => {
   afterEach(async () => {
     if (existsSync(TEST_ROOT)) {
       try {
-        await removeDirWithRetry(TEST_ROOT);
+        await removeDirWithRetry();
       } catch {
         // Non-fatal if OS locks are briefly transitioning
       }
@@ -81,7 +81,7 @@ describe("ticket-26 live-WAL online backup", () => {
 
   it("backup taken on a live WAL database opens cleanly with snapshot row count", async () => {
     const dir = freshCase("live-wal");
-    const dbPath = join(dir, "app.sqlite");
+    const dbPath = path.join(dir, "app.sqlite");
     const activeDb = openWalDb(dbPath);
     try {
       activeDb.exec("CREATE TABLE note (id TEXT PRIMARY KEY, title TEXT);");
@@ -90,12 +90,12 @@ describe("ticket-26 live-WAL online backup", () => {
       // WAL frames are present and un-checkpointed: this is a live backup.
       expect(existsSync(`${dbPath}-wal`)).toBe(true);
 
-      const dest = join(dir, "snapshot.sqlite");
+      const dest = path.join(dir, "snapshot.sqlite");
       const result = await backupLiveDatabase(activeDb, dest);
 
       // Writes after the awaited backup must not leak into the snapshot.
       activeDb.exec("INSERT INTO note VALUES ('4', 'd'), ('5', 'e');");
-      expect(rowCount(activeDb, "note")).toBe(5);
+      expect(rowCount(activeDb)).toBe(5);
 
       expect(result.totalPages).toBeGreaterThan(0);
       expect(existsSync(dest)).toBe(true);
@@ -106,7 +106,7 @@ describe("ticket-26 live-WAL online backup", () => {
       // Opened via a fresh handle: snapshot row count, not the live count.
       const probe = new Database(dest);
       try {
-        expect(rowCount(probe, "note")).toBe(3);
+        expect(rowCount(probe)).toBe(3);
       } finally {
         probe.close();
       }
@@ -117,7 +117,7 @@ describe("ticket-26 live-WAL online backup", () => {
 
   it("verifyBackupIntegrity throws for a missing file instead of creating one", () => {
     const dir = freshCase("verify-missing");
-    const missing = join(dir, "nope.sqlite");
+    const missing = path.join(dir, "nope.sqlite");
     expect(() => verifyBackupIntegrity(missing)).toThrow(/not found/i);
     expect(existsSync(missing)).toBe(false);
   });
@@ -131,7 +131,7 @@ describe("ticket-26 retention policy (last 10 or 14 days, never newest)", () => 
   afterEach(async () => {
     if (existsSync(TEST_ROOT)) {
       try {
-        await removeDirWithRetry(TEST_ROOT);
+        await removeDirWithRetry();
       } catch {
         // Non-fatal if OS locks are briefly transitioning
       }
@@ -144,7 +144,7 @@ describe("ticket-26 retention policy (last 10 or 14 days, never newest)", () => 
     const dayMs = 86_400_000;
     for (let i = 0; i < 12; i++) {
       const name = `pre-migration-202001${String(i + 1).padStart(2, "0")}-000000-aaaaaaaa.sqlite`;
-      const file = join(dir, name);
+      const file = path.join(dir, name);
       writeFileSync(file, `backup-${i}`);
       writeFileSync(`${file}.meta.json`, JSON.stringify({ i }));
       // All 30+i days old: outside the 14-day window. Higher i = newer.
@@ -155,7 +155,7 @@ describe("ticket-26 retention policy (last 10 or 14 days, never newest)", () => 
 
     const before = listBackupSnapshots(dir);
     expect(before).toHaveLength(12);
-    const newestBefore = before[0] as BackupSnapshotEntry;
+    const newestBefore = before[0];
 
     const { kept, pruned } = pruneBackups(dir, {
       maxRetained: 10,
@@ -165,12 +165,12 @@ describe("ticket-26 retention policy (last 10 or 14 days, never newest)", () => 
 
     expect(kept).toHaveLength(10);
     expect(pruned).toHaveLength(2);
-    expect(kept).toContain(newestBefore.name);
+    expect(kept).toContain(newestBefore?.name);
     expect(listBackupSnapshots(dir)).toHaveLength(10);
     // Manifests are pruned atomically with their database file.
     for (const name of pruned) {
-      expect(existsSync(join(dir, name))).toBe(false);
-      expect(existsSync(join(dir, `${name}.meta.json`))).toBe(false);
+      expect(existsSync(path.join(dir, name))).toBe(false);
+      expect(existsSync(path.join(dir, `${name}.meta.json`))).toBe(false);
     }
   });
 
@@ -228,7 +228,7 @@ describe("ticket-26 rollback proof (spec 8.3 close-first order)", () => {
   afterEach(async () => {
     if (existsSync(TEST_ROOT)) {
       try {
-        await removeDirWithRetry(TEST_ROOT);
+        await removeDirWithRetry();
       } catch {
         // Non-fatal if OS locks are briefly transitioning
       }
@@ -237,7 +237,7 @@ describe("ticket-26 rollback proof (spec 8.3 close-first order)", () => {
 
   it("WAL/SHM residue exists before rollback, is removed by the code, rows are restored", async () => {
     const dir = freshCase("rollback-83");
-    const dbPath = join(dir, "app.sqlite");
+    const dbPath = path.join(dir, "app.sqlite");
     const walPath = `${dbPath}-wal`;
     const shmPath = `${dbPath}-shm`;
 
@@ -245,7 +245,7 @@ describe("ticket-26 rollback proof (spec 8.3 close-first order)", () => {
     activeDb.exec("CREATE TABLE doc (id TEXT PRIMARY KEY, body TEXT);");
     activeDb.exec("INSERT INTO doc VALUES ('1', 'pre-migration');");
 
-    const snapshotPath = join(dir, "snapshot.sqlite");
+    const snapshotPath = path.join(dir, "snapshot.sqlite");
     await backupLiveDatabase(activeDb, snapshotPath);
 
     // Simulate migration damage with un-checkpointed WAL frames.
@@ -253,11 +253,11 @@ describe("ticket-26 rollback proof (spec 8.3 close-first order)", () => {
     expect(existsSync(walPath)).toBe(true);
     activeDb.close();
 
-    const residueWal = join(dir, "residue-wal-bytes");
+    const residueWal = path.join(dir, "residue-wal-bytes");
     const liveDb2 = openWalDb(dbPath);
     liveDb2.exec("INSERT INTO doc VALUES ('3', 'more-damage');");
     copyFileSync(walPath, residueWal);
-    const residueShm = existsSync(shmPath) ? join(dir, "residue-shm-bytes") : undefined;
+    const residueShm = existsSync(shmPath) ? path.join(dir, "residue-shm-bytes") : undefined;
     if (residueShm !== undefined) copyFileSync(shmPath, residueShm);
     liveDb2.close();
 
@@ -277,9 +277,9 @@ describe("ticket-26 rollback proof (spec 8.3 close-first order)", () => {
 
     const restored = new Database(dbPath);
     try {
-      const rows = restored.prepare("SELECT id FROM doc ORDER BY id").all() as Array<{ id: string }>;
+      const rows = restored.prepare("SELECT id FROM doc ORDER BY id").all() as { id: string }[];
       expect(rows.map((r) => r.id)).toEqual(["1"]);
-      const check = restored.pragma("integrity_check") as Array<{ integrity_check: string }>;
+      const check = restored.pragma("integrity_check") as { integrity_check: string }[];
       expect(check[0]?.integrity_check).toBe("ok");
     } finally {
       restored.close();
@@ -292,13 +292,13 @@ describe("ticket-26 rollback proof (spec 8.3 close-first order)", () => {
     // target, so this proves residue unlink with a database open in-process —
     // NOT target-open unlink (impossible on Windows; see removeWalShmFiles).
     // A live connection stays open in this process for the whole test.
-    const livePath = join(dir, "live.sqlite");
+    const livePath = path.join(dir, "live.sqlite");
     const liveDb = openWalDb(livePath);
     liveDb.exec("CREATE TABLE k (v TEXT);");
     liveDb.exec("INSERT INTO k VALUES ('x');");
     try {
       // Simulated crashed-session residue for an unrelated database file.
-      const targetBase = join(dir, "crashed.sqlite");
+      const targetBase = path.join(dir, "crashed.sqlite");
       writeFileSync(targetBase, "placeholder");
       const walPath = `${targetBase}-wal`;
       const shmPath = `${targetBase}-shm`;
@@ -312,7 +312,7 @@ describe("ticket-26 rollback proof (spec 8.3 close-first order)", () => {
       expect(existsSync(shmPath)).toBe(false);
       expect(existsSync(targetBase)).toBe(true);
 
-      const absent = removeWalShmFiles(join(dir, "nothing.sqlite"));
+      const absent = removeWalShmFiles(path.join(dir, "nothing.sqlite"));
       expect(absent).toEqual({ walRemoved: false, shmRemoved: false });
     } finally {
       liveDb.close();
@@ -328,7 +328,7 @@ describe("ticket-26 backup-cli (used by scripts/backup.sh and scripts/restore.sh
   afterEach(async () => {
     if (existsSync(TEST_ROOT)) {
       try {
-        await removeDirWithRetry(TEST_ROOT);
+        await removeDirWithRetry();
       } catch {
         // Non-fatal if OS locks are briefly transitioning
       }
@@ -337,23 +337,23 @@ describe("ticket-26 backup-cli (used by scripts/backup.sh and scripts/restore.sh
 
   it("backup + verify + prune + unlink-wal-shm round-trip", async () => {
     const dir = freshCase("cli");
-    const dbPath = join(dir, "app.sqlite");
+    const dbPath = path.join(dir, "app.sqlite");
     const setup = openWalDb(dbPath);
     setup.exec("CREATE TABLE c (v TEXT);");
     setup.exec("INSERT INTO c VALUES ('ok');");
     setup.close();
 
-    const dest = join(dir, "backups", "snap.sqlite");
+    const dest = path.join(dir, "backups", "snap.sqlite");
     expect(await runBackupCli(["backup", dbPath, dest])).toBe(0);
     expect(existsSync(dest)).toBe(true);
     expect(await runBackupCli(["verify", dest])).toBe(0);
-    expect(await runBackupCli(["verify", join(dir, "missing.sqlite")])).toBe(1);
+    expect(await runBackupCli(["verify", path.join(dir, "missing.sqlite")])).toBe(1);
 
     writeFileSync(`${dbPath}-wal`, "residue");
     expect(await runBackupCli(["unlink-wal-shm", dbPath])).toBe(0);
     expect(existsSync(`${dbPath}-wal`)).toBe(false);
 
-    expect(await runBackupCli(["prune", join(dir, "backups")])).toBe(0);
+    expect(await runBackupCli(["prune", path.join(dir, "backups")])).toBe(0);
     expect(await runBackupCli(["nope"])).toBe(2);
     expect(await runBackupCli([])).toBe(2);
   });
@@ -364,7 +364,7 @@ describe("ticket-26 stat helper", () => {
     const dir = freshCase("ordering");
     const now = Date.now();
     for (const [name, ageDays] of [["a.sqlite", 5], ["b.sqlite", 1], ["c.sqlite", 9]] as const) {
-      const file = join(dir, `pre-migration-${name}`);
+      const file = path.join(dir, `pre-migration-${name}`);
       writeFileSync(file, "x");
       const mtime = new Date(now - ageDays * 86_400_000);
       utimesSync(file, mtime, mtime);

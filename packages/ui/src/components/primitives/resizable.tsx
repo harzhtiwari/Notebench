@@ -3,7 +3,7 @@ import {
   PanelGroup,
   Panel,
   PanelResizeHandle,
-  type ImperativePanelHandle,
+  
 } from "react-resizable-panels";
 import { cn } from "../../lib/utils.js";
 
@@ -49,5 +49,7 @@ export {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
-  type ImperativePanelHandle,
+  
 };
+
+export {type ImperativePanelHandle} from "react-resizable-panels";

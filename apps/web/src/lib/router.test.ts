@@ -19,8 +19,10 @@ describe("owned history router (dashboard + notebook routes)", () => {
 
   it("preserves query and hash on programmatic navigation without reload", () => {
     const router = createMemoryRouter("/setup");
-    const views: Array<string> = [];
-    router.subscribe((entry) => views.push(`${entry.path}${entry.search}${entry.hash}`));
+    const views: string[] = [];
+    router.subscribe((entry) => {
+      views.push(`${entry.path}${entry.search}${entry.hash}`);
+    });
     router.navigate("/setup?tab=notes#row-2");
     expect(router.current.path).toBe("/setup");
     expect(router.current.search).toBe("?tab=notes");

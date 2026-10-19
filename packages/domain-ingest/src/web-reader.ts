@@ -26,16 +26,15 @@ export interface WebArticleResult {
 function normalizeDateToIsoUtc(rawDate: string | undefined): string | undefined {
   if (!rawDate) return undefined;
   const parsed = new Date(rawDate);
-  if (isNaN(parsed.getTime())) return undefined;
-  return parsed.toISOString();
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
 }
 
 interface JsonLdMetadata {
-  headline?: string | undefined;
-  author?: string | undefined;
-  datePublished?: string | undefined;
-  description?: string | undefined;
-  publisher?: string | undefined;
+  headline: string;
+  author: string;
+  datePublished: string;
+  description: string;
+  publisher: string;
 }
 
 function extractJsonLd(document: Document): JsonLdMetadata {
@@ -43,76 +42,79 @@ function extractJsonLd(document: Document): JsonLdMetadata {
   for (const script of scripts) {
     try {
       const content = script.textContent;
-      if (!content || !content.trim()) continue;
+      if (!content.trim()) continue;
       const parsed: unknown = JSON.parse(content);
       const candidates: unknown[] = Array.isArray(parsed)
         ? parsed
-        : typeof parsed === "object" && parsed !== null && "@graph" in parsed && Array.isArray((parsed as { "@graph": unknown[] })["@graph"])
+        : (typeof parsed === "object" && parsed !== null && "@graph" in parsed && Array.isArray((parsed as { "@graph": unknown[] })["@graph"])
           ? (parsed as { "@graph": unknown[] })["@graph"]
-          : [parsed];
+          : [parsed]);
 
       for (const item of candidates) {
-        if (typeof item === "object" && item !== null) {
-          const rec = item as Record<string, unknown>;
-          const type = String(rec["@type"] ?? "");
-          if (
-            type === "Article" ||
-            type === "NewsArticle" ||
-            type === "BlogPosting" ||
-            type === "WebPage" ||
-            rec["headline"] !== undefined ||
-            rec["datePublished"] !== undefined
+        if (typeof item !== "object" || item === null) {
+          continue;
+        }
+
+        const rec = item as Record<string, unknown>;
+        const rawType = rec["@type"];
+        const type = typeof rawType === "string" ? rawType : "";
+        if (
+          type === "Article" ||
+          type === "NewsArticle" ||
+          type === "BlogPosting" ||
+          type === "WebPage" ||
+          rec["headline"] !== undefined ||
+          rec["datePublished"] !== undefined
+        ) {
+          let authorName: string | undefined;
+          if (typeof rec["author"] === "string") {
+            authorName = rec["author"];
+          } else if (
+            Array.isArray(rec["author"]) &&
+            rec["author"].length > 0 &&
+            typeof rec["author"][0] === "object" &&
+            rec["author"][0] !== null
           ) {
-            let authorName: string | undefined;
-            if (typeof rec["author"] === "string") {
-              authorName = rec["author"];
-            } else if (
-              Array.isArray(rec["author"]) &&
-              rec["author"].length > 0 &&
-              typeof rec["author"][0] === "object" &&
-              rec["author"][0] !== null
-            ) {
-              const firstAuthor = rec["author"][0] as Record<string, unknown>;
-              if (typeof firstAuthor["name"] === "string") {
-                authorName = firstAuthor["name"];
-              }
-            } else if (typeof rec["author"] === "object" && rec["author"] !== null) {
-              const authorObj = rec["author"] as Record<string, unknown>;
-              if (typeof authorObj["name"] === "string") {
-                authorName = authorObj["name"];
-              }
+            const firstAuthor = rec["author"][0] as Record<string, unknown>;
+            if (typeof firstAuthor["name"] === "string") {
+              authorName = firstAuthor["name"];
             }
-
-            let publisherName: string | undefined;
-            if (typeof rec["publisher"] === "string") {
-              publisherName = rec["publisher"];
-            } else if (typeof rec["publisher"] === "object" && rec["publisher"] !== null) {
-              const pubObj = rec["publisher"] as Record<string, unknown>;
-              if (typeof pubObj["name"] === "string") {
-                publisherName = pubObj["name"];
-              }
+          } else if (typeof rec["author"] === "object" && rec["author"] !== null) {
+            const authorObj = rec["author"] as Record<string, unknown>;
+            if (typeof authorObj["name"] === "string") {
+              authorName = authorObj["name"];
             }
-
-            return {
-              headline:
-                typeof rec["headline"] === "string"
-                  ? rec["headline"]
-                  : typeof rec["name"] === "string"
-                    ? rec["name"]
-                    : undefined,
-              author: authorName,
-              datePublished: typeof rec["datePublished"] === "string" ? rec["datePublished"] : undefined,
-              description: typeof rec["description"] === "string" ? rec["description"] : undefined,
-              publisher: publisherName,
-            };
           }
+
+          let publisherName: string | undefined;
+          if (typeof rec["publisher"] === "string") {
+            publisherName = rec["publisher"];
+          } else if (typeof rec["publisher"] === "object" && rec["publisher"] !== null) {
+            const pubObj = rec["publisher"] as Record<string, unknown>;
+            if (typeof pubObj["name"] === "string") {
+              publisherName = pubObj["name"];
+            }
+          }
+
+          return {
+            headline:
+              typeof rec["headline"] === "string"
+                ? rec["headline"]
+                : (typeof rec["name"] === "string"
+                  ? rec["name"]
+                  : ""),
+            author: authorName ?? "",
+            datePublished: typeof rec["datePublished"] === "string" ? rec["datePublished"] : "",
+            description: typeof rec["description"] === "string" ? rec["description"] : "",
+            publisher: publisherName ?? "",
+          };
         }
       }
     } catch {
       // Ignore invalid JSON-LD script syntax
     }
   }
-  return {};
+  return { headline: "", author: "", datePublished: "", description: "", publisher: "" };
 }
 
 export class WebReaderService {
@@ -125,6 +127,7 @@ export class WebReaderService {
       bulletListMarker: "-",
     });
     // Apply Joplin GFM plugin for robust table support
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- turndown-plugin-gfm ships no type declarations
     this.turndown.use(gfm);
 
     // Strip scripts and styles
@@ -132,7 +135,7 @@ export class WebReaderService {
   }
 
   public extract(rawHtml: string, targetUrl: string): WebArticleResult {
-    if (!rawHtml || !rawHtml.trim()) {
+    if (!rawHtml.trim()) {
       return {
         metadata: {
           title: "",
@@ -150,33 +153,33 @@ export class WebReaderService {
     try {
       const base = document.createElement("base");
       base.setAttribute("href", targetUrl);
-      if (document.head) {
-        document.head.prepend(base);
-      }
+      document.head.prepend(base);
     } catch {
       // Ignore base injection failure
     }
 
     // Step 2: Extract JSON-LD and meta tags BEFORE Readability mutates the DOM
-    const jsonLd = extractJsonLd(document as Document);
+    const jsonLd = extractJsonLd(document);
 
-    const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute("content")?.trim();
-    const twitterTitle = document.querySelector('meta[name="twitter:title"]')?.getAttribute("content")?.trim();
-    const docTitle = document.querySelector("title")?.textContent?.trim();
+    const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute("content")?.trim() ?? "";
+    const twitterTitle = document.querySelector('meta[name="twitter:title"]')?.getAttribute("content")?.trim() ?? "";
+    const docTitle = document.querySelector("title")?.textContent.trim() ?? "";
 
     const authorMeta =
       document.querySelector('meta[property="article:author"]')?.getAttribute("content")?.trim() ??
-      document.querySelector('meta[name="author"]')?.getAttribute("content")?.trim();
+      document.querySelector('meta[name="author"]')?.getAttribute("content")?.trim() ??
+      "";
 
-    const ogDesc = document.querySelector('meta[property="og:description"]')?.getAttribute("content")?.trim();
-    const metaDesc = document.querySelector('meta[name="description"]')?.getAttribute("content")?.trim();
+    const ogDesc = document.querySelector('meta[property="og:description"]')?.getAttribute("content")?.trim() ?? "";
+    const metaDesc = document.querySelector('meta[name="description"]')?.getAttribute("content")?.trim() ?? "";
 
-    const ogSite = document.querySelector('meta[property="og:site_name"]')?.getAttribute("content")?.trim();
+    const ogSite = document.querySelector('meta[property="og:site_name"]')?.getAttribute("content")?.trim() ?? "";
 
     const publishedMeta =
       document.querySelector('meta[property="article:published_time"]')?.getAttribute("content")?.trim() ??
       document.querySelector('meta[name="dc.date"]')?.getAttribute("content")?.trim() ??
-      document.querySelector("time[datetime]")?.getAttribute("datetime")?.trim();
+      document.querySelector("time[datetime]")?.getAttribute("datetime")?.trim() ??
+      "";
 
     const faviconHref =
       document.querySelector('link[rel="icon"]')?.getAttribute("href") ??
@@ -184,7 +187,7 @@ export class WebReaderService {
     let favicon: string | undefined;
     if (faviconHref) {
       try {
-        favicon = new URL(faviconHref, targetUrl).toString();
+        favicon = new URL(faviconHref, targetUrl).href;
       } catch {
         favicon = undefined;
       }
@@ -194,18 +197,18 @@ export class WebReaderService {
     let canonicalUrl: string | undefined;
     if (canonicalHref) {
       try {
-        canonicalUrl = new URL(canonicalHref, targetUrl).toString();
+        canonicalUrl = new URL(canonicalHref, targetUrl).href;
       } catch {
         canonicalUrl = undefined;
       }
     }
 
     // Step 3: Run Readability body extraction
-    const reader = new Readability(document as Document);
+    const reader = new Readability(document);
     const parsedArticle = reader.parse();
 
-    let contentHtml = "";
-    let textContent = "";
+    let contentHtml: string;
+    let textContent: string;
 
     if (parsedArticle) {
       contentHtml = parsedArticle.content ?? "";
@@ -214,7 +217,7 @@ export class WebReaderService {
       // Fallback: use body element if readability couldn't isolate an article container
       const body = document.querySelector("body");
       contentHtml = body ? body.innerHTML : rawHtml;
-      textContent = body ? body.textContent ?? "" : "";
+      textContent = body ? body.textContent : "";
     }
 
     // Cascade Priority (per Research 05 Section 4):
@@ -246,11 +249,11 @@ export class WebReaderService {
       "";
 
     // 5. Site Name: og:site_name -> jsonld:publisher -> hostname fallback
-    let defaultHostname: string | undefined;
+    let defaultHostname = "";
     try {
       defaultHostname = new URL(targetUrl).hostname;
     } catch {
-      defaultHostname = undefined;
+      // Leave empty when the target URL cannot be parsed.
     }
     const siteName = ogSite || jsonLd.publisher || defaultHostname || undefined;
 

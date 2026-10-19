@@ -1,24 +1,24 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, rmSync, mkdirSync } from "node:fs";
-import { resolve, join } from "node:path";
+import path from "node:path";
 import { createSqliteDatabase } from "./connection.js";
 import { SqliteAccountRepository } from "./account-repository.js";
 import { SqliteSessionRepository } from "./session-repository.js";
 
-const TEST_DIR = resolve(`.tmp/test/test-session-repo-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
+const TEST_DIR = path.resolve(`.tmp/test/test-session-repo-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
 
 /**
- * Windows holds file locks briefly after sqlite handles close, longer under
- * parallel suites: retry transient lock errors with a generous budget.
- */
-async function removeDirWithRetry(dir: string): Promise<void> {
+Windows holds file locks briefly after sqlite handles close, longer under
+parallel suites: retry transient lock errors with a generous budget.
+*/
+async function removeDirWithRetry(): Promise<void> {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     try {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(TEST_DIR, { recursive: true, force: true });
       return;
     } catch (error: unknown) {
-      const code = (error as { code?: string }).code;
-      if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
+      const code = (error as { code?: string }).code ?? "";
+      if (["EPERM", "EBUSY", "ENOTEMPTY"].includes(code) && attempt < 59) {
         await new Promise((resolve) => setTimeout(resolve, 250));
         continue;
       }
@@ -30,7 +30,7 @@ async function removeDirWithRetry(dir: string): Promise<void> {
 describe("SqliteSessionRepository & Sessions Table Migration", () => {
   beforeEach(async () => {
     if (existsSync(TEST_DIR)) {
-      await removeDirWithRetry(TEST_DIR);
+      await removeDirWithRetry();
     }
     mkdirSync(TEST_DIR, { recursive: true });
   }, 120_000);
@@ -38,7 +38,7 @@ describe("SqliteSessionRepository & Sessions Table Migration", () => {
   afterEach(async () => {
     if (existsSync(TEST_DIR)) {
       try {
-        await removeDirWithRetry(TEST_DIR);
+        await removeDirWithRetry();
       } catch {
         // Non-fatal if OS locks are briefly transitioning
       }
@@ -46,7 +46,7 @@ describe("SqliteSessionRepository & Sessions Table Migration", () => {
   }, 120_000);
 
   it("round-trips sessions and resolves them by token digest", async () => {
-    const dbPath = join(TEST_DIR, "test-sessions.sqlite");
+    const dbPath = path.join(TEST_DIR, "test-sessions.sqlite");
     const { db, sqlite, close } = createSqliteDatabase({ dbPath });
 
     try {
@@ -72,7 +72,7 @@ describe("SqliteSessionRepository & Sessions Table Migration", () => {
   });
 
   it("renews expiry via touch and deletes sessions on demand", async () => {
-    const dbPath = join(TEST_DIR, "test-revoke.sqlite");
+    const dbPath = path.join(TEST_DIR, "test-revoke.sqlite");
     const { db, sqlite, close } = createSqliteDatabase({ dbPath });
 
     try {

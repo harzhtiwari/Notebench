@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import util from "node:util";
+import { inspect } from "node:util";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -31,7 +31,7 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
 
   afterEach(() => {
     fs.rmSync(tempDir, { recursive: true, force: true });
-    delete process.env[VAULT_CONSTANTS.DEFAULT_MASTER_KEY_ENV];
+    Reflect.deleteProperty(process.env, VAULT_CONSTANTS.DEFAULT_MASTER_KEY_ENV);
   });
 
   describe("Cryptographic Envelope & Round-Trip", () => {
@@ -71,21 +71,21 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
 
       // Tamper with the ciphertext base64url string
       const ctBytes = Buffer.from(envelope.ciphertext, "base64url");
-      ctBytes[0] = (ctBytes[0] ?? 0) ^ 0xff;
+      ctBytes[0] = (ctBytes[0] ?? 0) ^ 0xFF;
       const tamperedEnvelope: VaultEnvelope = {
         ...envelope,
         ciphertext: ctBytes.toString("base64url"),
       };
 
-      expect(() => decryptSecret(tamperedEnvelope, masterKey)).toThrowError(VaultError);
+      expect(() => decryptSecret(tamperedEnvelope, masterKey)).toThrow(VaultError);
 
       try {
         decryptSecret(tamperedEnvelope, masterKey);
         expect.unreachable("Should have thrown VaultError");
-      } catch (err: unknown) {
-        expect(err).toBeInstanceOf(NotebookError);
-        expect(err).toBeInstanceOf(VaultError);
-        const vaultErr = err as VaultError;
+      } catch (error: unknown) {
+        expect(error).toBeInstanceOf(NotebookError);
+        expect(error).toBeInstanceOf(VaultError);
+        const vaultErr = error as VaultError;
         expect(vaultErr.category).toBe("TAMPERED_CIPHERTEXT");
         expect(vaultErr.code).toBe("INVARIANCE_VIOLATION");
       }
@@ -104,11 +104,11 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
         "hex"
       );
 
-      expect(() => decryptSecret(envelope, wrongMasterKey)).toThrowError(VaultError);
+      expect(() => decryptSecret(envelope, wrongMasterKey)).toThrow(VaultError);
       try {
         decryptSecret(envelope, wrongMasterKey);
-      } catch (err: unknown) {
-        const vaultErr = err as VaultError;
+      } catch (error: unknown) {
+        const vaultErr = error as VaultError;
         expect(vaultErr.category).toBe("TAMPERED_CIPHERTEXT");
       }
     });
@@ -131,9 +131,9 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
       try {
         decryptSecret(spoofedEnvelope, masterKey);
         expect.unreachable("Should have thrown VaultError");
-      } catch (err: unknown) {
-        expect(err).toBeInstanceOf(VaultError);
-        const vaultErr = err as VaultError;
+      } catch (error: unknown) {
+        expect(error).toBeInstanceOf(VaultError);
+        const vaultErr = error as VaultError;
         // AES-GCM authenticates the AAD jointly with the ciphertext, so a wrong
         // AAD is indistinguishable from tampering and is deliberately surfaced
         // as TAMPERED_CIPHERTEXT (there is no separate AAD mismatch category).
@@ -146,7 +146,7 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
         ...envelope,
         keyId: "models.openaiKey",
       };
-      expect(() => decryptSecret(spoofedKeyIdEnvelope, masterKey)).toThrowError(VaultError);
+      expect(() => decryptSecret(spoofedKeyIdEnvelope, masterKey)).toThrow(VaultError);
     });
 
     it("unverified plaintext is never released under RUP (Release of Unverified Plaintext) defense", () => {
@@ -165,16 +165,16 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
         tag: tagBytes.toString("base64url"),
       };
 
-      let callbackCalled = false;
+      let isCallbackCalled = false;
       try {
         const secret = decryptSecret(corruptedTagEnvelope, masterKey);
         secret.withSecret(() => {
-          callbackCalled = true;
+          isCallbackCalled = true;
         });
-      } catch (err) {
-        expect(err).toBeInstanceOf(VaultError);
+      } catch (error) {
+        expect(error).toBeInstanceOf(VaultError);
       }
-      expect(callbackCalled).toBe(false);
+      expect(isCallbackCalled).toBe(false);
     });
   });
 
@@ -222,7 +222,9 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
 
       const notices: string[] = [];
       const mockLogger = {
-        info: (msg: string) => notices.push(msg),
+        info: (msg: string) => {
+          notices.push(msg);
+        },
       };
 
       const result = resolveMasterKey({
@@ -242,11 +244,11 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
 
       // Verify file mode
       const stat = fs.statSync(keyFile);
-      if (process.platform !== "win32") {
-        expect(stat.mode & 0o777).toBe(0o600);
-      } else {
+      if (process.platform === "win32") {
         // Windows note: Record that Windows NTFS handles ACLs; mode is non-zero
         expect(stat.mode).toBeGreaterThan(0);
+      } else {
+        expect(stat.mode & 0o777).toBe(0o600);
       }
     });
 
@@ -281,14 +283,14 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
           env: { NOTEBOOK_MASTER_KEY: "not-a-valid-hex" },
           vaultDir: tempDir,
         })
-      ).toThrowError(VaultError);
+      ).toThrow(VaultError);
 
       expect(() =>
         resolveMasterKey({
           env: { NOTEBOOK_MASTER_KEY: "012345" }, // too short
           vaultDir: tempDir,
         })
-      ).toThrowError(VaultError);
+      ).toThrow(VaultError);
     });
   });
 
@@ -317,11 +319,11 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
         // public signature only accepts string | Buffer
         new VaultSecret(42);
         expect.unreachable("Should have thrown VaultError");
-      } catch (err: unknown) {
-        expect(err).toBeInstanceOf(NotebookError);
-        expect(err).toBeInstanceOf(VaultError);
-        expect((err as VaultError).category).toBe("VALIDATION_ERROR");
-        expect((err as VaultError).statusCode).toBe(400);
+      } catch (error: unknown) {
+        expect(error).toBeInstanceOf(NotebookError);
+        expect(error).toBeInstanceOf(VaultError);
+        expect((error as VaultError).category).toBe("VALIDATION_ERROR");
+        expect((error as VaultError).statusCode).toBe(400);
       }
     });
 
@@ -329,9 +331,13 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
       const secret = new VaultSecret(sampleKey);
 
       expect(JSON.stringify({ key: secret })).toBe('{"key":"[REDACTED]"}');
-      expect(util.inspect(secret)).toBe("[REDACTED]");
+      expect(inspect(secret)).toBe("[REDACTED]");
       expect(secret.toString()).toBe("[REDACTED]");
+      // Implicit coercion must redact; VaultSecret intentionally has no
+      // string-compatible type, so these TS coercions are silenced.
+      // eslint-disable-next-line unicorn/no-useless-template-literals, @typescript-eslint/restrict-template-expressions -- coercion is the assertion
       expect(`${secret}`).toBe("[REDACTED]");
+      // eslint-disable-next-line @typescript-eslint/restrict-plus-operands -- coercion is the assertion
       expect("Secret: " + secret).toBe("Secret: [REDACTED]");
       expect(String(secret)).toBe("[REDACTED]");
     });
@@ -349,8 +355,11 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
 
       expect(result).toBe(42);
       expect(capturedBuf).toBeDefined();
+      if (capturedBuf === undefined) {
+        throw new Error("expected withSecret to capture the buffer");
+      }
       // Verify buffer was zeroed in finally block!
-      const isAllZero = capturedBuf!.every((byte) => byte === 0);
+      const isAllZero = capturedBuf.every((byte) => byte === 0);
       expect(isAllZero).toBe(true);
     });
 
@@ -366,7 +375,10 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
 
       expect(result).toBe("ok");
       expect(capturedBuf).toBeDefined();
-      expect(capturedBuf!.every((byte) => byte === 0)).toBe(true);
+      if (capturedBuf === undefined) {
+        throw new Error("expected withSecretAsync to capture the buffer");
+      }
+      expect(capturedBuf.every((byte) => byte === 0)).toBe(true);
     });
 
     it("zeroes buffer even if callback throws", () => {
@@ -378,10 +390,13 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
           capturedBuf = buf;
           throw new Error("Simulated failure inside withSecret");
         });
-      }).toThrowError("Simulated failure inside withSecret");
+      }).toThrow("Simulated failure inside withSecret");
 
       expect(capturedBuf).toBeDefined();
-      expect(capturedBuf!.every((byte) => byte === 0)).toBe(true);
+      if (capturedBuf === undefined) {
+        throw new Error("expected withSecret to capture the buffer on throw");
+      }
+      expect(capturedBuf.every((byte) => byte === 0)).toBe(true);
     });
   });
 
@@ -450,7 +465,10 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
       // 4. Retrieve key as VaultSecret
       const retrieved = await vault.getKey("openai", "models.openaiKey", "user-123");
       expect(retrieved).toBeDefined();
-      retrieved!.withSecret((plaintext) => {
+      if (retrieved === null) {
+        throw new Error("expected the stored key to be retrievable");
+      }
+      retrieved.withSecret((plaintext) => {
         expect(plaintext).toBe(sampleKey);
       });
 
@@ -464,8 +482,8 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
       });
 
       // 6. Delete key removes row (feeding Ticket 20)
-      const deleted = await vault.deleteKey("openai", "models.openaiKey", "user-123");
-      expect(deleted).toBe(true);
+      const isDeleted = await vault.deleteKey("openai", "models.openaiKey", "user-123");
+      expect(isDeleted).toBe(true);
 
       const afterDeleteStatus = await vault.getStatus("openai", "models.openaiKey", "user-123");
       expect(afterDeleteStatus.configured).toBe(false);
@@ -482,11 +500,11 @@ describe("Ticket 03: Encrypted API Key Vault", () => {
       try {
         secret.withSecret(() => "fail");
         expect.unreachable("withSecret on a destroyed secret must throw");
-      } catch (err: unknown) {
-        expect(err).toBeInstanceOf(NotebookError);
-        expect(err).toBeInstanceOf(VaultError);
-        expect((err as VaultError).category).toBe("VALIDATION_ERROR");
-        expect((err as VaultError).message).toMatch(/destroyed/i);
+      } catch (error: unknown) {
+        expect(error).toBeInstanceOf(NotebookError);
+        expect(error).toBeInstanceOf(VaultError);
+        expect((error as VaultError).category).toBe("VALIDATION_ERROR");
+        expect((error as VaultError).message).toMatch(/destroyed/i);
       }
     });
   });

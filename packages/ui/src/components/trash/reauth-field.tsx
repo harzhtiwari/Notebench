@@ -4,37 +4,61 @@ import { FormField, Input, PasswordInput } from "../primitives/fields.js";
 export type ReauthMode = "passcode" | "phrase";
 
 export interface ReauthFieldProps {
-  /** Mode: "passcode" uses PasswordInput; "phrase" uses text Input with expected phrase match. */
+  /**
+  Mode: "passcode" uses PasswordInput; "phrase" uses text Input with expected phrase match.
+  */
   mode?: ReauthMode | undefined;
-  /** Current value of the input. */
+  /**
+  Current value of the input.
+  */
   value: string;
-  /** Change callback. */
+  /**
+  Change callback.
+  */
   onChange: (value: string) => void;
-  /** Required phrase to type in "phrase" mode (e.g. "DELETE" or notebook title). */
+  /**
+  Required phrase to type in "phrase" mode (e.g. "DELETE" or notebook title).
+  */
   expectedPhrase?: string | undefined;
-  /** Custom label. If omitted, a descriptive default is used based on mode and expectedPhrase. */
+  /**
+  Custom label. If omitted, a descriptive default is used based on mode and expectedPhrase.
+  */
   label?: string | undefined;
-  /** Error message. */
+  /**
+  Error message.
+  */
   error?: string | undefined;
-  /** Hint text. */
+  /**
+  Hint text.
+  */
   hint?: string | undefined;
-  /** Disabled state. */
+  /**
+  Disabled state.
+  */
   disabled?: boolean | undefined;
-  /** Optional placeholder override. */
+  /**
+  Optional placeholder override.
+  */
   placeholder?: string | undefined;
-  /** HTML id. */
+  /**
+  HTML id.
+  */
   id?: string | undefined;
-  /** Additional wrapper class names (using var(--nb-*) only). */
+  /**
+  Additional wrapper class names (using var(--nb-*) only).
+  */
   className?: string | undefined;
-  /** AutoFocus attribute. */
+  /**
+  AutoFocus attribute.
+  */
   autoFocus?: boolean | undefined;
 }
 
 /**
- * ReauthField (ticket 20): Reusable re-authentication field required for high-risk
- * deletion actions. Supports both owner passcode entry and typed phrase confirmation
- * ("DELETE" / notebook title). Composes FormField with PasswordInput or Input.
- */
+ReauthField (ticket 20): Reusable re-authentication field required for high-risk
+deletion actions. Supports both owner passcode entry and typed phrase confirmation
+("DELETE" / notebook title). Composes FormField with PasswordInput or Input.
+*/
 const ReauthField = React.forwardRef<HTMLInputElement, ReauthFieldProps>(
   (
     {

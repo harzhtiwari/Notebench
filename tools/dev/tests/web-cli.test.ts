@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { join } from "node:path";
+import path from "node:path";
 import { buildNextDevArgv, resolveNextBin, resolveWebBundler } from "../src/composer.js";
 
 /**
- * CLI cutover (open-design parity): the web child runs the real
- * `next dev` CLI instead of the programmatic compiler API, so the genuine
- * Next.js startup block, HMR, and compile output come from Next itself.
- * RED-first seam: pure argv/bin builders behind defaultCreateWebSpawn.
- */
+CLI cutover (open-design parity): the web child runs the real
+`next dev` CLI instead of the programmatic compiler API, so the genuine
+Next.js startup block, HMR, and compile output come from Next itself.
+RED-first seam: pure argv/bin builders behind defaultCreateWebSpawn.
+*/
 describe("web child runs the real Next.js CLI", () => {
   it("resolves the CLI bin inside the web workspace", () => {
     expect(resolveNextBin("/repo/apps/web")).toBe(
-      join("/repo/apps/web", "node_modules", "next", "dist", "bin", "next")
+      path.join("/repo/apps/web", "node_modules", "next", "dist", "bin", "next")
     );
   });
 
@@ -21,7 +21,7 @@ describe("web child runs the real Next.js CLI", () => {
         nextBin: "/repo/apps/web/node_modules/next/dist/bin/next",
         webDir: "/repo/apps/web",
         host: "127.0.0.1",
-        port: 57571,
+        port: 57_571,
         bundler: "webpack",
       })
     ).toEqual([

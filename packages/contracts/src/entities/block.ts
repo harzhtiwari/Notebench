@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CitationRefSchema } from "./citation.js";
+import { CitationRefSchema as CitationReferenceSchema } from "./citation.js";
 
 export const HeadingBlockSchema = z.object({
   id: z.uuidv4(),
@@ -14,7 +14,7 @@ export const ParagraphBlockSchema = z.object({
   id: z.uuidv4(),
   kind: z.literal("paragraph"),
   text: z.string(),
-  citations: z.array(CitationRefSchema).default([]),
+  citations: z.array(CitationReferenceSchema).default([]),
   locked: z.boolean().optional(),
 });
 export type ParagraphBlock = z.infer<typeof ParagraphBlockSchema>;
@@ -22,7 +22,7 @@ export type ParagraphBlock = z.infer<typeof ParagraphBlockSchema>;
 export const ListBlockItemSchema = z.object({
   id: z.uuidv4(),
   text: z.string(),
-  citations: z.array(CitationRefSchema).default([]),
+  citations: z.array(CitationReferenceSchema).default([]),
 });
 export type ListBlockItem = z.infer<typeof ListBlockItemSchema>;
 
@@ -48,7 +48,7 @@ export const QABlockSchema = z.object({
   kind: z.literal("qa"),
   question: z.string(),
   answer: z.string(),
-  citations: z.array(CitationRefSchema).default([]),
+  citations: z.array(CitationReferenceSchema).default([]),
   locked: z.boolean().optional(),
 });
 export type QABlock = z.infer<typeof QABlockSchema>;

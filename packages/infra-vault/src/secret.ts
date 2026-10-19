@@ -1,13 +1,18 @@
-import util from "node:util";
+import { inspect } from "node:util";
 import { VaultError } from "./errors.js";
 
 const REDACTED = "[REDACTED]";
 
+// `inspect.custom` is declared in @types/node as a `unique symbol`, but unicorn's
+// type checker does not recognise well-known unique symbols as safe computed
+// property keys; a module-level const keeps the key a recognised identifier.
+const CUSTOM_INSPECT = inspect.custom;
+
 /**
- * Zero-Leak container encapsulating sensitive secrets.
- * Prevents implicit string concatenation, JSON serialization, and logging leaks.
- * Plaintext is only accessible via scoped callbacks that zero the memory buffer in finally.
- */
+Zero-Leak container encapsulating sensitive secrets.
+Prevents implicit string concatenation, JSON serialization, and logging leaks.
+Plaintext is only accessible via scoped callbacks that zero the memory buffer in finally.
+*/
 export class VaultSecret {
   private buffer: Buffer | null;
   private isDestroyed = false;
@@ -24,10 +29,16 @@ export class VaultSecret {
     }
   }
 
+  private ensureNotDestroyed(): void {
+    if (this.isDestroyed || !this.buffer) {
+      throw new VaultError("VaultSecret has already been destroyed", "VALIDATION_ERROR");
+    }
+  }
+
   /**
-   * Scoped synchronous callback giving ephemeral access to plaintext string and buffer.
-   * Immediately zeroes the memory buffer in the finally block.
-   */
+  Scoped synchronous callback giving ephemeral access to plaintext string and buffer.
+  Immediately zeroes the memory buffer in the finally block.
+  */
   public withSecret<T>(callback: (plaintext: string, buffer: Buffer) => T): T {
     this.ensureNotDestroyed();
     if (!this.buffer) {
@@ -43,9 +54,9 @@ export class VaultSecret {
   }
 
   /**
-   * Scoped asynchronous callback giving ephemeral access to plaintext string and buffer.
-   * Immediately zeroes the memory buffer in the finally block after promise completion.
-   */
+  Scoped asynchronous callback giving ephemeral access to plaintext string and buffer.
+  Immediately zeroes the memory buffer in the finally block after promise completion.
+  */
   public async withSecretAsync<T>(
     callback: (plaintext: string, buffer: Buffer) => Promise<T>
   ): Promise<T> {
@@ -63,8 +74,8 @@ export class VaultSecret {
   }
 
   /**
-   * Securely zeroes the internal secret buffer and invalidates this instance.
-   */
+  Securely zeroes the internal secret buffer and invalidates this instance.
+  */
   public destroy(): void {
     if (this.buffer) {
       this.buffer.fill(0);
@@ -93,13 +104,7 @@ export class VaultSecret {
     return REDACTED;
   }
 
-  public [util.inspect.custom](): string {
+  public [CUSTOM_INSPECT](): string {
     return REDACTED;
-  }
-
-  private ensureNotDestroyed(): void {
-    if (this.isDestroyed || !this.buffer) {
-      throw new VaultError("VaultSecret has already been destroyed", "VALIDATION_ERROR");
-    }
   }
 }

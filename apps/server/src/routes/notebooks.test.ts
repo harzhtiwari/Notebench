@@ -10,6 +10,28 @@ import {
 import { NotebookService } from "@notebench/domain-notebooks";
 import { notebooksRoutes } from "./notebooks.js";
 
+interface NotebookSummary {
+  id: string;
+  title: string;
+  trashedAt?: string | null;
+}
+
+interface NotebookBody {
+  notebook: NotebookSummary;
+}
+
+interface NotebookListBody {
+  notebooks: NotebookSummary[];
+}
+
+interface ErrorBody {
+  error: { code: string };
+}
+
+interface MetricsBody {
+  metrics: { storageSafeCapBytes: number; notebookCount: number };
+}
+
 describe("Notebooks Fastify Routes (Ticket 05)", () => {
   let app: FastifyInstance;
   let dbInstance: SqliteDatabaseInstance;
@@ -47,7 +69,7 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
     });
 
     expect(res.statusCode).toBe(201);
-    const body = JSON.parse(res.body);
+    const body = JSON.parse(res.body) as NotebookBody;
     expect(body.notebook).toBeDefined();
     expect(body.notebook.id).toBeDefined();
     expect(body.notebook.title).toBe("Biology 101");
@@ -57,11 +79,11 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/notebooks",
-      payload: { title: "   " },
+      payload: { title: ' '.repeat(3) },
     });
 
     expect(res.statusCode).toBe(400);
-    const body = JSON.parse(res.body);
+    const body = JSON.parse(res.body) as ErrorBody;
     expect(body.error).toBeDefined();
     expect(body.error.code).toBe("VALIDATION_ERROR");
   });
@@ -73,19 +95,19 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
     });
 
     expect(res.statusCode).toBe(200);
-    const body = JSON.parse(res.body);
+    const body = JSON.parse(res.body) as NotebookListBody;
     expect(Array.isArray(body.notebooks)).toBe(true);
     expect(body.notebooks.some((n: { title: string }) => n.title === "Biology 101")).toBe(true);
   });
 
   it("PATCH /api/notebooks/:id renames notebook and returns 200", async () => {
     // Create first
-    const createRes = await app.inject({
+    const createdRes = await app.inject({
       method: "POST",
       url: "/api/notebooks",
       payload: { title: "Original Name" },
     });
-    const createdId = JSON.parse(createRes.body).notebook.id;
+    const createdId = (JSON.parse(createdRes.body) as NotebookBody).notebook.id;
 
     // Rename
     const patchRes = await app.inject({
@@ -95,7 +117,7 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
     });
 
     expect(patchRes.statusCode).toBe(200);
-    const body = JSON.parse(patchRes.body);
+    const body = JSON.parse(patchRes.body) as NotebookBody;
     expect(body.notebook.title).toBe("Renamed Name");
   });
 
@@ -110,12 +132,12 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
   });
 
   it("POST /api/notebooks/:id/duplicate creates a separate notebook copy and returns 201", async () => {
-    const createRes = await app.inject({
+    const createdRes = await app.inject({
       method: "POST",
       url: "/api/notebooks",
       payload: { title: "Astrophysics" },
     });
-    const origId = JSON.parse(createRes.body).notebook.id;
+    const origId = (JSON.parse(createdRes.body) as NotebookBody).notebook.id;
 
     const dupRes = await app.inject({
       method: "POST",
@@ -124,7 +146,7 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
     });
 
     expect(dupRes.statusCode).toBe(201);
-    const body = JSON.parse(dupRes.body);
+    const body = JSON.parse(dupRes.body) as NotebookBody;
     expect(body.notebook.id).not.toBe(origId);
     expect(body.notebook.title).toBe("Copy of Astrophysics");
 
@@ -133,7 +155,7 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
       method: "GET",
       url: "/api/notebooks",
     });
-    const list = JSON.parse(listRes.body).notebooks;
+    const list = (JSON.parse(listRes.body) as NotebookListBody).notebooks;
     expect(list.some((n: { id: string }) => n.id === origId)).toBe(true);
     expect(list.some((n: { id: string }) => n.id === body.notebook.id)).toBe(true);
   });
@@ -145,7 +167,7 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
     });
 
     expect(res.statusCode).toBe(200);
-    const body = JSON.parse(res.body);
+    const body = JSON.parse(res.body) as MetricsBody;
     expect(body.metrics).toBeDefined();
     expect(body.metrics.storageSafeCapBytes).toBe(5 * 1024 * 1024 * 1024);
     expect(typeof body.metrics.notebookCount).toBe("number");
@@ -163,7 +185,7 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
       url: "/api/notebooks?filter=filterprobe",
     });
     expect(hit.statusCode).toBe(200);
-    const hitBody = JSON.parse(hit.body);
+    const hitBody = JSON.parse(hit.body) as NotebookListBody;
     expect(hitBody.notebooks.length).toBeGreaterThan(0);
     expect(
       hitBody.notebooks.every((n: { title: string }) =>
@@ -177,7 +199,7 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
       url: "/api/notebooks",
       payload: { title: "Ingestion Target Probe" },
     });
-    const sourceNotebookId = JSON.parse(sourceNotebookRes.body).notebook.id;
+    const sourceNotebookId = (JSON.parse(sourceNotebookRes.body) as NotebookBody).notebook.id;
     const now = new Date().toISOString();
     dbInstance.sqlite.exec(`
       INSERT INTO sources (id, user_id, notebook_id, title, type, created_at, updated_at)
@@ -190,7 +212,7 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
     });
     expect(sourceHit.statusCode).toBe(200);
     expect(
-      JSON.parse(sourceHit.body).notebooks.some(
+      (JSON.parse(sourceHit.body) as NotebookListBody).notebooks.some(
         (n: { id: string }) => n.id === sourceNotebookId
       )
     ).toBe(true);
@@ -200,7 +222,7 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
       url: "/api/notebooks?filter=no-such-notebook-zzz",
     });
     expect(miss.statusCode).toBe(200);
-    expect(JSON.parse(miss.body).notebooks).toEqual([]);
+    expect((JSON.parse(miss.body) as NotebookListBody).notebooks).toEqual([]);
   });
 
   it("GET /api/notebooks?sort= orders by all 4 keys (updated, created, title, size)", async () => {
@@ -220,12 +242,12 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
 
     // Other tests' notebooks stay interleaved in the full list; only the
     // relative order of these three seeded notebooks is asserted.
-    const seededIds = [alphaId, betaId, gammaId];
+    const seededIds = new Set([alphaId, betaId, gammaId]);
     const seededOrder = async (query: string): Promise<string[]> => {
       const res = await app.inject({ method: "GET", url: `/api/notebooks?${query}` });
       expect(res.statusCode).toBe(200);
-      const notebooks = JSON.parse(res.body).notebooks as Array<{ id: string }>;
-      return notebooks.map((n) => n.id).filter((id) => seededIds.includes(id));
+      const notebooks = (JSON.parse(res.body) as NotebookListBody).notebooks;
+      return notebooks.map((n) => n.id).filter((id) => seededIds.has(id));
     };
 
     expect(await seededOrder("sort=updated&dir=asc")).toEqual([betaId, gammaId, alphaId]);
@@ -235,28 +257,28 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
   });
 
   it("PATCH /api/notebooks/:id rejects an empty title with 400", async () => {
-    const createRes = await app.inject({
+    const createdRes = await app.inject({
       method: "POST",
       url: "/api/notebooks",
       payload: { title: "Rename Guard Probe" },
     });
-    const createdId = JSON.parse(createRes.body).notebook.id;
+    const createdId = (JSON.parse(createdRes.body) as NotebookBody).notebook.id;
 
     const res = await app.inject({
       method: "PATCH",
       url: `/api/notebooks/${createdId}`,
-      payload: { title: "   " },
+      payload: { title: ' '.repeat(3) },
     });
     expect(res.statusCode).toBe(400);
   });
 
   it("POST /api/notebooks/:id/duplicate with {} defaults to 'Copy of <title>'", async () => {
-    const createRes = await app.inject({
+    const createdRes = await app.inject({
       method: "POST",
       url: "/api/notebooks",
       payload: { title: "Duplication Default Probe" },
     });
-    const origId = JSON.parse(createRes.body).notebook.id;
+    const origId = (JSON.parse(createdRes.body) as NotebookBody).notebook.id;
 
     const dupRes = await app.inject({
       method: "POST",
@@ -264,18 +286,18 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
       payload: {},
     });
     expect(dupRes.statusCode).toBe(201);
-    const body = JSON.parse(dupRes.body);
+    const body = JSON.parse(dupRes.body) as NotebookBody;
     expect(body.notebook.id).not.toBe(origId);
     expect(body.notebook.title).toBe("Copy of Duplication Default Probe");
   });
 
   it("PATCH /api/notebooks/:id updates trashedAt (non-title path) and returns 200", async () => {
-    const createRes = await app.inject({
+    const createdRes = await app.inject({
       method: "POST",
       url: "/api/notebooks",
       payload: { title: "Trash Path Probe" },
     });
-    const id = JSON.parse(createRes.body).notebook.id;
+    const id = (JSON.parse(createdRes.body) as NotebookBody).notebook.id;
     const trashedAt = new Date().toISOString();
 
     const patchRes = await app.inject({
@@ -284,34 +306,34 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
       payload: { trashedAt },
     });
     expect(patchRes.statusCode).toBe(200);
-    const body = JSON.parse(patchRes.body);
+    const body = JSON.parse(patchRes.body) as NotebookBody;
     expect(body.notebook.trashedAt).toBe(trashedAt);
 
     // Soft-trashed notebooks drop out of the dashboard list
     const listRes = await app.inject({ method: "GET", url: "/api/notebooks" });
-    const listedIds = JSON.parse(listRes.body).notebooks.map((n: { id: string }) => n.id);
+    const listedIds = (JSON.parse(listRes.body) as NotebookListBody).notebooks.map((n: { id: string }) => n.id);
     expect(listedIds).not.toContain(id);
   });
 
   it("DELETE /api/notebooks/:id removes the notebook and returns 204", async () => {
-    const createRes = await app.inject({
+    const createdRes = await app.inject({
       method: "POST",
       url: "/api/notebooks",
       payload: { title: "Deletable Probe" },
     });
-    const id = JSON.parse(createRes.body).notebook.id;
+    const id = (JSON.parse(createdRes.body) as NotebookBody).notebook.id;
 
-    const deleteRes = await app.inject({
+    const deletedRes = await app.inject({
       method: "DELETE",
       url: `/api/notebooks/${id}`,
     });
-    expect(deleteRes.statusCode).toBe(204);
+    expect(deletedRes.statusCode).toBe(204);
 
-    const getRes = await app.inject({
+    const fetchedRes = await app.inject({
       method: "GET",
       url: `/api/notebooks/${id}`,
     });
-    expect(getRes.statusCode).toBe(404);
+    expect(fetchedRes.statusCode).toBe(404);
   });
 
   describe("dependency handling (notebookService without notebookRepo)", () => {
@@ -339,9 +361,9 @@ describe("Notebooks Fastify Routes (Ticket 05)", () => {
       });
 
       expect(res.statusCode).toBe(500);
-      const body = JSON.parse(res.body);
+      const body = JSON.parse(res.body) as { error?: { code?: string; message?: string } };
       expect(body.error?.code).toBe("INVARIANCE_VIOLATION");
-      expect(String(body.error?.message ?? "")).not.toContain("Cannot read properties");
+      expect(body.error?.message ?? "").not.toContain("Cannot read properties");
     });
   });
 });

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Sparkle, PencilSimple, Lock, Warning } from "../primitives/icons.js";
+import { SparkleIcon, PencilSimpleIcon, LockIcon, WarningIcon } from "../primitives/icons.js";
 import { Badge, type BadgeVariant } from "../primitives/index.js";
 import { cn } from "../../lib/utils.js";
 
@@ -23,10 +23,10 @@ const DEFAULT_STATE_LABELS: Record<ArtifactPartState, string> = {
 };
 
 const STATE_ICONS: Record<ArtifactPartState, React.ReactElement> = {
-  ai: <Sparkle size={16} weight="fill" aria-hidden="true" />,
-  you: <PencilSimple size={16} weight="fill" aria-hidden="true" />,
-  locked: <Lock size={16} weight="fill" aria-hidden="true" />,
-  stale: <Warning size={16} weight="fill" aria-hidden="true" />,
+  ai: <SparkleIcon size={16} weight="fill" aria-hidden="true" />,
+  you: <PencilSimpleIcon size={16} weight="fill" aria-hidden="true" />,
+  locked: <LockIcon size={16} weight="fill" aria-hidden="true" />,
+  stale: <WarningIcon size={16} weight="fill" aria-hidden="true" />,
 };
 
 const STATE_VARIANTS: Record<ArtifactPartState, BadgeVariant> = {
@@ -44,10 +44,10 @@ const RAIL_CLASSES: Record<ArtifactPartState, string> = {
 };
 
 /**
- * ArtifactPart: board `.part` pattern (ticket 16).
- * Enforces Sibling Invariance and accessibility invariants:
- * NEVER color-alone (rail + icon + label always).
- */
+ArtifactPart: board `.part` pattern (ticket 16).
+Enforces Sibling Invariance and accessibility invariants:
+NEVER color-alone (rail + icon + label always).
+*/
 const ArtifactPart = React.forwardRef<HTMLElement, ArtifactPartProps>(
   (
     {
@@ -99,15 +99,15 @@ const ArtifactPart = React.forwardRef<HTMLElement, ArtifactPartProps>(
             {labelText}
           </Badge>
 
-          {meta !== undefined ? (
+          {meta === undefined ? null : (
             <span className="part-meta text-xs text-[var(--nb-ink-3)]">{meta}</span>
-          ) : null}
+          )}
 
-          {tools !== undefined ? (
+          {tools === undefined ? null : (
             <div className="part-tools ml-auto flex flex-wrap items-center gap-[var(--nb-space-1)]">
               {tools}
             </div>
-          ) : null}
+          )}
         </div>
 
         <div

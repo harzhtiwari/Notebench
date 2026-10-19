@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, rmSync, mkdirSync } from "node:fs";
-import { resolve, join } from "node:path";
+import path from "node:path";
 import { createHash } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { createSqliteDatabase, SqliteAccountRepository, SqliteSessionRepository } from "@notebench/infra-db";
@@ -12,21 +12,21 @@ import {
 } from "@notebench/domain-account";
 import { buildServer } from "./app.js";
 
-const TEST_DIR = resolve(`.tmp/test/test-server-session-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
+const TEST_DIR = path.resolve(`.tmp/test/test-server-session-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
 
 /**
- * Windows holds file locks briefly after sqlite handles close, longer under
- * parallel suites: retry transient lock errors with a generous budget.
- */
-async function removeDirWithRetry(dir: string): Promise<void> {
+Windows holds file locks briefly after sqlite handles close, longer under
+parallel suites: retry transient lock errors with a generous budget.
+*/
+async function removeDirWithRetry(): Promise<void> {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     try {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(TEST_DIR, { recursive: true, force: true });
       return;
     } catch (error: unknown) {
-      const code = (error as { code?: string }).code;
-      if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
+      const code = (error as { code?: string }).code ?? "";
+      if (["EPERM", "EBUSY", "ENOTEMPTY"].includes(code) && attempt < 59) {
+        await new Promise((r) => setTimeout(r, 250));
         continue;
       }
       throw error;
@@ -37,15 +37,15 @@ const PASSCODE = "a-very-secure-passcode-phrase-here";
 
 function parseSetCookies(
   header: string | string[] | undefined
-): Array<{ name: string; value: string; attrs: string }> {
-  const lines = Array.isArray(header) ? header : header === undefined ? [] : [header];
+): { name: string; value: string; attrs: string }[] {
+  const lines = Array.isArray(header) ? header : (header === undefined ? [] : [header]);
   return lines.map((line) => {
-    const [pair, ...rest] = line.split(";");
-    const eq = (pair ?? "").indexOf("=");
+    const [pair = "", ...rest] = line.split(";");
+    const eq = pair.indexOf("=");
     return {
-      name: (pair ?? "").slice(0, eq),
-      value: (pair ?? "").slice(eq + 1),
-      attrs: (rest ?? []).join(";"),
+      name: pair.slice(0, eq),
+      value: pair.slice(eq + 1),
+      attrs: rest.join(";"),
     };
   });
 }
@@ -63,10 +63,10 @@ describe("Session routes, cookies and lockout (Ticket 02 - RED Phase)", { timeou
 
   beforeEach(async () => {
     if (existsSync(TEST_DIR)) {
-      await removeDirWithRetry(TEST_DIR);
+      await removeDirWithRetry();
     }
     mkdirSync(TEST_DIR, { recursive: true });
-    testDbPath = join(TEST_DIR, `session-test-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`);
+    testDbPath = path.join(TEST_DIR, `session-test-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`);
     nowMs = 1_700_000_000_000;
   }, 120_000);
 
@@ -81,7 +81,7 @@ describe("Session routes, cookies and lockout (Ticket 02 - RED Phase)", { timeou
     }
     if (existsSync(TEST_DIR)) {
       try {
-        await removeDirWithRetry(TEST_DIR);
+        await removeDirWithRetry();
       } catch {
         // Non-fatal if OS locks transitioning
       }
@@ -121,12 +121,11 @@ describe("Session routes, cookies and lockout (Ticket 02 - RED Phase)", { timeou
     return app;
   }
 
-  async function loginCookie(extraHeaders?: Record<string, string>): Promise<string> {
+  async function loginCookie(): Promise<string> {
     const res = await server().inject({
       method: "POST",
       url: "/api/session/login",
       payload: { passcode: PASSCODE },
-      ...(extraHeaders === undefined ? {} : { headers: extraHeaders }),
     });
     expect(res.statusCode).toBe(200);
     const cookies = parseSetCookies(res.headers["set-cookie"]);
@@ -145,7 +144,8 @@ describe("Session routes, cookies and lockout (Ticket 02 - RED Phase)", { timeou
       payload: { passcode: PASSCODE },
     });
     expect(ok.statusCode).toBe(200);
-    expect(JSON.parse(ok.body).success).toBe(true);
+    const okBody = JSON.parse(ok.body) as { success: boolean };
+    expect(okBody.success).toBe(true);
 
     const bad = await server().inject({
       method: "POST",
@@ -172,7 +172,8 @@ describe("Session routes, cookies and lockout (Ticket 02 - RED Phase)", { timeou
       payload: { passcode: PASSCODE },
     });
     expect(locked.statusCode).toBe(429);
-    expect(JSON.parse(locked.body).error.details.retryAfterSeconds).toBe(60);
+    const lockedBody = JSON.parse(locked.body) as { error: { details: { retryAfterSeconds: number } } };
+    expect(lockedBody.error.details.retryAfterSeconds).toBe(60);
 
     nowMs += 61_000;
     const resumed = await server().inject({
@@ -240,7 +241,7 @@ describe("Session routes, cookies and lockout (Ticket 02 - RED Phase)", { timeou
     const cookie = parseSetCookies(res.headers["set-cookie"])[0];
     if (!cookie) throw new Error("missing session cookie");
     const rawSigned = decodeURIComponent(cookie.value);
-    const rawToken = rawSigned.split(".")[0] ?? "";
+    const rawToken = rawSigned.split(".", 1)[0] ?? "";
     expect(rawToken.length).toBeGreaterThan(0);
 
     const stored = await sessionRepo.findByTokenHash(
@@ -279,7 +280,7 @@ describe("Session routes, cookies and lockout (Ticket 02 - RED Phase)", { timeou
 
   it("renews the sliding expiry on active requests and rejects expired sessions", async () => {
     await boot();
-    let cookie = await loginCookie();
+    const cookie = await loginCookie();
 
     nowMs += 24 * 3600 * 1000;
     const renewed = await server().inject({

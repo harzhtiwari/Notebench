@@ -1,24 +1,21 @@
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import path from "node:path";
 import { buildServer } from "./app.js";
 import { DocWorkerPool } from "@notebench/infra-doc-worker";
 
 /**
- * Port-file contract for the dev orchestrator .
- *
- * Standalone runs keep today's behavior: a CWD-relative flat
- * `.tmp/ports/server.port` written after listen and removed on close. When
- * the orchestrator provides an absolute path via `NOTEBENCH_SERVER_PORT_FILE`
- * (alias `NB_SERVER_PORT_FILE`), the server writes and cleans that file
- * instead, so namespaced records stay under the disposable root.
- */
+Port-file contract for the dev orchestrator .
+
+Standalone runs keep today's behavior: a CWD-relative flat
+`.tmp/ports/server.port` written after listen and removed on close. When
+the orchestrator provides an absolute path via `NOTEBENCH_SERVER_PORT_FILE`
+(alias `NB_SERVER_PORT_FILE`), the server writes and cleans that file
+instead, so namespaced records stay under the disposable root.
+*/
 function resolvePortFilePath(): string {
   const override =
     process.env["NOTEBENCH_SERVER_PORT_FILE"] ?? process.env["NB_SERVER_PORT_FILE"];
-  if (override !== undefined && override !== "" && isAbsolute(override)) {
-    return override;
-  }
-  return resolve(process.cwd(), ".tmp/ports", "server.port");
+  return override !== undefined && override !== "" && path.isAbsolute(override) ? override : path.resolve(process.cwd(), ".tmp/ports", "server.port");
 }
 
 const host = process.env["HOST"] ?? "127.0.0.1";
@@ -29,8 +26,8 @@ async function start() {
   const docWorkerPool = new DocWorkerPool();
   try {
     await docWorkerPool.start();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
     console.warn(`[Fastify] DocWorkerPool initialization deferred or unavailable: ${msg}`);
   }
 
@@ -59,14 +56,14 @@ async function start() {
     const boundPort =
       typeof address === "object" && address !== null ? address.port : requestedPort;
 
-    mkdirSync(dirname(portFilePath), { recursive: true });
-    writeFileSync(portFilePath, String(boundPort), "utf-8");
+    mkdirSync(path.dirname(portFilePath), { recursive: true });
+    writeFileSync(portFilePath, String(boundPort), "utf8");
 
     console.log(`[Fastify] Server listening on http://${host}:${boundPort}`);
-  } catch (err) {
-    console.error("[Fastify] Failed to start server:", err);
+  } catch (error) {
+    console.error("[Fastify] Failed to start server:", error);
     await docWorkerPool.stop();
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

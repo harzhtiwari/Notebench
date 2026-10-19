@@ -3,38 +3,58 @@ import * as React from "react";
 import { Banner } from "../primitives/banners.js";
 import { Button } from "../primitives/button.js";
 import { Checkbox } from "../primitives/fields.js";
-import { Download } from "../primitives/icons.js";
+import { DownloadIcon } from "../primitives/icons.js";
 
 export interface GateNoticeProps {
-  /** Whether the export has completed in this session. When false, deletion is locked. */
+  /**
+  Whether the export has completed in this session. When false, deletion is locked.
+  */
   exported: boolean;
-  /** Trigger callback for 1-click export (PRD K9). */
+  /**
+  Trigger callback for 1-click export (PRD K9).
+  */
   onExport?: (() => void) | undefined;
-  /** Custom title for the notice banner. */
+  /**
+  Custom title for the notice banner.
+  */
   title?: string | undefined;
-  /** Custom description for the notice banner. */
+  /**
+  Custom description for the notice banner.
+  */
   description?: string | undefined;
-  /** Whether the export operation is currently in flight. */
+  /**
+  Whether the export operation is currently in flight.
+  */
   isExporting?: boolean | undefined;
-  /** Button label for export action. Defaults to "Export Everything (ZIP)". */
+  /**
+  Button label for export action. Defaults to "Export Everything (ZIP)".
+  */
   exportButtonLabel?: string | undefined;
-  /** Optional acknowledgment state for bypassing export (Decision 7.7). */
+  /**
+  Optional acknowledgment state for bypassing export (Decision 7.7).
+  */
   acknowledged?: boolean | undefined;
-  /** Optional callback when acknowledgment checkbox is toggled. */
-  onAcknowledgeChange?: ((acknowledged: boolean) => void) | undefined;
-  /** Custom children or secondary actions. */
+  /**
+  Optional callback when acknowledgment checkbox is toggled.
+  */
+  onAcknowledgeChange?: ((isAcknowledged: boolean) => void) | undefined;
+  /**
+  Custom children or secondary actions.
+  */
   children?: React.ReactNode | undefined;
-  /** Additional container classes (using var(--nb-*) only). */
+  /**
+  Additional container classes (using var(--nb-*) only).
+  */
   className?: string | undefined;
 }
 
 /**
- * GateNotice (Issue 22 / Ticket 23): Export-first gating banner (PRD K9, Decision 7.7).
- * Locks destructive actions until a backup has been exported or acknowledged.
- * Composed on the unified Banner primitive.
- * Invariant: Never color-alone — pairs status colors with explicit icons and descriptive text.
- * Invariant: Elevation shadow invariant — zero float shadows on in-page banners.
- */
+GateNotice (Issue 22 / Ticket 23): Export-first gating banner (PRD K9, Decision 7.7).
+Locks destructive actions until a backup has been exported or acknowledged.
+Composed on the unified Banner primitive.
+Invariant: Never color-alone — pairs status colors with explicit icons and descriptive text.
+Invariant: Elevation shadow invariant — zero float shadows on in-page banners.
+*/
 export function GateNotice({
   exported,
   onExport,
@@ -66,7 +86,7 @@ export function GateNotice({
               size="nb_btn_sm"
               onClick={onExport}
               disabled={isExporting}
-              leadingIcon={Download}
+              leadingIcon={DownloadIcon}
             >
               {isExporting ? "Exporting..." : "Re-export Backup"}
             </Button>
@@ -95,7 +115,7 @@ export function GateNotice({
             size="nb_btn_sm"
             onClick={onExport}
             disabled={isExporting}
-            leadingIcon={Download}
+            leadingIcon={DownloadIcon}
           >
             {isExporting ? "Exporting..." : exportButtonLabel}
           </Button>
@@ -104,7 +124,7 @@ export function GateNotice({
       {onAcknowledgeChange ? (
         <Checkbox
           checked={acknowledged}
-          onChange={(event) => onAcknowledgeChange(event.target.checked)}
+          onChange={(event) => { onAcknowledgeChange(event.target.checked); }}
           className="text-[length:var(--nb-text-xs)] text-[var(--nb-ink-2)]"
         >
           I have already backed up this data or do not require an export

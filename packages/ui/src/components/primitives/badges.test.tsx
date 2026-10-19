@@ -15,7 +15,7 @@ afterEach(() => {
   cleanup();
 });
 
-const VARIANT_TOKENS: ReadonlyArray<[BadgeVariant, string, string]> = [
+const VARIANT_TOKENS: readonly [BadgeVariant, string, string][] = [
   ["default", "bg-[var(--nb-well)]", "text-[var(--nb-ink-2)]"],
   ["ok", "bg-[var(--nb-ok-wash)]", "text-[var(--nb-ok)]"],
   ["warn", "bg-[var(--nb-warn-wash)]", "text-[var(--nb-warn)]"],
@@ -65,7 +65,7 @@ describe("Badge (consolidated badges family)", () => {
     );
     const badge = screen.getByText("Locked");
     expect(badge.className).toContain("my-badge");
-    expect(badge.getAttribute("data-state")).toBe("locked");
+    expect(badge.dataset["state"]).toBe("locked");
     expect(badge.getAttribute("title")).toBe("Locked");
   });
 
@@ -77,9 +77,7 @@ describe("Badge (consolidated badges family)", () => {
 });
 
 describe("StatusBadge", () => {
-  const STATUS_CASES: ReadonlyArray<
-    [Parameters<typeof StatusBadge>[0]["status"], string, string]
-  > = [
+  const STATUS_CASES: readonly [Parameters<typeof StatusBadge>[0]["status"], string, string][] = [
     ["pending", "Pending", "bg-[var(--nb-well)]"],
     ["active", "Generating", "bg-[var(--nb-ai-wash)]"],
     ["done", "Done", "bg-[var(--nb-ok-wash)]"],
@@ -129,7 +127,7 @@ describe("VersionBadge", () => {
   it("renders the milestone arrival copy", () => {
     render(<VersionBadge milestone="0.2" />);
     const badge = screen.getByText("Coming in 0.2");
-    expect(badge.getAttribute("data-testid")).toBe("version-badge");
+    expect(badge.dataset["testid"]).toBe("version-badge");
   });
 
   it("renders 'Coming later' for the later milestone", () => {

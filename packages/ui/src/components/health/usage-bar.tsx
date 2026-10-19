@@ -1,12 +1,16 @@
 import * as React from "react";
 import { formatBytes } from "../../lib/formatters.js";
-import { HardDrive } from "../primitives/icons.js";
+import { HardDriveIcon } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
-/** Default safe cap matching PRD 1.34 (5.0 GB). */
+/**
+Default safe cap matching PRD 1.34 (5.0 GB).
+*/
 export const DEFAULT_STORAGE_SAFE_CAP_BYTES = 5 * 1024 * 1024 * 1024;
 
-/** Canonical chart series color tokens from docs/ui/tokens.json. */
+/**
+Canonical chart series color tokens from docs/ui/tokens.json.
+*/
 export const CHART_SERIES_TOKENS = [
   "var(--nb-chart-1)",
   "var(--nb-chart-2)",
@@ -14,43 +18,67 @@ export const CHART_SERIES_TOKENS = [
   "var(--nb-chart-4)",
 ] as const;
 
-/** Board semantic classes for the 4 chart series. */
+/**
+Board semantic classes for the 4 chart series.
+*/
 export const CHART_SERIES_CLASSES = ["c1", "c2", "c3", "c4"] as const;
 
 export interface StorageCategoryItem {
-  /** Identifier for category (e.g. 'database', 'uploads', 'artifacts', 'vault', 'cache', 'logs'). */
+  /**
+  Identifier for category (e.g. 'database', 'uploads', 'artifacts', 'vault', 'cache', 'logs').
+  */
   id: string;
-  /** Human-readable direct label (e.g. 'Database', 'Uploads'). */
+  /**
+  Human-readable direct label (e.g. 'Database', 'Uploads').
+  */
   label: string;
-  /** Consumed storage in bytes. */
+  /**
+  Consumed storage in bytes.
+  */
   bytes: number;
-  /** Optional custom color token or variable override. */
+  /**
+  Optional custom color token or variable override.
+  */
   color?: string | undefined;
-  /** Optional descriptive note. */
+  /**
+  Optional descriptive note.
+  */
   description?: string | undefined;
 }
 
 export interface UsageBarProps {
-  /** Breakdown per category. */
+  /**
+  Breakdown per category.
+  */
   categories: readonly StorageCategoryItem[];
-  /** Safe cap in bytes. Defaults to 5.0 GB (5 * 1024 * 1024 * 1024). */
+  /**
+  Safe cap in bytes. Defaults to 5.0 GB (5 * 1024 * 1024 * 1024).
+  */
   capBytes?: number | undefined;
-  /** Custom total bytes override (if different from sum of categories). */
+  /**
+  Custom total bytes override (if different from sum of categories).
+  */
   totalBytes?: number | undefined;
-  /** Title or label for the usage bar section. Defaults to "Storage Usage". */
+  /**
+  Title or label for the usage bar section. Defaults to "Storage Usage".
+  */
   title?: string | undefined;
-  /** Whether to show the composite progress meter. Defaults to true. */
+  /**
+  Whether to show the composite progress meter. Defaults to true.
+  */
   showMeter?: boolean | undefined;
-  /** Additional container classes (using var(--nb-*) only). */
+  /**
+  Additional container classes (using var(--nb-*) only).
+  */
   className?: string | undefined;
 }
 
 /**
- * UsageBar (Issue 22 / Ticket 23): Storage usage breakdown against the 5.0 GB safe cap.
- * Composes board .chart, .chart-row, and .chart-bar patterns.
- * Invariant: Never color-alone — pairs series colors with explicit direct labels and formatted sizes.
- * Invariant: Elevation shadow invariant — zero float shadows on in-page elements.
- */
+UsageBar (Issue 22 / Ticket 23): Storage usage breakdown against the 5.0 GB safe cap.
+Composes board .chart, .chart-row, and .chart-bar patterns.
+Invariant: Never color-alone — pairs series colors with explicit direct labels and formatted sizes.
+Invariant: Elevation shadow invariant — zero float shadows on in-page elements.
+*/
 export function UsageBar({
   categories,
   capBytes = DEFAULT_STORAGE_SAFE_CAP_BYTES,
@@ -60,13 +88,11 @@ export function UsageBar({
   className,
 }: UsageBarProps): React.JSX.Element {
   const computedTotal = React.useMemo(() => {
-    if (typeof totalBytes === "number") return Math.max(0, totalBytes);
-    return categories.reduce((acc, cat) => acc + Math.max(0, cat.bytes), 0);
+    return typeof totalBytes === "number" ? Math.max(0, totalBytes) : categories.reduce((acc, cat) => acc + Math.max(0, cat.bytes), 0);
   }, [totalBytes, categories]);
 
   const percentage = React.useMemo(() => {
-    if (capBytes <= 0) return 0;
-    return Math.min(100, Math.round((computedTotal / capBytes) * 100));
+    return capBytes <= 0 ? 0 : Math.min(100, Math.round((computedTotal / capBytes) * 100));
   }, [computedTotal, capBytes]);
 
   return (
@@ -80,7 +106,7 @@ export function UsageBar({
       {/* Header with Title, HardDrive icon, and Total / Safe Cap summary */}
       <div className="flex flex-wrap items-baseline justify-between gap-[var(--nb-space-2)] pb-[var(--nb-space-3)]">
         <div className="flex items-center gap-[var(--nb-space-2)]">
-          <HardDrive
+          <HardDriveIcon
             size={16}
             className="text-[var(--nb-ink-2)]"
             aria-hidden="true"

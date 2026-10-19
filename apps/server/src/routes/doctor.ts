@@ -24,8 +24,8 @@ interface DoctorQuery {
 }
 
 /**
- * Registers the /api/doctor diagnostic endpoint (NOTEBENCH Decision 8.8).
- */
+Registers the /api/doctor diagnostic endpoint (NOTEBENCH Decision 8.8).
+*/
 export function registerDoctorRoutes(
   app: FastifyInstance,
   options: DoctorRouteOptions = {}
@@ -38,9 +38,9 @@ export function registerDoctorRoutes(
       options.appLogger?.debug("Doctor diagnostics probe requested");
 
       const queryHost = request.query.host;
-      const queryHasPasscode = request.query.hasPasscode !== undefined
-        ? request.query.hasPasscode === "true"
-        : undefined;
+      const queryHasPasscode = request.query.hasPasscode === undefined
+        ? undefined
+        : request.query.hasPasscode === "true";
 
       const effectiveHost = queryHost ?? options.serverHost ?? process.env["HOST"] ?? "127.0.0.1";
       const effectiveHasPasscode = queryHasPasscode ?? options.hasOwnerPasscode;
@@ -56,12 +56,12 @@ export function registerDoctorRoutes(
 
       const aggregateStatus = probes.some((p) => p.status === "fail")
         ? "error"
-        : probes.some((p) => p.status === "warn")
+        : (probes.some((p) => p.status === "warn")
           ? "warn"
-          : "ok";
+          : "ok");
 
       // Backward-compatible docWorker summary for existing clients and tests
-      let docWorkerStatus: unknown = undefined;
+      let docWorkerStatus: unknown;
       if (options.docWorkerPool) {
         const pyProbe = probes.find((p) => p.id === "python_worker");
         if (pyProbe?.status === "pass" && pyProbe.details) {
@@ -87,7 +87,7 @@ export function registerDoctorRoutes(
         uptime: process.uptime(),
         memory: process.memoryUsage(),
         probes,
-        ...(docWorkerStatus !== undefined ? { docWorker: docWorkerStatus } : {}),
+        ...((docWorkerStatus !== undefined) && { docWorker: docWorkerStatus }),
       };
 
       return report;

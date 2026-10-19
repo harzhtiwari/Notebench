@@ -2,18 +2,12 @@
 import * as React from "react";
 import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import * as IconCatalog from "./icons.js";
 import { resolveIconProps } from "./icons.js";
 import { Button, IconButton } from "./button.js";
 
-type IconComponent = React.ComponentType<{
-  size?: number | string | undefined;
-  weight?: string | undefined;
-  "aria-hidden"?: boolean | "true" | "false" | undefined;
-  className?: string | undefined;
-}>;
-
-function isIconComponent(val: unknown): val is IconComponent {
+function isIconComponent(val: unknown): val is PhosphorIcon {
   return typeof val === "function" || (typeof val === "object" && val !== null);
 }
 
@@ -106,38 +100,38 @@ describe("Icon UI Architecture (iconui.md & button-upgrade-plan.md)", () => {
 
   describe("Seam 2: 32 Canonical Starter Set (iconui.md Table 3)", () => {
     const canonicalStarterSet = [
-      "ArrowDown",
-      "ArrowUp",
-      "ArrowsClockwise",
-      "Cards",
-      "ChartBar",
-      "CheckCircle",
-      "Circle",
-      "ClockCounterClockwise",
-      "Copy",
-      "DownloadSimple",
-      "FileDoc",
-      "FilePdf",
-      "FileText",
-      "Gear",
-      "Globe",
-      "Info",
-      "LockSimple",
-      "MagnifyingGlass",
-      "Notebook",
-      "PencilSimple",
-      "Plus",
-      "PresentationChart",
-      "Question",
-      "ShieldCheck",
-      "SidebarSimple",
-      "Sparkle",
-      "TreeStructure",
-      "VideoCamera",
-      "Warning",
-      "WarningCircle",
-      "Waveform",
-      "X",
+      "ArrowDownIcon",
+      "ArrowUpIcon",
+      "ArrowsClockwiseIcon",
+      "CardsIcon",
+      "ChartBarIcon",
+      "CheckCircleIcon",
+      "CircleIcon",
+      "ClockCounterClockwiseIcon",
+      "CopyIcon",
+      "DownloadSimpleIcon",
+      "FileDocIcon",
+      "FilePdfIcon",
+      "FileTextIcon",
+      "GearIcon",
+      "GlobeIcon",
+      "InfoIcon",
+      "LockSimpleIcon",
+      "MagnifyingGlassIcon",
+      "NotebookIcon",
+      "PencilSimpleIcon",
+      "PlusIcon",
+      "PresentationChartIcon",
+      "QuestionIcon",
+      "ShieldCheckIcon",
+      "SidebarSimpleIcon",
+      "SparkleIcon",
+      "TreeStructureIcon",
+      "VideoCameraIcon",
+      "WarningIcon",
+      "WarningCircleIcon",
+      "WaveformIcon",
+      "XIcon",
     ] as const;
 
     it("exports all 32 canonical starter icons from iconui.md Table 3", () => {
@@ -231,7 +225,7 @@ describe("Icon UI Architecture (iconui.md & button-upgrade-plan.md)", () => {
         <IconButton
           variant="nb_btn_secondary"
           size="nb_btn_icon_md"
-          icon={IconCatalog.Gear}
+          icon={IconCatalog.GearIcon}
           aria-label="Settings"
         />
       );
@@ -252,7 +246,7 @@ describe("Icon UI Architecture (iconui.md & button-upgrade-plan.md)", () => {
         <IconButton
           variant="nb_btn_secondary"
           size="nb_btn_icon_sm"
-          icon={IconCatalog.Copy}
+          icon={IconCatalog.CopyIcon}
           aria-label="Copy citation"
         />
       );
@@ -270,7 +264,7 @@ describe("Icon UI Architecture (iconui.md & button-upgrade-plan.md)", () => {
 
     it("renders the 3. Export button (Button nb_btn_secondary nb_btn_md with leading DownloadSimple)", () => {
       const { container } = render(
-        <Button variant="nb_btn_secondary" size="nb_btn_md" leadingIcon={IconCatalog.DownloadSimple}>
+        <Button variant="nb_btn_secondary" size="nb_btn_md" leadingIcon={IconCatalog.DownloadSimpleIcon}>
           Export
         </Button>
       );

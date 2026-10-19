@@ -9,67 +9,79 @@ import {
   type DeletionLevelDefinition,
   type DeletionRisk,
 } from "../../lib/deletion-levels.js";
-import { Lock, Warning, ShieldCheck } from "../primitives/icons.js";
+import { LockIcon, WarningIcon, ShieldCheckIcon } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
 export interface LevelActionsProps {
   /**
-   * Deletion levels to render.
-   * Defaults to all DELETION_LEVELS table rows.
-   */
+  Deletion levels to render.
+  Defaults to all DELETION_LEVELS table rows.
+  */
   levels?:
     | readonly (number | DeletionLevel | DeletionLevelDefinition)[]
     | undefined;
   /**
-   * Export gating state.
-   * When false (and gated is true), destructive actions are disabled until export completes.
-   */
+  Export gating state.
+  When false (and gated is true), destructive actions are disabled until export completes.
+  */
   exported?: boolean | undefined;
-  /** Whether export-first gating is enforced. Defaults to true. */
+  /**
+  Whether export-first gating is enforced. Defaults to true.
+  */
   gated?: boolean | undefined;
-  /** Callback when user clicks a deletion level action button. */
+  /**
+  Callback when user clicks a deletion level action button.
+  */
   onSelectLevel?: ((level: DeletionLevelDefinition) => void) | undefined;
-  /** Confirm callback when ConfirmDialog executes deletion. */
+  /**
+  Confirm callback when ConfirmDialog executes deletion.
+  */
   onConfirmDeletion?:
     | ((level: DeletionLevelDefinition, reauth?: string) => void | Promise<void>)
     | undefined;
-  /** Whether owner passcode is configured for ConfirmDialog re-auth. */
+  /**
+  Whether owner passcode is configured for ConfirmDialog re-auth.
+  */
   hasPasscode?: boolean | undefined;
-  /** Whether an operation is currently pending. */
+  /**
+  Whether an operation is currently pending.
+  */
   isPending?: boolean | undefined;
-  /** Additional container classes (using var(--nb-*) only). */
+  /**
+  Additional container classes (using var(--nb-*) only).
+  */
   className?: string | undefined;
 }
 
 function RiskTag({ risk }: { risk: DeletionRisk }): React.JSX.Element {
   if (risk === "low") {
     return (
-      <Badge variant="ok" icon={<ShieldCheck size={12} aria-hidden="true" />}>
+      <Badge variant="ok" icon={<ShieldCheckIcon size={12} aria-hidden="true" />}>
         Low Risk
       </Badge>
     );
   }
   if (risk === "medium") {
     return (
-      <Badge variant="warn" icon={<Warning size={12} aria-hidden="true" />}>
+      <Badge variant="warn" icon={<WarningIcon size={12} aria-hidden="true" />}>
         Medium Risk
       </Badge>
     );
   }
   return (
-    <Badge variant="danger" icon={<Warning size={12} aria-hidden="true" />}>
+    <Badge variant="danger" icon={<WarningIcon size={12} aria-hidden="true" />}>
       High Risk
     </Badge>
   );
 }
 
 /**
- * LevelActions (Issue 22 / Ticket 23): Cascading deletion level triggers.
- * Driven by the canonical DELETION_LEVELS table and wired to Ticket 20's ConfirmDialog.
- * Enforces PRD K9 export-first gating: buttons disabled until exported: true.
- * Invariant: Never color-alone — risk tags pair colors with explicit icons and text.
- * Invariant: Elevation shadow invariant — zero float shadows on in-page cards.
- */
+LevelActions (Issue 22 / Ticket 23): Cascading deletion level triggers.
+Driven by the canonical DELETION_LEVELS table and wired to Ticket 20's ConfirmDialog.
+Enforces PRD K9 export-first gating: buttons disabled until exported: true.
+Invariant: Never color-alone — risk tags pair colors with explicit icons and text.
+Invariant: Elevation shadow invariant — zero float shadows on in-page cards.
+*/
 export function LevelActions({
   levels = DELETION_LEVELS,
   exported = false,
@@ -136,9 +148,9 @@ export function LevelActions({
                   variant={isHighRisk ? "nb_btn_danger" : "nb_btn_secondary"}
                   size="nb_btn_sm"
                   disabled={isLocked || isPending}
-                  onClick={() => handleActionClick(def)}
+                  onClick={() => { handleActionClick(def); }}
                   title={isLocked ? "Export required before deletion" : def.name}
-                  leadingIcon={isLocked ? Lock : undefined}
+                  leadingIcon={isLocked ? LockIcon : undefined}
                 >
                   {def.name}
                 </Button>
@@ -164,7 +176,7 @@ export function LevelActions({
             }
             setActiveLevel(null);
           }}
-          onCancel={() => setActiveLevel(null)}
+          onCancel={() => { setActiveLevel(null); }}
         />
       )}
     </div>

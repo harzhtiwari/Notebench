@@ -1,19 +1,23 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { DocWorkerPool } from "./pool.js";
-import { resolve } from "node:path";
+import path from "node:path";
 
 describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {  let pool: DocWorkerPool | null = null;
 
   afterEach(async () => {
-    if (pool) {
-      await pool.stop();
-      pool = null;
+    if (!pool) {
+      return;
     }
+
+    await pool.stop();
+    pool = null;
   });
 
   it("resolves the direct venv python for steady-state workers (no uv hop)", async () => {
     const { resolveWorkerSpawn } = await import("./worker-process.js");
-    const plan = resolveWorkerSpawn(resolve("tools/doc-tools"));
+    // Resolve from this file, not cwd: vitest runs with cwd = package dir.
+    const repoRoot = path.resolve(import.meta.dirname, "..", "..", "..");
+    const plan = resolveWorkerSpawn(path.join(repoRoot, "tools", "doc-tools"));
     expect(plan.command.endsWith(process.platform === "win32" ? "python.exe" : "python")).toBe(
       true
     );
@@ -23,19 +27,19 @@ describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {  let
 
   it("falls back to uv run when the venv python is missing", async () => {
     const { resolveWorkerSpawn } = await import("./worker-process.js");
-    const plan = resolveWorkerSpawn(resolve(".tmp/no-such-venv-parent"));
+    const plan = resolveWorkerSpawn(path.resolve(".tmp/no-such-venv-parent"));
     expect(plan.command).toBe("uv");
     expect(plan.argv).toContain("doc_tools.worker");
   });
 
   it("initializes a bounded worker pool and responds to ping within 50ms on warm probe", async () => {
-    const projectDir = resolve("tools/doc-tools");
+    const projectDir = path.resolve("tools/doc-tools");
     pool = new DocWorkerPool({
       projectDir,
       minWorkers: 1,
       maxWorkers: 2,
       // Loaded CI workers can stall even a ping past the 10 s default.
-      requestTimeoutMs: 30000,
+      requestTimeoutMs: 30_000,
     });
 
     await pool.start();
@@ -53,17 +57,17 @@ describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {  let
 
     expect(warmProbe.pong).toBe(true);
     expect(duration).toBeLessThan(50); // Strict sub-50ms ping assertion per spec
-  }, 15000);
+  }, 60_000); // Cold start (uv sync + first Python boot) can exceed 15 s when the full suite runs in parallel; matches sibling pool tests
 
 
   it("retrieves worker info and capabilities via JSON-RPC", async () => {
-    const projectDir = resolve("tools/doc-tools");
+    const projectDir = path.resolve("tools/doc-tools");
     pool = new DocWorkerPool({
       projectDir,
       minWorkers: 1,
       maxWorkers: 1,
       // Loaded CI workers can stall even a metadata call past the 10 s default.
-      requestTimeoutMs: 30000,
+      requestTimeoutMs: 30_000,
     });
 
     await pool.start();
@@ -78,13 +82,13 @@ describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {  let
   }, 60_000);
 
   it("handles concurrent requests across the pool", async () => {
-    const projectDir = resolve("tools/doc-tools");
+    const projectDir = path.resolve("tools/doc-tools");
     pool = new DocWorkerPool({
       projectDir,
       minWorkers: 2,
       maxWorkers: 2,
       // Loaded CI workers can stall even a ping past the 10 s default.
-      requestTimeoutMs: 30000,
+      requestTimeoutMs: 30_000,
     });
 
     await pool.start();
@@ -103,13 +107,13 @@ describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {  let
   }, 60_000);
 
   it("detects worker crash and automatically restarts a healthy worker", async () => {
-    const projectDir = resolve("tools/doc-tools");
+    const projectDir = path.resolve("tools/doc-tools");
     pool = new DocWorkerPool({
       projectDir,
       minWorkers: 1,
       maxWorkers: 1,
       // Respawn slowness must not fail the request itself on loaded machines.
-      requestTimeoutMs: 30000,
+      requestTimeoutMs: 30_000,
     });
 
     await pool.start();
@@ -126,7 +130,7 @@ describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {  let
     while (Date.now() < deadline) {
       try {
         const probe = await pool.ping();
-        if (probe.pong && probe.workerPid !== initialPid) {
+        if (probe.workerPid !== initialPid) {
           respawnedProbe = probe;
           break;
         }
@@ -142,7 +146,7 @@ describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {  let
   }, 120_000);
 
   it("gracefully stops all workers and transitions state", async () => {
-    const projectDir = resolve("tools/doc-tools");
+    const projectDir = path.resolve("tools/doc-tools");
     pool = new DocWorkerPool({
       projectDir,
       minWorkers: 1,
@@ -160,19 +164,19 @@ describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {  let
   }, 60_000);
 
   it("executes preflightPdf and extractPdf over the pool", async () => {
-    const projectDir = resolve("tools/doc-tools");
+    const projectDir = path.resolve("tools/doc-tools");
     pool = new DocWorkerPool({
       projectDir,
       minWorkers: 1,
       maxWorkers: 1,
       // Loaded CI workers can stall even a tiny extract past the 10 s default.
-      requestTimeoutMs: 30000,
+      requestTimeoutMs: 30_000,
     });
     await pool.start();
 
     const { writeFileSync, mkdirSync } = await import("node:fs");
-    const testPdfPath = resolve(`.tmp/cache/test_pool-${process.env["VITEST_WORKER_ID"] ?? "0"}.pdf`);
-    mkdirSync(resolve(".tmp/cache"), { recursive: true });
+    const testPdfPath = path.resolve(`.tmp/cache/test_pool-${process.env["VITEST_WORKER_ID"] ?? "0"}.pdf`);
+    mkdirSync(path.resolve(".tmp/cache"), { recursive: true });
     const content = "BT /F1 14 Tf 50 700 Td (Notebench pool test) Tj ET";
     const pdfData = `%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj\n4 0 obj << /Length ${content.length} >>\nstream\n${content}\nendstream\nendobj\n5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000244 00000 n \n0000000340 00000 n \ntrailer << /Size 6 /Root 1 0 R >>\nstartxref\n415\n%%EOF\n`;
     writeFileSync(testPdfPath, pdfData, "latin1");
@@ -186,12 +190,12 @@ describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {  let
   }, 60_000);
 
   it("executes embedBatch over the pool returning 384-dimensional vectors", async () => {
-    const projectDir = resolve("tools/doc-tools");
+    const projectDir = path.resolve("tools/doc-tools");
     pool = new DocWorkerPool({
       projectDir,
       minWorkers: 1,
       maxWorkers: 1,
-      requestTimeoutMs: 30000,
+      requestTimeoutMs: 30_000,
     });
     await pool.start();
 
@@ -200,15 +204,15 @@ describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {  let
     expect(result.dimensions).toBe(384);
     expect(result.embeddings).toHaveLength(1);
     expect(result.embeddings[0]).toHaveLength(384);
-  }, 35000);
+  }, 35_000);
 
   it("executes embedQuery over the pool returning 384-dimensional query vector", async () => {
-    const projectDir = resolve("tools/doc-tools");
+    const projectDir = path.resolve("tools/doc-tools");
     pool = new DocWorkerPool({
       projectDir,
       minWorkers: 1,
       maxWorkers: 1,
-      requestTimeoutMs: 30000,
+      requestTimeoutMs: 30_000,
     });
     await pool.start();
 
@@ -216,6 +220,6 @@ describe("DocWorkerPool (Infra Subprocess Pool & JSON-RPC Bridge)", () => {  let
     expect(result.model).toBe("BAAI/bge-small-en-v1.5");
     expect(result.dimensions).toBe(384);
     expect(result.embedding).toHaveLength(384);
-  }, 35000);
+  }, 35_000);
 });
 

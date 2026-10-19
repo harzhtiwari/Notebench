@@ -4,16 +4,16 @@ import { OrchestratorError } from "./types.js";
 import type { ServiceName } from "./types.js";
 
 /**
- * Child spawning for the dev orchestrator: known executables only, explicit
- * argument arrays, never a shell wrapper. Each child record carries the
- * service, PID, namespace, run id, log path, startup timestamp, and exit
- * observation the supervision layer needs.
- */
+Child spawning for the dev orchestrator: known executables only, explicit
+argument arrays, never a shell wrapper. Each child record carries the
+service, PID, namespace, run id, log path, startup timestamp, and exit
+observation the supervision layer needs.
+*/
 
 /**
- * Executables the orchestrator may launch. Children run from source through
- * the local Node executable, so nothing else is ever spawned.
- */
+Executables the orchestrator may launch. Children run from source through
+the local Node executable, so nothing else is ever spawned.
+*/
 export const KNOWN_EXECUTABLES: readonly string[] = [process.execPath, "node"];
 
 export interface SpawnRequest {
@@ -26,17 +26,19 @@ export interface SpawnRequest {
   cwd?: string | undefined;
   env?: Record<string, string | undefined> | undefined;
   /**
-   * Optional byte sink for child stdout/stderr. The orchestrator attaches
-   * its per-service log tee here; supervisors that only need exit records
-   * omit it. Never a shell wrapper: chunks arrive as decoded text.
-   */
+  Optional byte sink for child stdout/stderr. The orchestrator attaches
+  its per-service log tee here; supervisors that only need exit records
+  omit it. Never a shell wrapper: chunks arrive as decoded text.
+  */
   onOutput?: ((stream: "stdout" | "stderr", chunk: string) => void) | undefined;
 }
 
 export interface ChildExit {
   code: number | null;
   signal: string | null;
-  /** Set when the child failed before a normal exit was observed (P6). */
+  /**
+  Set when the child failed before a normal exit was observed (P6).
+  */
   error?: string | undefined;
 }
 
@@ -72,14 +74,14 @@ export type SpawnFn = (
 ) => SpawnFnChild;
 
 /**
- * Platform gate for supervised-child detachment (research
- * docs/research/2026-10-15/windows-console-flash.md §2-§4): on Windows,
- * detached:true is DETACHED_PROCESS (own console), which orphans the whole
- * subtree into visible popup consoles. POSIX keeps detached:true for
- * process-group kill; Windows teardown uses taskkill /T instead, and sharing
- * the console also lets one Ctrl+C reach the whole tree again.
- */
-export function supervisedDetached(platform: NodeJS.Platform = process.platform): boolean {
+Platform gate for supervised-child detachment (research
+docs/research/2026-10-15/windows-console-flash.md §2-§4): on Windows,
+detached:true is DETACHED_PROCESS (own console), which orphans the whole
+subtree into visible popup consoles. POSIX keeps detached:true for
+process-group kill; Windows teardown uses taskkill /T instead, and sharing
+the console also lets one Ctrl+C reach the whole tree again.
+*/
+export function isSupervisedDetached(platform: NodeJS.Platform = process.platform): boolean {
   return platform !== "win32";
 }
 
@@ -151,19 +153,19 @@ function defaultSpawnFn(
           listener(code, typeof signal === "string" ? signal : null);
         });
       } else if (event === "error") {
-        errorListeners.push((error) => listener(error));
+        errorListeners.push((error) => { listener(error); });
       }
     },
   };
 }
 
 /**
- * Spawn one supervised child. The spawner is always invoked with an explicit
- * argv array and `shell: false`; detached so POSIX group kill can reap the
- * whole tree at teardown. Throws `OrchestratorError` (exit 1) for unknown
- * executables, malformed argv, or a child that reports no PID.
- */
-export function spawnChild(request: SpawnRequest, deps?: SpawnDeps | undefined): SpawnedChild {
+Spawn one supervised child. The spawner is always invoked with an explicit
+argv array and `shell: false`; detached so POSIX group kill can reap the
+whole tree at teardown. Throws `OrchestratorError` (exit 1) for unknown
+executables, malformed argv, or a child that reports no PID.
+*/
+export function spawnChild(request: SpawnRequest, deps?: SpawnDeps  ): SpawnedChild {
   if (!isKnownExecutable(request.executable)) {
     throw new OrchestratorError(
       `Refusing to spawn unknown executable "${request.executable}" for ${request.service}: ` +
@@ -192,21 +194,18 @@ export function spawnChild(request: SpawnRequest, deps?: SpawnDeps | undefined):
     shell: false,
     cwd: request.cwd,
     env: request.env,
-    detached: supervisedDetached(),
+    detached: isSupervisedDetached(),
     output: request.onOutput,
   });
   const pid: number | undefined = child.pid;
-  if (pid === undefined || !Number.isInteger(pid) || pid <= 0) {
+  if (pid === undefined || !Number.isSafeInteger(pid) || pid <= 0) {
     throw new OrchestratorError(`Spawned ${request.service} reported no PID.`, 1);
   }
-  let settled = false;
-  let resolveExit: (value: ChildExit) => void = () => undefined;
-  const exited = new Promise<ChildExit>((resolve) => {
-    resolveExit = resolve;
-  });
+  let isSettled = false;
+  const { promise: exited, resolve: resolveExit } = Promise.withResolvers<ChildExit>();
   const settle = (value: ChildExit): void => {
-    if (settled) return;
-    settled = true;
+    if (isSettled) return;
+    isSettled = true;
     resolveExit(value);
   };
   child.on("exit", (...args: unknown[]) => {

@@ -1,12 +1,12 @@
 import * as React from "react";
 import type { TargetMilestone } from "@notebench/contracts";
 import {
-  Circle,
-  Sparkle,
-  CheckCircle,
-  WarningCircle,
-  XCircle,
-  Warning,
+  CircleIcon,
+  SparkleIcon,
+  CheckCircleIcon,
+  WarningCircleIcon,
+  XCircleIcon,
+  WarningIcon,
 } from "./icons.js";
 import { cn } from "../../lib/utils.js";
 
@@ -25,9 +25,9 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 /**
- * Base `Badge`: board `.badge` shape with the seven-wash variant scale.
- * Flat surface (no shadows), chip radius, sentence-case labels only.
- */
+Base `Badge`: board `.badge` shape with the seven-wash variant scale.
+Flat surface (no shadows), chip radius, sentence-case labels only.
+*/
 export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
   ({ className, variant = "default", icon, children, ...props }, ref) => (
     <span
@@ -73,7 +73,7 @@ interface StatusMeta {
   variant: BadgeVariant;
   label: string;
   className?: string | undefined;
-  Icon: typeof Circle;
+  Icon: typeof CircleIcon;
   weight: "fill" | "regular";
 }
 
@@ -81,44 +81,44 @@ const STATUS_CONFIG: Record<GenerationStatus, StatusMeta> = {
   pending: {
     variant: "default",
     label: "Pending",
-    Icon: Circle,
+    Icon: CircleIcon,
     weight: "regular",
   },
   active: {
     variant: "ai",
     label: "Generating",
-    Icon: Sparkle,
+    Icon: SparkleIcon,
     weight: "fill",
   },
   done: {
     variant: "ok",
     label: "Done",
-    Icon: CheckCircle,
+    Icon: CheckCircleIcon,
     weight: "fill",
   },
   error: {
     variant: "danger",
     label: "Error",
-    Icon: WarningCircle,
+    Icon: WarningCircleIcon,
     weight: "fill",
   },
   cancelled: {
     variant: "default",
     label: "Cancelled",
     className: "text-[var(--nb-ink-3)]",
-    Icon: XCircle,
+    Icon: XCircleIcon,
     weight: "fill",
   },
 };
 
 /**
- * Reusable generation/job status badge.
- * Composes the board `.badge` pattern. Status is NEVER color-alone — icon +
- * label text always.
- */
+Reusable generation/job status badge.
+Composes the board `.badge` pattern. Status is NEVER color-alone — icon +
+label text always.
+*/
 export const StatusBadge = React.forwardRef<HTMLSpanElement, StatusBadgeProps>(
   ({ className, status, label, icon, children, ...props }, ref) => {
-    const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending;
+    const config = STATUS_CONFIG[status];
     const DefaultIcon = config.Icon;
     const displayText = children ?? label ?? config.label;
 
@@ -127,15 +127,15 @@ export const StatusBadge = React.forwardRef<HTMLSpanElement, StatusBadgeProps>(
         ref={ref}
         variant={config.variant}
         icon={
-          icon !== undefined ? (
-            icon
-          ) : (
+          icon === undefined ? (
             <DefaultIcon
               size={16}
               weight={config.weight}
               aria-hidden="true"
               className="shrink-0"
             />
+          ) : (
+            icon
           )
         }
         className={cn(config.className, className)}
@@ -153,9 +153,9 @@ export interface VersionBadgeProps extends React.HTMLAttributes<HTMLSpanElement>
 }
 
 /**
- * Roadmap arrival badge (`Coming in 0.2` / `Coming later`), hairline-bordered
- * well pill at 2xs type.
- */
+Roadmap arrival badge (`Coming in 0.2` / `Coming later`), hairline-bordered
+well pill at 2xs type.
+*/
 export const VersionBadge: React.FC<VersionBadgeProps> = ({
   milestone,
   className,
@@ -178,16 +178,20 @@ export const VersionBadge: React.FC<VersionBadgeProps> = ({
 
 export interface CloudDisclosureBadgeProps
   extends React.HTMLAttributes<HTMLSpanElement> {
-  /** Provider name interpolated into the disclosure copy. */
+  /**
+  Provider name interpolated into the disclosure copy.
+  */
   providerName?: string | undefined;
-  /** Alias for providerName to prevent DOM leak. */
+  /**
+  Alias for providerName to prevent DOM leak.
+  */
   provider?: string | undefined;
 }
 
 /**
- * Transmitted-data warning for cloud providers: board `.badge--warn` shape —
- * icon + label always, never color-alone. Local providers render no badge.
- */
+Transmitted-data warning for cloud providers: board `.badge--warn` shape —
+icon + label always, never color-alone. Local providers render no badge.
+*/
 export const CloudDisclosureBadge = React.forwardRef<
   HTMLSpanElement,
   CloudDisclosureBadgeProps
@@ -195,7 +199,7 @@ export const CloudDisclosureBadge = React.forwardRef<
   <Badge
     ref={ref}
     variant="warn"
-    icon={<Warning size={16} aria-hidden="true" className="shrink-0" />}
+    icon={<WarningIcon size={16} aria-hidden="true" className="shrink-0" />}
     className={cn("whitespace-normal", className)}
     {...props}
   >

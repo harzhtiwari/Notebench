@@ -13,9 +13,9 @@ import { Chip } from "../primitives/chips.js";
 import { DropOverlay } from "./drop-overlay.js";
 import { FormField, Input, Textarea } from "../primitives/fields.js";
 import {
-  FileText,
-  Globe,
-  Upload,
+  FileTextIcon,
+  GlobeIcon,
+  UploadIcon,
   resolveIconProps,
 } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
@@ -24,28 +24,36 @@ export type IngestChannel = "upload" | "url" | "text";
 
 export interface IngestModalProps {
   open: boolean;
-  onOpenChange?: ((open: boolean) => void) | undefined;
-  /** Controlled channel. Omit (or use defaultChannel) for uncontrolled. */
+  onOpenChange?: ((isOpen: boolean) => void) | undefined;
+  /**
+  Controlled channel. Omit (or use defaultChannel) for uncontrolled.
+  */
   channel?: IngestChannel | undefined;
   defaultChannel?: IngestChannel | undefined;
   onChannelChange?: ((channel: IngestChannel) => void) | undefined;
-  /** Shows the drop feedback over the upload channel while dragging. */
+  /**
+  Shows the drop feedback over the upload channel while dragging.
+  */
   dragActive?: boolean | undefined;
-  /** Shows the amber soft-cap chip when the notebook holds 50+ Sources. */
+  /**
+  Shows the amber soft-cap chip when the notebook holds 50+ Sources.
+  */
   capReached?: boolean | undefined;
-  /** Progress rows slot (per-Source queue states, SSE-driven by the parent). */
+  /**
+  Progress rows slot (per-Source queue states, SSE-driven by the parent).
+  */
   children?: React.ReactNode;
 }
 
 /**
- * Source ingest modal (ticket 08): Upload / Web-Link / Paste-Text channels
- * behind ui Tabs in a Radix dialog (same centred pattern as the lockscreen
- * modal). Composes `Chip`, `DropOverlay`, `FormField`/`Input`/`Textarea` —
- * owns no fetching, no queue, no policy; limits and statuses arrive via props
- * and children.
- */
+Source ingest modal (ticket 08): Upload / Web-Link / Paste-Text channels
+behind ui Tabs in a Radix dialog (same centred pattern as the lockscreen
+modal). Composes `Chip`, `DropOverlay`, `FormField`/`Input`/`Textarea` —
+owns no fetching, no queue, no policy; limits and statuses arrive via props
+and children.
+*/
 const IngestModal = React.forwardRef<
-  React.ElementRef<typeof DialogContent>,
+  React.ComponentRef<typeof DialogContent>,
   IngestModalProps
 >(
   (
@@ -78,15 +86,15 @@ const IngestModal = React.forwardRef<
           >
             <TabsList aria-label="Ingest channels">
               <TabsTrigger value="upload">
-                <Upload {...resolveIconProps({ size: "sm" })} />
+                <UploadIcon {...resolveIconProps({ size: "sm" })} />
                 Upload
               </TabsTrigger>
               <TabsTrigger value="url">
-                <Globe {...resolveIconProps({ size: "sm" })} />
+                <GlobeIcon {...resolveIconProps({ size: "sm" })} />
                 Web Link
               </TabsTrigger>
               <TabsTrigger value="text">
-                <FileText {...resolveIconProps({ size: "sm" })} />
+                <FileTextIcon {...resolveIconProps({ size: "sm" })} />
                 Paste Text
               </TabsTrigger>
             </TabsList>
@@ -103,7 +111,7 @@ const IngestModal = React.forwardRef<
                     buttonVariants({ variant: "nb_btn_primary", size: "nb_btn_sm" })
                   )}
                 >
-                  <Upload {...resolveIconProps({ size: "sm" })} />
+                  <UploadIcon {...resolveIconProps({ size: "sm" })} />
                   Choose files
                 </label>
                 <input

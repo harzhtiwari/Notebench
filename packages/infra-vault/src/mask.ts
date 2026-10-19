@@ -1,9 +1,9 @@
 /**
- * Derives a fixed-length (always 10 characters) masked key display token.
- * Every branch pads/truncates to the same width so neither the secret's length
- * nor its prefix style leaks through mask length.
- * Examples: 'sk-...abcd', 'AIz...Wxyz', 'key...1234'.
- */
+Derives a fixed-length (always 10 characters) masked key display token.
+Every branch pads/truncates to the same width so neither the secret's length
+nor its prefix style leaks through mask length.
+Examples: 'sk-...abcd', 'AIz...Wxyz', 'key...1234'.
+*/
 export function deriveMaskedKey(key: string): string {
   if (!key || typeof key !== "string" || key.length < 4) {
     return "***...****";
@@ -24,8 +24,8 @@ export function deriveMaskedKey(key: string): string {
 }
 
 /**
- * Scrubs any occurrence of known secret strings from arbitrary text or error messages.
- */
+Scrubs any occurrence of known secret strings from arbitrary text or error messages.
+*/
 export function scrubSecretFromText(
   text: string,
   secrets: readonly (string | undefined | null)[]

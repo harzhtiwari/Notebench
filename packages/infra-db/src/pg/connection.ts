@@ -6,16 +6,16 @@ const { Pool } = pg;
 
 export interface PgDatabaseConfig {
   /**
-   * Connection string URL (e.g. postgres://user:pass@localhost:5432/notebench).
-   */
+  Connection string URL (e.g. postgres://user:pass@localhost:5432/notebench).
+  */
   connectionString?: string | undefined;
   /**
-   * Existing pg.Pool instance.
-   */
+  Existing pg.Pool instance.
+  */
   pool?: pg.Pool | undefined;
   /**
-   * Optional pool configuration options.
-   */
+  Optional pool configuration options.
+  */
   poolConfig?: pg.PoolConfig | undefined;
 }
 
@@ -26,8 +26,8 @@ export interface PgDatabaseInstance {
 }
 
 /**
- * Factory function creating and configuring a PostgreSQL database adapter.
- */
+Factory function creating and configuring a PostgreSQL database adapter.
+*/
 export function createPgDatabase(
   config: PgDatabaseConfig = {}
 ): PgDatabaseInstance {

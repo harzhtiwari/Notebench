@@ -5,9 +5,9 @@ import {
 } from "@notebench/contracts";
 
 /**
- * Curated blocklist of common, expected, or compromised single-factor passcodes
- * per NIST SP 800-63B-4 Section 3.1.1.2.
- */
+Curated blocklist of common, expected, or compromised single-factor passcodes
+per NIST SP 800-63B-4 Section 3.1.1.2.
+*/
 const COMMON_AND_BREACHED_PASSCODES = new Set([
   "passwordpassword",
   "password12345678",
@@ -30,13 +30,13 @@ const COMMON_AND_BREACHED_PASSCODES = new Set([
 ]);
 
 /**
- * Validates a submitted passcode against NIST SP 800-63B-4 Section 3.1.1.2 guidelines:
- * 1. Single-factor minimum length: at least 15 characters.
- * 2. Maximum length: at least 64 characters (enforced up to 128 characters).
- * 3. No composition rules: Shall not mandate specific character classes (case, numbers, symbols).
- * 4. Verifiers shall reject passcodes appearing on common or breached credential lists.
- * 5. Verifiers shall reject trivial repeating patterns (e.g. all identical characters).
- */
+Validates a submitted passcode against NIST SP 800-63B-4 Section 3.1.1.2 guidelines:
+1. Single-factor minimum length: at least 15 characters.
+2. Maximum length: at least 64 characters (enforced up to 128 characters).
+3. No composition rules: Shall not mandate specific character classes (case, numbers, symbols).
+4. Verifiers shall reject passcodes appearing on common or breached credential lists.
+5. Verifiers shall reject trivial repeating patterns (e.g. all identical characters).
+*/
 export function validatePasscode(passcode: unknown): string {
   if (typeof passcode !== "string") {
     throw new ValidationError("Passcode must be a string", {

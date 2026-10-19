@@ -14,10 +14,10 @@ export interface EditorShellProps
 }
 
 /**
- * Text editing shell with smooth typing and 300 ms debounced draft store (ticket 16).
- * Maintains immediate local state for zero-latency keystroke responsiveness
- * while debouncing draft persistence callbacks.
- */
+Text editing shell with smooth typing and 300 ms debounced draft store (ticket 16).
+Maintains immediate local state for zero-latency keystroke responsiveness
+while debouncing draft persistence callbacks.
+*/
 const EditorShell = React.forwardRef<HTMLTextAreaElement, EditorShellProps>(
   (
     {
@@ -36,7 +36,7 @@ const EditorShell = React.forwardRef<HTMLTextAreaElement, EditorShellProps>(
     ref
   ) => {
     const [localValue, setLocalValue] = React.useState<string>(
-      controlledValue !== undefined ? controlledValue : defaultValue
+      controlledValue ?? defaultValue
     );
     const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
     const latestValueRef = React.useRef<string>(localValue);
@@ -63,15 +63,17 @@ const EditorShell = React.forwardRef<HTMLTextAreaElement, EditorShellProps>(
       setLocalValue(next);
       onChange?.(next);
 
-      if (onDraftSave) {
-        if (debounceTimerRef.current !== null) {
-          clearTimeout(debounceTimerRef.current);
-        }
-        debounceTimerRef.current = setTimeout(() => {
-          onDraftSave(next);
-          debounceTimerRef.current = null;
-        }, draftDebounceMs);
+      if (!onDraftSave) {
+        return;
       }
+
+      if (debounceTimerRef.current !== null) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        onDraftSave(next);
+        debounceTimerRef.current = null;
+      }, draftDebounceMs);
     };
 
     const handleBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
@@ -91,7 +93,7 @@ const EditorShell = React.forwardRef<HTMLTextAreaElement, EditorShellProps>(
           className
         )}
       >
-        {header !== undefined ? <div className="editor-shell-header">{header}</div> : null}
+        {header === undefined ? null : <div className="editor-shell-header">{header}</div>}
         {children ?? (
           <Textarea
             ref={ref}
@@ -102,7 +104,7 @@ const EditorShell = React.forwardRef<HTMLTextAreaElement, EditorShellProps>(
             {...props}
           />
         )}
-        {footer !== undefined ? <div className="editor-shell-footer">{footer}</div> : null}
+        {footer === undefined ? null : <div className="editor-shell-footer">{footer}</div>}
       </div>
     );
   }

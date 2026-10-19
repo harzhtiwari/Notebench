@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import type Database from "better-sqlite3";
 import * as sqliteVec from "sqlite-vec";
 export * from "./pgvector.js";
 import type {
@@ -10,25 +10,25 @@ import type {
 } from "@notebench/contracts";
 
 /**
- * Converts a Float32Array or number array to a Node.js Buffer for better-sqlite3 vector binding.
- * Required because better-sqlite3 cannot bind raw Float32Array directly.
- */
+Converts a Float32Array or number array to a Node.js Buffer for better-sqlite3 vector binding.
+Required because better-sqlite3 cannot bind raw Float32Array directly.
+*/
 export function toVectorBlob(vector: Float32Array | number[]): Buffer {
   const f32 = vector instanceof Float32Array ? vector : new Float32Array(vector);
   return Buffer.from(f32.buffer, f32.byteOffset, f32.byteLength);
 }
 
 /**
- * Sanitizes user query text into safe FTS5 prefix match tokens.
- * Strips special boolean operators and punctuation to avoid syntax errors.
- */
+Sanitizes user query text into safe FTS5 prefix match tokens.
+Strips special boolean operators and punctuation to avoid syntax errors.
+*/
 export function sanitizeFtsQuery(rawQuery: string): string {
-  if (!rawQuery || !rawQuery.trim()) {
+  if (rawQuery.trim().length === 0) {
     return "";
   }
 
   const tokens = rawQuery
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replaceAll(/[^\p{L}\p{N}\s]/gu, " ")
     .trim()
     .split(/\s+/)
     .filter((token) => token.length > 0)
@@ -43,10 +43,10 @@ export interface SqliteVectorStoreOptions {
 }
 
 /**
- * SQLite sqlite-vec vec0 Virtual Table Adapter.
- * Cosine distance vector search partitioned by notebookId and userId.
- * Note: better-sqlite3 requires primary key integers on vec0 to be passed as BigInt.
- */
+SQLite sqlite-vec vec0 Virtual Table Adapter.
+Cosine distance vector search partitioned by notebookId and userId.
+Note: better-sqlite3 requires primary key integers on vec0 to be passed as BigInt.
+*/
 export class SqliteVectorStore implements VectorStorePort {
   private readonly db: Database.Database;
   private readonly dimensions: number;
@@ -58,7 +58,7 @@ export class SqliteVectorStore implements VectorStorePort {
     this.tableName = options.tableName ?? "vec_chunks";
   }
 
-  public async init(): Promise<void> {
+  public init(): Promise<void> {
     sqliteVec.load(this.db);
     this.db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS ${this.tableName} USING vec0(
@@ -68,9 +68,10 @@ export class SqliteVectorStore implements VectorStorePort {
         embedding FLOAT[${this.dimensions}] distance_metric=cosine
       );
     `);
+    return Promise.resolve();
   }
 
-  public async insert(record: VectorRecord): Promise<void> {
+  public insert(record: VectorRecord): Promise<void> {
     const stmt = this.db.prepare(`
       INSERT INTO ${this.tableName}(chunk_rowid, notebook_id, user_id, embedding)
       VALUES (?, ?, ?, ?)
@@ -78,9 +79,10 @@ export class SqliteVectorStore implements VectorStorePort {
     const blob = toVectorBlob(record.embedding);
     // Explicit BigInt conversion satisfies sqlite-vec strict integer PK check
     stmt.run(BigInt(record.chunkRowid), record.notebookId, record.userId, blob);
+    return Promise.resolve();
   }
 
-  public async insertBatch(records: VectorRecord[]): Promise<void> {
+  public insertBatch(records: VectorRecord[]): Promise<void> {
     const insertMany = this.db.transaction((items: VectorRecord[]) => {
       const stmt = this.db.prepare(`
         INSERT INTO ${this.tableName}(chunk_rowid, notebook_id, user_id, embedding)
@@ -92,9 +94,10 @@ export class SqliteVectorStore implements VectorStorePort {
       }
     });
     insertMany(records);
+    return Promise.resolve();
   }
 
-  public async searchKnn(params: {
+  public searchKnn(params: {
     queryVector: Float32Array | number[];
     notebookId: string;
     userId: string;
@@ -109,22 +112,25 @@ export class SqliteVectorStore implements VectorStorePort {
         AND user_id = ?
         AND k = ?
     `);
-    const rows = stmt.all(blob, params.notebookId, params.userId, params.k) as Array<{
+    const rows = stmt.all(blob, params.notebookId, params.userId, params.k) as {
       chunk_rowid: number | bigint;
       distance: number | null;
-    }>;
-    return rows.map((r) => ({
-      chunkRowid: Number(r.chunk_rowid),
-      distance: r.distance ?? 0,
-    }));
+    }[];
+    return Promise.resolve(
+      rows.map((r) => ({
+        chunkRowid: Number(r.chunk_rowid),
+        distance: r.distance ?? 0,
+      }))
+    );
   }
 
-  public async deleteByNotebookId(notebookId: string): Promise<void> {
+  public deleteByNotebookId(notebookId: string): Promise<void> {
     const stmt = this.db.prepare(`
       DELETE FROM ${this.tableName}
       WHERE notebook_id = ?
     `);
     stmt.run(notebookId);
+    return Promise.resolve();
   }
 }
 
@@ -136,9 +142,9 @@ export interface FtsRecord {
 }
 
 /**
- * SQLite FTS5 Full-Text Search Store.
- * Configured with unicode61 remove_diacritics 2 tokenizer.
- */
+SQLite FTS5 Full-Text Search Store.
+Configured with unicode61 remove_diacritics 2 tokenizer.
+*/
 export class SqliteFtsStore implements FtsStorePort {
   private readonly db: Database.Database;
   private readonly tableName: string;
@@ -148,7 +154,7 @@ export class SqliteFtsStore implements FtsStorePort {
     this.tableName = tableName;
   }
 
-  public async init(): Promise<void> {
+  public init(): Promise<void> {
     this.db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS ${this.tableName} USING fts5(
         chunk_rowid UNINDEXED,
@@ -158,17 +164,19 @@ export class SqliteFtsStore implements FtsStorePort {
         tokenize='unicode61 remove_diacritics 2'
       );
     `);
+    return Promise.resolve();
   }
 
-  public async insert(record: FtsRecord): Promise<void> {
+  public insert(record: FtsRecord): Promise<void> {
     const stmt = this.db.prepare(`
       INSERT INTO ${this.tableName}(chunk_rowid, notebook_id, user_id, content)
       VALUES (?, ?, ?, ?)
     `);
     stmt.run(record.chunkRowid, record.notebookId, record.userId, record.content);
+    return Promise.resolve();
   }
 
-  public async search(params: {
+  public search(params: {
     query: string;
     notebookId: string;
     userId: string;
@@ -176,7 +184,7 @@ export class SqliteFtsStore implements FtsStorePort {
   }): Promise<FtsSearchResult[]> {
     const sanitized = sanitizeFtsQuery(params.query);
     if (!sanitized) {
-      return [];
+      return Promise.resolve([]);
     }
 
     const stmt = this.db.prepare(`
@@ -189,25 +197,28 @@ export class SqliteFtsStore implements FtsStorePort {
       LIMIT ?
     `);
 
-    const rows = stmt.all(sanitized, params.notebookId, params.userId, params.limit) as Array<{
+    const rows = stmt.all(sanitized, params.notebookId, params.userId, params.limit) as {
       chunk_rowid: number | bigint;
       rank: number;
       snippet: string;
-    }>;
+    }[];
 
-    return rows.map((r) => ({
-      chunkRowid: Number(r.chunk_rowid),
-      rank: r.rank,
-      snippet: r.snippet,
-    }));
+    return Promise.resolve(
+      rows.map((r) => ({
+        chunkRowid: Number(r.chunk_rowid),
+        rank: r.rank,
+        snippet: r.snippet,
+      }))
+    );
   }
 
-  public async deleteByNotebookId(notebookId: string): Promise<void> {
+  public deleteByNotebookId(notebookId: string): Promise<void> {
     const stmt = this.db.prepare(`
       DELETE FROM ${this.tableName}
       WHERE notebook_id = ?
     `);
     stmt.run(notebookId);
+    return Promise.resolve();
   }
 }
 

@@ -86,11 +86,11 @@ describe("SqliteArtifactVersionRepository & Self-Referencing Foreign Key DAG", (
   });
 
   it("declares the artifact_versions self-FK in the production bootstrap DDL", () => {
-    const foreignKeys = dbInstance.sqlite.pragma("foreign_key_list(artifact_versions)") as Array<{
+    const foreignKeys = dbInstance.sqlite.pragma("foreign_key_list(artifact_versions)") as {
       table: string;
       from: string;
       to: string;
-    }>;
+    }[];
     const selfFk = foreignKeys.find(
       (fk) => fk.table === "artifact_versions" && fk.from === "parent_version_id"
     );

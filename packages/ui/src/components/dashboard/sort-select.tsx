@@ -15,10 +15,10 @@ export interface SortSelectProps
 }
 
 /**
- * Dashboard sort control. Options render from the single
- * `DASHBOARD_SORT_KEYS_CONFIG` (parent ticket 05, §5 reuse rule) — adding a
- * sort key means adding one config entry, never touching this file.
- */
+Dashboard sort control. Options render from the single
+`DASHBOARD_SORT_KEYS_CONFIG` (parent ticket 05, §5 reuse rule) — adding a
+sort key means adding one config entry, never touching this file.
+*/
 const SortSelect = React.forwardRef<HTMLSelectElement, SortSelectProps>(
   ({ className, value, onChange, ...props }, ref) => (
     <select

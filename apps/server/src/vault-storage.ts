@@ -2,10 +2,10 @@ import type { VaultKeyRecord, VaultStorage } from "@notebench/infra-vault";
 import type { SqliteVaultKeyRepository } from "@notebench/infra-db";
 
 /**
- * Composition-root glue (Guard 11): wires the SQLite vault-key repository
- * as an `EncryptedVault` storage backend. Lives in `apps/server` because
- * infra packages may not import each other.
- */
+Composition-root glue (Guard 11): wires the SQLite vault-key repository
+as an `EncryptedVault` storage backend. Lives in `apps/server` because
+infra packages may not import each other.
+*/
 export class SqliteVaultStorage implements VaultStorage {
   constructor(private readonly repo: SqliteVaultKeyRepository) {}
 
@@ -35,7 +35,7 @@ export class SqliteVaultStorage implements VaultStorage {
   async get(
     provider: string,
     keyId: string,
-    userId?: string | undefined
+    userId?: string  
   ): Promise<VaultKeyRecord | null> {
     if (userId === undefined) {
       return null;
@@ -56,14 +56,11 @@ export class SqliteVaultStorage implements VaultStorage {
     };
   }
 
-  async delete(provider: string, keyId: string, userId?: string | undefined): Promise<boolean> {
-    if (userId === undefined) {
-      return false;
-    }
-    return this.repo.delete(provider, keyId, userId);
+  async delete(provider: string, keyId: string, userId?: string  ): Promise<boolean> {
+    return userId === undefined ? false : this.repo.delete(provider, keyId, userId);
   }
 
-  async list(userId?: string | undefined): Promise<readonly VaultKeyRecord[]> {
+  async list(userId?: string  ): Promise<readonly VaultKeyRecord[]> {
     if (userId === undefined) {
       return [];
     }

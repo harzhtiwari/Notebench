@@ -3,7 +3,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
 import { ExportDialog, FormatOptionRow } from "./index.js";
-import { FileZip, FileDoc, Archive } from "../primitives/index.js";
+import { FileZipIcon, FileDocIcon, ArchiveIcon } from "../primitives/index.js";
 
 afterEach(() => {
   cleanup();
@@ -13,7 +13,7 @@ describe("export and import dialog patterns (ticket 19)", () => {
   it("FormatOptionRow renders icon, label, description, and unselected state", () => {
     const { container } = render(
       <FormatOptionRow
-        icon={FileZip}
+        icon={FileZipIcon}
         label="ZIP archive"
         description="Complete notebook with sources and artifacts."
         selected={false}
@@ -32,7 +32,7 @@ describe("export and import dialog patterns (ticket 19)", () => {
     const onSelect = vi.fn();
     render(
       <FormatOptionRow
-        icon={FileDoc}
+        icon={FileDocIcon}
         label="DOCX document"
         description="Formatted text document."
         selected={true}
@@ -49,7 +49,7 @@ describe("export and import dialog patterns (ticket 19)", () => {
     const onSelect = vi.fn();
     render(
       <FormatOptionRow
-        icon={Archive}
+        icon={ArchiveIcon}
         disabled
         onSelect={onSelect}
       >
@@ -68,13 +68,13 @@ describe("export and import dialog patterns (ticket 19)", () => {
         id: "zip",
         label: "ZIP archive",
         description: "Complete notebook with sources and artifacts.",
-        icon: Archive,
+        icon: ArchiveIcon,
       },
       {
         id: "docx",
         label: "DOCX",
         description: "Formatted Microsoft Word document.",
-        icon: FileDoc,
+        icon: FileDocIcon,
       },
     ];
 
@@ -104,13 +104,13 @@ describe("export and import dialog patterns (ticket 19)", () => {
         id: "zip",
         label: "ZIP archive",
         description: "Complete archive.",
-        icon: FileZip,
+        icon: FileZipIcon,
       },
       {
         id: "docx",
         label: "DOCX document",
         description: "Word document.",
-        icon: FileDoc,
+        icon: FileDocIcon,
       },
     ];
 
@@ -136,13 +136,13 @@ describe("export and import dialog patterns (ticket 19)", () => {
         id: "zip",
         label: "ZIP archive",
         description: "Complete archive.",
-        icon: FileZip,
+        icon: FileZipIcon,
       },
       {
         id: "docx",
         label: "DOCX document",
         description: "Word document.",
-        icon: FileDoc,
+        icon: FileDocIcon,
       },
     ];
 
@@ -164,12 +164,12 @@ describe("export and import dialog patterns (ticket 19)", () => {
       {
         id: "zip",
         label: "ZIP archive",
-        icon: FileZip,
+        icon: FileZipIcon,
       },
       {
         id: "docx",
         label: "DOCX document",
-        icon: FileDoc,
+        icon: FileDocIcon,
       },
     ];
 
@@ -200,13 +200,13 @@ describe("export and import dialog patterns (ticket 19)", () => {
         id: "zip",
         label: "ZIP archive",
         description: "Complete archive.",
-        icon: FileZip,
+        icon: FileZipIcon,
       },
       {
         id: "docx",
         label: "DOCX document",
         description: "Word document.",
-        icon: FileDoc,
+        icon: FileDocIcon,
       },
     ];
 
@@ -240,13 +240,13 @@ describe("export and import dialog patterns (ticket 19)", () => {
         id: "zip",
         label: "ZIP archive",
         description: "Complete archive.",
-        icon: FileZip,
+        icon: FileZipIcon,
       },
       {
         id: "docx",
         label: "DOCX document",
         description: "Word document.",
-        icon: FileDoc,
+        icon: FileDocIcon,
       },
     ];
 
@@ -278,7 +278,7 @@ describe("export and import dialog patterns (ticket 19)", () => {
       {
         id: "zip",
         label: "ZIP archive",
-        icon: FileZip,
+        icon: FileZipIcon,
       },
     ];
 

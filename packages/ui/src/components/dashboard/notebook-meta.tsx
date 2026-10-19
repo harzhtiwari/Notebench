@@ -9,13 +9,12 @@ export interface NotebookMetaProps
 }
 
 /**
- * Shared counts/footprint/updated line. One shape for `NotebookCard`,
- * `NotebookRow`, and the future trash surfaces — numbers always beside
- * labels, never bare.
- */
+Shared counts/footprint/updated line. One shape for `NotebookCard`,
+`NotebookRow`, and the future trash surfaces — numbers always beside
+labels, never bare.
+*/
 const NotebookMeta = React.forwardRef<HTMLDivElement, NotebookMetaProps>(
   ({ className, notebook, ...props }, ref) => {
-    if (!notebook) return null;
     return (
       <div
         ref={ref}

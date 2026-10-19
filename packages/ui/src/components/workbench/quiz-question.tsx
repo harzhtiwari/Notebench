@@ -11,13 +11,20 @@ import {
   Well,
 } from "../primitives/index.js";
 import {
-  CheckCircle,
-  XCircle,
-  PencilSimple,
-  Plus,
-  Trash,
+  CheckCircleIcon,
+  XCircleIcon,
+  PencilSimpleIcon,
+  PlusIcon,
+  TrashIcon,
 } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
+
+export interface QuizQuestionDraft {
+  prompt: string;
+  options: QuizOption[];
+  correctOptionId: string;
+  explanation: string;
+}
 
 export interface QuizQuestionProps extends React.HTMLAttributes<HTMLDivElement> {
   question: QuizQuestionData;
@@ -28,21 +35,14 @@ export interface QuizQuestionProps extends React.HTMLAttributes<HTMLDivElement> 
   scoreLabel?: string | undefined;
   isEditing?: boolean | undefined;
   onEditToggle?: (() => void) | undefined;
-  onSave?:
-    | ((updated: {
-        prompt: string;
-        options: QuizOption[];
-        correctOptionId: string;
-        explanation: string;
-      }) => void)
-    | undefined;
+  onSave?: ((updated: QuizQuestionDraft) => void) | undefined;
 }
 
 /**
- * Quiz Question Component (ticket 15, Decision 4.9).
- * Supports WAI-ARIA compliant runner mode with instant feedback, explanation,
- * score indicator, and assessment builder editing mode.
- */
+Quiz Question Component (ticket 15, Decision 4.9).
+Supports WAI-ARIA compliant runner mode with instant feedback, explanation,
+score indicator, and assessment builder editing mode.
+*/
 export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
   (
     {
@@ -117,18 +117,18 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
             <span className="text-xs font-semibold text-[var(--nb-ink-3)]">
               Edit Question
             </span>
-            {onEditToggle !== undefined ? (
+            {onEditToggle === undefined ? null : (
               <Button variant="nb_btn_ghost" size="nb_btn_sm" onClick={onEditToggle}>
                 Cancel
               </Button>
-            ) : null}
+            )}
           </div>
 
           <FormField label="Question prompt">
             <Textarea
               id={`quiz-prompt-${question.id}`}
               value={editPrompt}
-              onChange={(e) => setEditPrompt(e.target.value)}
+              onChange={(e) => { setEditPrompt(e.target.value); }}
               rows={3}
             />
           </FormField>
@@ -143,7 +143,7 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
                   variant="nb_btn_ghost"
                   size="nb_btn_sm"
                   onClick={handleAddOption}
-                  leadingIcon={Plus}
+                  leadingIcon={PlusIcon}
                 >
                   Add option
                 </Button>
@@ -157,14 +157,14 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
                     type="radio"
                     name={`correct-option-${question.id}`}
                     checked={editCorrectId === opt.id}
-                    onChange={() => setEditCorrectId(opt.id)}
+                    onChange={() => { setEditCorrectId(opt.id); }}
                     aria-label={`Mark option ${idx + 1} as correct`}
                     className="m-0 h-[var(--nb-size-icon-lg)] w-[var(--nb-size-icon-lg)] shrink-0 cursor-pointer accent-[var(--nb-ink)]"
                   />
                   <Input
                     type="text"
                     value={opt.text}
-                    onChange={(e) => handleOptionTextChange(opt.id, e.target.value)}
+                    onChange={(e) => { handleOptionTextChange(opt.id, e.target.value); }}
                     aria-label={`Option ${idx + 1} text`}
                     className="flex-1"
                   />
@@ -172,8 +172,8 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
                     <IconButton
                       variant="nb_btn_ghost"
                       size="nb_btn_icon_sm"
-                      icon={Trash}
-                      onClick={() => handleRemoveOption(opt.id)}
+                      icon={TrashIcon}
+                      onClick={() => { handleRemoveOption(opt.id); }}
                       aria-label={`Remove option ${idx + 1}`}
                       className="text-[var(--nb-danger)] hover:bg-[var(--nb-danger-wash)]"
                     />
@@ -187,7 +187,7 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
             <Textarea
               id={`quiz-explanation-${question.id}`}
               value={editExplanation}
-              onChange={(e) => setEditExplanation(e.target.value)}
+              onChange={(e) => { setEditExplanation(e.target.value); }}
               rows={2}
             />
           </FormField>
@@ -214,15 +214,15 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
           <h3 className="font-[family-name:var(--nb-font-ui)] text-[length:var(--nb-text-md)] font-semibold leading-[var(--nb-leading-ui)] text-[var(--nb-ink)]">
             {question.prompt}
           </h3>
-          {onEditToggle !== undefined ? (
+          {onEditToggle === undefined ? null : (
             <IconButton
               variant="nb_btn_ghost"
               size="nb_btn_icon_sm"
-              icon={PencilSimple}
+              icon={PencilSimpleIcon}
               onClick={onEditToggle}
               aria-label="Edit question"
             />
-          ) : null}
+          )}
         </div>
 
         {/* Options List */}
@@ -237,17 +237,17 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
 
             let optionStyle =
               "border-[var(--nb-hairline)] bg-[var(--nb-sheet)] hover:bg-[var(--nb-well)]";
-            let StatusIcon: typeof CheckCircle | null = null;
+            let StatusIcon: typeof CheckCircleIcon | null = null;
 
             if (isChecked) {
               if (isCorrectOption) {
                 optionStyle =
                   "border-[var(--nb-ok)] bg-[var(--nb-ok-wash)] text-[var(--nb-ok)]";
-                StatusIcon = CheckCircle;
-              } else if (isSelected && !isCorrectOption) {
+                StatusIcon = CheckCircleIcon;
+              } else if (isSelected) {
                 optionStyle =
                   "border-[var(--nb-danger)] bg-[var(--nb-danger-wash)] text-[var(--nb-danger)]";
-                StatusIcon = XCircle;
+                StatusIcon = XCircleIcon;
               } else {
                 optionStyle = "border-[var(--nb-hairline)] opacity-60";
               }
@@ -270,9 +270,9 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
                 )}
               >
                 <span>{opt.text}</span>
-                {StatusIcon !== null ? (
+                {StatusIcon === null ? null : (
                   <StatusIcon size={16} weight="fill" aria-hidden="true" />
-                ) : null}
+                )}
               </button>
             );
           })}
@@ -280,7 +280,24 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
 
         {/* Action / Result Feedback */}
         <div className="flex flex-wrap items-center justify-between gap-[var(--nb-space-2)] pt-[var(--nb-space-2)]">
-          {!isChecked ? (
+          {isChecked ? (
+            <div className="flex items-center gap-[var(--nb-space-2)]">
+              {isCorrect ? (
+                <Badge variant="ok" icon={<CheckCircleIcon size={16} weight="fill" aria-hidden="true" />}>
+                  Correct!
+                </Badge>
+              ) : (
+                <Badge variant="danger" icon={<XCircleIcon size={16} weight="fill" aria-hidden="true" />}>
+                  Incorrect
+                </Badge>
+              )}
+              {scoreLabel === undefined ? null : (
+                <span className="text-xs font-semibold text-[var(--nb-ink-2)]">
+                  Score: {scoreLabel}
+                </span>
+              )}
+            </div>
+          ) : (
             <Button
               variant="nb_btn_primary"
               size="nb_btn_sm"
@@ -289,23 +306,6 @@ export const QuizQuestion = React.forwardRef<HTMLDivElement, QuizQuestionProps>(
             >
               Check answer
             </Button>
-          ) : (
-            <div className="flex items-center gap-[var(--nb-space-2)]">
-              {isCorrect ? (
-                <Badge variant="ok" icon={<CheckCircle size={16} weight="fill" aria-hidden="true" />}>
-                  Correct!
-                </Badge>
-              ) : (
-                <Badge variant="danger" icon={<XCircle size={16} weight="fill" aria-hidden="true" />}>
-                  Incorrect
-                </Badge>
-              )}
-              {scoreLabel !== undefined ? (
-                <span className="text-xs font-semibold text-[var(--nb-ink-2)]">
-                  Score: {scoreLabel}
-                </span>
-              ) : null}
-            </div>
           )}
         </div>
 

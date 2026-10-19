@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, rmSync, mkdirSync } from "node:fs";
-import { resolve, join } from "node:path";
+import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { createSqliteDatabase, SqliteAccountRepository, SqliteSessionRepository } from "@notebench/infra-db";
 import type { SqliteDatabaseInstance } from "@notebench/infra-db";
@@ -8,17 +8,17 @@ import { OwnerSetupService, FakePasscodeHasher } from "@notebench/domain-account
 import { SessionService } from "@notebench/domain-account";
 import { buildServer } from "./app.js";
 
-const TEST_DIR = resolve(`.tmp/test/test-server-rate-limit-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
+const TEST_DIR = path.resolve(`.tmp/test/test-server-rate-limit-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
 const PASSCODE = "a-very-secure-passcode-phrase-here";
 
-async function removeDirWithRetry(dir: string): Promise<void> {
+async function removeDirWithRetry(): Promise<void> {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     try {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(TEST_DIR, { recursive: true, force: true });
       return;
     } catch (error: unknown) {
-      const code = (error as { code?: string }).code;
-      if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
+      const code = (error as { code?: string }).code ?? "";
+      if (["EPERM", "EBUSY", "ENOTEMPTY"].includes(code) && attempt < 59) {
         await new Promise((r) => setTimeout(r, 250));
         continue;
       }
@@ -34,10 +34,10 @@ describe("HTTP rate limiting (CodeQL missing-rate-limiting defense-in-depth)", (
 
   beforeEach(async () => {
     if (existsSync(TEST_DIR)) {
-      await removeDirWithRetry(TEST_DIR);
+      await removeDirWithRetry();
     }
     mkdirSync(TEST_DIR, { recursive: true });
-    testDbPath = join(TEST_DIR, `rate-limit-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`);
+    testDbPath = path.join(TEST_DIR, `rate-limit-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`);
   }, 120_000);
 
   afterEach(async () => {
@@ -51,7 +51,7 @@ describe("HTTP rate limiting (CodeQL missing-rate-limiting defense-in-depth)", (
     }
     if (existsSync(TEST_DIR)) {
       try {
-        await removeDirWithRetry(TEST_DIR);
+        await removeDirWithRetry();
       } catch {
         // Non-fatal if OS locks transitioning
       }

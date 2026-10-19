@@ -6,9 +6,9 @@ import { OpenAiCompatibleAdapter } from "./adapters/openai-compatible.js";
 import type { ProviderAdapter, ProviderId } from "./types.js";
 
 /**
- * One adapter per provider (Ticket 04 §5 GREEN reuse rule).
- * Adding a provider means adding one adapter and one entry here.
- */
+One adapter per provider (Ticket 04 §5 GREEN reuse rule).
+Adding a provider means adding one adapter and one entry here.
+*/
 export const providerRegistry: Readonly<Record<ProviderId, ProviderAdapter>> = {
   openai: new OpenAiAdapter(),
   anthropic: new AnthropicAdapter(),

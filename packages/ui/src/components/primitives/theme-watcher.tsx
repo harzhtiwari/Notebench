@@ -9,7 +9,7 @@ export function ThemeWatcher() {
     applyTheme(getStoredTheme());
 
     // 2. React dynamically to OS system appearance switches
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const media = globalThis.matchMedia("(prefers-color-scheme: dark)");
     const handler = () => {
       if (getStoredTheme() === "system") {
         applyTheme("system");

@@ -16,6 +16,14 @@ afterEach(() => {
   cleanup();
 });
 
+function getTool(id: string) {
+  const tool = STUDIO_TOOL_CATALOG.find((t) => t.id === id);
+  if (tool === undefined) {
+    throw new Error(`Tool '${id}' missing from STUDIO_TOOL_CATALOG`);
+  }
+  return tool;
+}
+
 describe("studio catalog patterns (ticket 14)", () => {
   describe("STUDIO_TOOL_CATALOG", () => {
     it("defines exactly ten tools: five active and five roadmap", () => {
@@ -47,7 +55,7 @@ describe("studio catalog patterns (ticket 14)", () => {
   describe("ToolTile", () => {
     it("renders an active tool enabled and triggers onSelect/onClick", () => {
       const onSelect = vi.fn();
-      const reportTool = STUDIO_TOOL_CATALOG.find((t) => t.id === "report")!;
+      const reportTool = getTool("report");
 
       render(<ToolTile tool={reportTool} onSelect={onSelect} />);
 
@@ -59,7 +67,7 @@ describe("studio catalog patterns (ticket 14)", () => {
     });
 
     it("renders a roadmap tool disabled with version badge", () => {
-      const deckTool = STUDIO_TOOL_CATALOG.find((t) => t.id === "deck")!;
+      const deckTool = getTool("deck");
 
       render(<ToolTile tool={deckTool} />);
 
@@ -76,9 +84,9 @@ describe("studio catalog patterns (ticket 14)", () => {
 
       const buttons = screen.getAllByRole("button");
       expect(buttons.length).toBe(5);
-      buttons.forEach((btn) => {
+      for (const btn of buttons) {
         expect(btn).toHaveProperty("disabled", true);
-      });
+      }
 
       expect(screen.getByText("Audio Overview")).toBeDefined();
       expect(screen.getByText("Slide Deck")).toBeDefined();
@@ -89,7 +97,7 @@ describe("studio catalog patterns (ticket 14)", () => {
   });
 
   describe("GenerationModal", () => {
-    const reportTool = STUDIO_TOOL_CATALOG.find((t) => t.id === "report")!;
+    const reportTool = getTool("report");
 
     it("warns and disables Generate when zero sources are selected", () => {
       const onGenerate = vi.fn();

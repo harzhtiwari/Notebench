@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Button } from "../primitives/button.js";
-import { CheckCircle, Key, WarningCircle } from "../primitives/icons.js";
+import { CheckCircleIcon, KeyIcon, WarningCircleIcon } from "../primitives/icons.js";
 
 export type KeyTestState = "idle" | "testing" | "ok" | "fail";
 
@@ -10,25 +10,27 @@ export interface KeyTestButtonProps
     "onClick" | "disabled"
   > {
   state: KeyTestState;
-  /** Round-trip milliseconds, shown on success when the server reports it. */
+  /**
+  Round-trip milliseconds, shown on success when the server reports it.
+  */
   latencyMs?: number | undefined;
   /**
-   * Server-sanitised failure text. The key must never appear here — scrubbing
-   * is the server's job; this component renders the string verbatim.
-   */
+  Server-sanitised failure text. The key must never appear here — scrubbing
+  is the server's job; this component renders the string verbatim.
+  */
   message?: string | undefined;
   onTest?: (() => void) | undefined;
 }
 
 /**
- * Key-test action with four states. Icon + label always (state is never
- * color-alone). Clicks re-run the test in every state except `testing`.
- * The `testing` state uses the primitive's built-in spinner via `loading`.
- */
+Key-test action with four states. Icon + label always (state is never
+color-alone). Clicks re-run the test in every state except `testing`.
+The `testing` state uses the primitive's built-in spinner via `loading`.
+*/
 const KeyTestButton = React.forwardRef<HTMLButtonElement, KeyTestButtonProps>(
-  ({ className, state, latencyMs, message, onTest, ...props }, ref) => {
+  ({ className, state, latencyMs, message = "Test failed.", onTest, ...props }, ref) => {
     const LeadingIcon =
-      state === "ok" ? CheckCircle : state === "fail" ? WarningCircle : Key;
+      state === "ok" ? CheckCircleIcon : (state === "fail" ? WarningCircleIcon : KeyIcon);
 
     return (
       <Button
@@ -49,12 +51,12 @@ const KeyTestButton = React.forwardRef<HTMLButtonElement, KeyTestButtonProps>(
         {...props}
       >
         {state === "ok"
-          ? latencyMs !== undefined
-            ? `Verified Connected (latency: ${latencyMs}ms)`
-            : "Verified Connected"
-          : state === "fail"
-            ? (message ?? "Test failed.")
-            : "Test Key"}
+          ? (latencyMs === undefined
+            ? "Verified Connected"
+            : `Verified Connected (latency: ${latencyMs}ms)`)
+          : (state === "fail"
+            ? message
+            : "Test Key")}
       </Button>
     );
   }

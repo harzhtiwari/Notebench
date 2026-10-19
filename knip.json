@@ -10,7 +10,7 @@
     },
     "packages/*": {},
     "tools/dev": {
-      "entry": ["src/index.ts", "src/benchmark.ts"]
+      "entry": ["src/index.ts"]
     },
     "examples/*": {}
   },

@@ -23,13 +23,13 @@ export interface VaultStorage {
 }
 
 /**
- * In-memory storage adapter for tests and ephemeral runs.
- */
+In-memory storage adapter for tests and ephemeral runs.
+*/
 export class MemoryVaultStorage implements VaultStorage {
   private readonly records = new Map<string, VaultKeyRecord>();
 
-  private makeKey(provider: string, keyId: string, userId?: string): string {
-    return `${userId ?? "global"}:${provider}:${keyId}`;
+  private makeKey(provider: string, keyId: string, userId = "global"): string {
+    return `${userId}:${provider}:${keyId}`;
   }
 
   public save(record: VaultKeyRecord): void {
@@ -64,8 +64,8 @@ export interface KeyStatusResult {
 }
 
 /**
- * High-level Encrypted Vault service coordinating encryption, storage, masking, and RUP guarantees.
- */
+High-level Encrypted Vault service coordinating encryption, storage, masking, and RUP guarantees.
+*/
 export class EncryptedVault {
   constructor(
     private readonly masterKey: Buffer,
@@ -109,10 +109,7 @@ export class EncryptedVault {
     userId?: string
   ): Promise<VaultSecret | null> {
     const record = await this.storage.get(provider, keyId, userId);
-    if (!record) {
-      return null;
-    }
-    return decryptSecret(record.envelope, this.masterKey);
+    return record ? decryptSecret(record.envelope, this.masterKey) : null;
   }
 
   public async getStatus(
@@ -135,7 +132,8 @@ export class EncryptedVault {
     keyId: string,
     userId?: string
   ): Promise<boolean> {
-    return Boolean(await this.storage.delete(provider, keyId, userId));
+    const isDeleted = await this.storage.delete(provider, keyId, userId);
+    return isDeleted;
   }
 
   public async listConfiguredKeys(

@@ -20,15 +20,15 @@ export interface ParsedPdfDocument {
 }
 
 /**
- * Clamps a number within [min, max].
- */
-function clamp(val: number, min = 0, max = 1): number {
-  return Math.max(min, Math.min(max, val));
+Clamps a number within [min, max].
+*/
+function clamp(val: number): number {
+  return Math.max(0, Math.min(1, val));
 }
 
 /**
- * Normalizes raw points coordinates [x0, y0, x1, y1] into relative [0, 1] page space.
- */
+Normalizes raw points coordinates [x0, y0, x1, y1] into relative [0, 1] page space.
+*/
 export function normalizeBoundingBox(
   box: readonly [number, number, number, number],
   pageWidth: number,
@@ -43,57 +43,57 @@ export function normalizeBoundingBox(
   const y1 = clamp(box[3] / pageHeight);
 
   return [
-    Math.round(x0 * 100000) / 100000,
-    Math.round(y0 * 100000) / 100000,
-    Math.round(Math.max(x0, x1) * 100000) / 100000,
-    Math.round(Math.max(y0, y1) * 100000) / 100000,
+    Math.round(x0 * 100_000) / 100_000,
+    Math.round(y0 * 100_000) / 100_000,
+    Math.round(Math.max(x0, x1) * 100_000) / 100_000,
+    Math.round(Math.max(y0, y1) * 100_000) / 100_000,
   ];
 }
 
 /**
- * Converts a [x0, y0, x1, y1] bounding box into [x, y, w, h] geometry.
- */
+Converts a [x0, y0, x1, y1] bounding box into [x, y, w, h] geometry.
+*/
 export function boundingBoxToRect(box: BoundingBox): BoundingRect {
   const x0 = box[0];
   const y0 = box[1];
   const x1 = box[2];
   const y1 = box[3];
-  const w = Math.round(Math.max(0, x1 - x0) * 100000) / 100000;
-  const h = Math.round(Math.max(0, y1 - y0) * 100000) / 100000;
+  const w = Math.round(Math.max(0, x1 - x0) * 100_000) / 100_000;
+  const h = Math.round(Math.max(0, y1 - y0) * 100_000) / 100_000;
   return [x0, y0, w, h];
 }
 
 /**
- * Converts a [x, y, w, h] rect into [x0, y0, x1, y1] bounding box.
- */
+Converts a [x, y, w, h] rect into [x0, y0, x1, y1] bounding box.
+*/
 export function rectToBoundingBox(rect: BoundingRect): BoundingBox {
   const x = rect[0];
   const y = rect[1];
   const w = rect[2];
   const h = rect[3];
-  const x1 = Math.round((x + w) * 100000) / 100000;
-  const y1 = Math.round((y + h) * 100000) / 100000;
+  const x1 = Math.round((x + w) * 100_000) / 100_000;
+  const y1 = Math.round((y + h) * 100_000) / 100_000;
   return [x, y, x1, y1];
 }
 
 
 /**
- * Domain service orchestrating PDF preflight, layout extraction, and coordinate normalization.
- */
+Domain service orchestrating PDF preflight, layout extraction, and coordinate normalization.
+*/
 export class PdfParserService {
   constructor(private readonly extractor: PdfExtractorPort) {}
 
   /**
-   * Fast preflight scan check (<5ms).
-   */
+  Fast preflight scan check (<5ms).
+  */
   public async preflight(filePath: string): Promise<PdfPreflightResult> {
     return this.extractor.preflightPdf(filePath);
   }
 
   /**
-   * Parses a PDF document. Returns structured layout if text-readable,
-   * or a flagged scanned document with zero ghost blocks if image-only.
-   */
+  Parses a PDF document. Returns structured layout if text-readable,
+  or a flagged scanned document with zero ghost blocks if image-only.
+  */
   public async parse(
     filePath: string,
     options?: { maxPages?: number | undefined }

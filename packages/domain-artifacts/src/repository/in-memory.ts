@@ -6,16 +6,16 @@ import type {
 } from "@notebench/contracts";
 
 /**
- * In-Memory append-only repository for Artifact Versions DAG.
- * Adheres strictly to append-only invariants: records cannot be mutated or deleted.
- */
+In-Memory append-only repository for Artifact Versions DAG.
+Adheres strictly to append-only invariants: records cannot be mutated or deleted.
+*/
 export class InMemoryArtifactVersionRepository
   implements ArtifactVersionRepositoryPort
 {
   private readonly versions = new Map<string, ArtifactVersion>();
   private readonly artifactIndex = new Map<string, string[]>();
 
-  public async createVersion(
+  public createVersion(
     params: CreateArtifactVersionParams
   ): Promise<ArtifactVersion> {
     const id = params.id ?? randomUUID();
@@ -29,11 +29,11 @@ export class InMemoryArtifactVersionRepository
       artifactId: params.artifactId,
       number: params.number ?? 1,
       createdBy: params.createdBy,
-      ...(params.model ? { model: params.model } : {}),
-      ...(params.instruction ? { instruction: params.instruction } : {}),
-      ...(params.parentVersionId ? { parentVersionId: params.parentVersionId } : {}),
+      ...(params.model && { model: params.model }),
+      ...(params.instruction && { instruction: params.instruction }),
+      ...(params.parentVersionId && { parentVersionId: params.parentVersionId }),
       content: params.content,
-      ...(params.contentDigest ? { contentDigest: params.contentDigest } : {}),
+      ...(params.contentDigest && { contentDigest: params.contentDigest }),
       createdAt: params.createdAt ?? new Date().toISOString(),
     };
 
@@ -43,17 +43,17 @@ export class InMemoryArtifactVersionRepository
     list.push(id);
     this.artifactIndex.set(params.artifactId, list);
 
-    return structuredClone(version);
+    return Promise.resolve(structuredClone(version));
   }
 
-  public async getVersionById(
+  public getVersionById(
     versionId: string
   ): Promise<ArtifactVersion | null> {
     const version = this.versions.get(versionId);
-    return version ? structuredClone(version) : null;
+    return Promise.resolve(version ? structuredClone(version) : null);
   }
 
-  public async listVersions(
+  public listVersions(
     artifactId: string
   ): Promise<ArtifactVersion[]> {
     const ids = this.artifactIndex.get(artifactId) ?? [];
@@ -64,7 +64,7 @@ export class InMemoryArtifactVersionRepository
         result.push(structuredClone(v));
       }
     }
-    return result.sort((a, b) => a.number - b.number);
+    return Promise.resolve(result.toSorted((a, b) => a.number - b.number));
   }
 
   public async getLatestVersion(
@@ -74,7 +74,7 @@ export class InMemoryArtifactVersionRepository
     if (list.length === 0) {
       return null;
     }
-    const last = list[list.length - 1];
+    const last = list.at(-1);
     return last ? structuredClone(last) : null;
   }
 }

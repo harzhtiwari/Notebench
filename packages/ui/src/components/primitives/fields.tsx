@@ -1,23 +1,25 @@
 import * as React from "react";
 import { IconButton } from "./button.js";
 import {
-  CheckSquare,
-  Eye,
-  EyeSlash,
-  MagnifyingGlass,
-  Square,
-  WarningCircle,
+  CheckSquareIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  MagnifyingGlassIcon,
+  SquareIcon,
+  WarningCircleIcon,
 } from "./icons.js";
 import { cn } from "../../lib/utils.js";
 
 /**
- * All form controls in one file (the board's fields section):
- * Input, Textarea, FormField, PasswordInput, SearchInput, Checkbox,
- * CheckboxRow and SegmentedControl. Every value binds to the four token
- * pillars (color, type, space/shape, motion); no literals live here.
- */
+All form controls in one file (the board's fields section):
+Input, Textarea, FormField, PasswordInput, SearchInput, Checkbox,
+CheckboxRow and SegmentedControl. Every value binds to the four token
+pillars (color, type, space/shape, motion); no literals live here.
+*/
 
-/** Board `.input` choreography shared by Input and Textarea. */
+/**
+Board `.input` choreography shared by Input and Textarea.
+*/
 const fieldBase = [
   "w-full rounded-[var(--nb-radius-input)] border border-[var(--nb-edge)] bg-[var(--nb-well)]",
   "px-[var(--nb-space-3)] text-sm text-[var(--nb-ink)]",
@@ -64,22 +66,30 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
 Textarea.displayName = "Textarea";
 
 export interface FormFieldProps extends React.HTMLAttributes<HTMLDivElement> {
-  /** Visible label text. Linked to the child input via its `id`. */
+  /**
+  Visible label text. Linked to the child input via its `id`.
+  */
   label: string;
-  /** Error text. Renders the board `.err` row and marks the child invalid. */
+  /**
+  Error text. Renders the board `.err` row and marks the child invalid.
+  */
   error?: string | undefined;
-  /** Helper text shown only when there is no error (board `.help`). */
+  /**
+  Helper text shown only when there is no error (board `.help`).
+  */
   hint?: string | undefined;
-  /** Optional metadata chip in mono, rendered opposite the label. */
+  /**
+  Optional metadata chip in mono, rendered opposite the label.
+  */
   meta?: string | undefined;
 }
 
 /**
- * Label + control + error pattern (board `.field` / `.err`).
- * The label, `aria-invalid`, and `aria-describedby` are wired from the child
- * control's `id` (matching board demo `f2`/`f2e`); a fallback id is generated
- * when the child carries none.
- */
+Label + control + error pattern (board `.field` / `.err`).
+The label, `aria-invalid`, and `aria-describedby` are wired from the child
+control's `id` (matching board demo `f2`/`f2e`); a fallback id is generated
+when the child carries none.
+*/
 const FormField = React.forwardRef<HTMLDivElement, FormFieldProps>(
   ({ className, label, error, hint, meta, children, ...props }, ref) => {
     const child = React.Children.only(children);
@@ -94,7 +104,7 @@ const FormField = React.forwardRef<HTMLDivElement, FormFieldProps>(
     const hasError = error !== undefined && error !== "";
 
     const control =
-      React.isValidElement<Record<string, unknown>>(child) && hasError
+      hasError && React.isValidElement<Record<string, unknown>>(child)
         ? React.cloneElement(child, {
             id: inputId,
             "aria-invalid": true,
@@ -115,11 +125,11 @@ const FormField = React.forwardRef<HTMLDivElement, FormFieldProps>(
           >
             {label}
           </label>
-          {meta !== undefined ? (
+          {meta === undefined ? null : (
             <span className="rounded-[var(--nb-radius-chip)] bg-[var(--nb-well)] px-[var(--nb-space-2)] py-[var(--nb-space-0-5)] font-mono text-[length:var(--nb-text-2xs)] text-[var(--nb-ink-3)]">
               {meta}
             </span>
-          ) : null}
+          )}
         </span>
         {control}
         {hint !== undefined && !hasError ? (
@@ -131,7 +141,7 @@ const FormField = React.forwardRef<HTMLDivElement, FormFieldProps>(
             role="alert"
             className="flex items-start gap-[var(--nb-space-2)] text-xs font-semibold text-[var(--nb-danger)]"
           >
-            <WarningCircle
+            <WarningCircleIcon
               size={16}
               weight="fill"
               aria-hidden="true"
@@ -149,10 +159,10 @@ FormField.displayName = "FormField";
 export type PasswordInputProps = React.InputHTMLAttributes<HTMLInputElement>;
 
 /**
- * Password input with a show/hide toggle. Composes `Input` with a ghost
- * `IconButton` so the toggle inherits the token-only focus ring. Icons come
- * from the catalog (`Eye` / `EyeSlash`).
- */
+Password input with a show/hide toggle. Composes `Input` with a ghost
+`IconButton` so the toggle inherits the token-only focus ring. Icons come
+from the catalog (`Eye` / `EyeSlash`).
+*/
 const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
   ({ className, ...props }, ref) => {
     const [visible, setVisible] = React.useState(false);
@@ -168,7 +178,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
           type="button"
           variant="nb_btn_ghost"
           size="nb_btn_icon_sm"
-          icon={visible ? Eye : EyeSlash}
+          icon={visible ? EyeIcon : EyeSlashIcon}
           active={visible}
           aria-label={visible ? "Hide passcode" : "Show passcode"}
           onClick={() => {
@@ -188,9 +198,9 @@ export type SearchInputProps = Omit<
 >;
 
 /**
- * Search field in the board `.search` shape: bold 16px icon + borderless
- * input on a well wash pill. Always needs an accessible label from the caller.
- */
+Search field in the board `.search` shape: bold 16px icon + borderless
+input on a well wash pill. Always needs an accessible label from the caller.
+*/
 const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
   ({ className, ...props }, ref) => (
     <div
@@ -200,7 +210,7 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
         className
       )}
     >
-      <MagnifyingGlass
+      <MagnifyingGlassIcon
         size={16}
         weight="bold"
         aria-hidden="true"
@@ -223,10 +233,10 @@ export interface CheckboxProps
 }
 
 /**
- * Board `.check`: a native checkbox next to its label, 24px square with the
- * ink accent, on the control-md touch target. The label carries the meaning;
- * the input stays native for platform behaviour and assistive tech.
- */
+Board `.check`: a native checkbox next to its label, 24px square with the
+ink accent, on the control-md touch target. The label carries the meaning;
+the input stays native for platform behaviour and assistive tech.
+*/
 const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
   ({ className, children, ...props }, ref) => (
     <label
@@ -241,7 +251,7 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
         className="m-0 h-[var(--nb-size-icon-lg)] w-[var(--nb-size-icon-lg)] shrink-0 accent-[var(--nb-ink)]"
         {...props}
       />
-      {children !== undefined ? <span>{children}</span> : null}
+      {children === undefined ? null : <span>{children}</span>}
     </label>
   )
 );
@@ -252,22 +262,24 @@ export interface CheckboxRowProps
     React.ButtonHTMLAttributes<HTMLButtonElement>,
     "role" | "onChange" | "aria-checked"
   > {
-  /** Checked state drives the Square/CheckSquare swap. */
+  /**
+  Checked state drives the Square/CheckSquare swap.
+  */
   checked: boolean;
-  onChange?: ((checked: boolean) => void) | undefined;
+  onChange?: ((isChecked: boolean) => void) | undefined;
 }
 
 /**
- * Selection checkbox row (ticket 09): icon + label always, never icon-alone.
- * Deviates from the board `.check` native input on purpose — the ticket names
- * `CheckSquare`/`Square` as the selection affordance, so the checked state
- * swaps the glyph while the visible label carries the meaning. Parent owns
- * scope (only checked Sources ground chat); this owns nothing but the toggle.
- * Retained in the consolidation for backward compatibility.
- */
+Selection checkbox row (ticket 09): icon + label always, never icon-alone.
+Deviates from the board `.check` native input on purpose — the ticket names
+`CheckSquare`/`Square` as the selection affordance, so the checked state
+swaps the glyph while the visible label carries the meaning. Parent owns
+scope (only checked Sources ground chat); this owns nothing but the toggle.
+Retained in the consolidation for backward compatibility.
+*/
 const CheckboxRow = React.forwardRef<HTMLButtonElement, CheckboxRowProps>(
   ({ className, checked, onChange, disabled, children, ...props }, ref) => {
-    const Icon = checked ? CheckSquare : Square;
+    const Icon = checked ? CheckSquareIcon : SquareIcon;
     return (
       <button
         ref={ref}
@@ -305,19 +317,25 @@ export interface SegmentedControlOption {
 export interface SegmentedControlProps
   extends Omit<React.FieldsetHTMLAttributes<HTMLFieldSetElement>, "onChange"> {
   options: readonly SegmentedControlOption[];
-  /** Currently selected option value. */
+  /**
+  Currently selected option value.
+  */
   value: string;
-  /** Selection callback. */
+  /**
+  Selection callback.
+  */
   onChange: (value: string) => void;
-  /** Radio group name. Generated when omitted. */
+  /**
+  Radio group name. Generated when omitted.
+  */
   name?: string | undefined;
 }
 
 /**
- * Board `.seg`: pill container on a well wash holding native radio inputs.
- * The checked option flips to an ink fill with inverse text (via the
- * `peer-checked` state), so selection is never color-alone.
- */
+Board `.seg`: pill container on a well wash holding native radio inputs.
+The checked option flips to an ink fill with inverse text (via the
+`peer-checked` state), so selection is never color-alone.
+*/
 const SegmentedControl = React.forwardRef<
   HTMLFieldSetElement,
   SegmentedControlProps

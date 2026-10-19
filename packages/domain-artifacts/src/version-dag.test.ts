@@ -90,10 +90,12 @@ describe("Artifact Version DAG & Surgical Patch Service (Ticket 12 RED suite)", 
     const version1 = versions[1];
     expect(version0).toBeDefined();
     expect(version1).toBeDefined();
-    if (version0 && version1) {
-      expect(version0.id).toBe(v1.id);
-      expect(version1.id).toBe(v2.id);
+    if (!(version0 && version1)) {
+      return;
     }
+
+    expect(version0.id).toBe(v1.id);
+    expect(version1.id).toBe(v2.id);
   });
 
   it("restores old version git-style: content equals the target, parent points at latest", async () => {
@@ -258,7 +260,7 @@ describe("Artifact Version DAG & Surgical Patch Service (Ticket 12 RED suite)", 
         targetId: BLOCK_2,
         proposedContent: taintedDoc,
       })
-    ).rejects.toThrowError(InvarianceViolationError);
+    ).rejects.toThrow(InvarianceViolationError);
 
     // Verify invariance defense: NOTHING was written!
     const all = await service.listVersions(ARTIFACT_ID);
@@ -284,7 +286,7 @@ describe("Artifact Version DAG & Surgical Patch Service (Ticket 12 RED suite)", 
 
     // 1. Mutating the caller's input after the write must not reach stored rows.
     const inputFirst = input.blocks[0];
-    if (inputFirst && inputFirst.kind === "heading") {
+    if (inputFirst?.kind === "heading") {
       inputFirst.text = "Mutated input after create";
     }
 
@@ -294,14 +296,14 @@ describe("Artifact Version DAG & Surgical Patch Service (Ticket 12 RED suite)", 
     if (!fetched) throw new Error("expected stored version to exist");
     const fetchedDoc = fetched.content as DocumentContent;
     const fetchedFirst = fetchedDoc.blocks[0];
-    if (fetchedFirst && fetchedFirst.kind === "heading") {
+    if (fetchedFirst?.kind === "heading") {
       fetchedFirst.text = "Mutated fetched copy";
     }
 
     const listed = await service.listVersions(ARTIFACT_ID);
     const listedDoc = listed[0]?.content as DocumentContent | undefined;
     const listedFirst = listedDoc?.blocks[0];
-    if (listedFirst && listedFirst.kind === "heading") {
+    if (listedFirst?.kind === "heading") {
       listedFirst.text = "Mutated listed copy";
     }
 
@@ -312,7 +314,7 @@ describe("Artifact Version DAG & Surgical Patch Service (Ticket 12 RED suite)", 
     const refetchedDoc = refetched.content as DocumentContent;
     const refetchedFirst = refetchedDoc.blocks[0];
     expect(refetchedFirst).toBeDefined();
-    if (refetchedFirst && refetchedFirst.kind === "heading") {
+    if (refetchedFirst?.kind === "heading") {
       expect(refetchedFirst.text).toBe("Section 1");
     }
   });

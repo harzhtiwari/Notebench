@@ -11,7 +11,7 @@ import {
 } from "../primitives/overlays.js";
 import { Button } from "../primitives/button.js";
 import { AlertBanner } from "../primitives/banners.js";
-import { FileText, resolveIconProps } from "../primitives/icons.js";
+import { FileTextIcon, resolveIconProps } from "../primitives/icons.js";
 import type { StudioToolItem } from "./tool-tile.js";
 
 export interface SourceSummaryItem {
@@ -22,9 +22,11 @@ export interface SourceSummaryItem {
 
 export interface GenerationModalProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onOpenChange: (isOpen: boolean) => void;
   tool?: StudioToolItem | null | undefined;
-  /** Array of sources, source titles, or count of sources */
+  /**
+  Array of sources, source titles, or count of sources
+  */
   selectedSources?: SourceSummaryItem[] | string[] | number | undefined;
   onGenerate?: (() => void) | undefined;
   isGenerating?: boolean | undefined;
@@ -34,9 +36,9 @@ export interface GenerationModalProps {
 }
 
 /**
- * GenerationModal: dialog summarizing selected sources + Generate action button
- * + zero-sources warning banner (Tickets 07 & 14, PRD Decision 1.9 & E5).
- */
+GenerationModal: dialog summarizing selected sources + Generate action button
++ zero-sources warning banner (Tickets 07 & 14, PRD Decision 1.9 & E5).
+*/
 export const GenerationModal: React.FC<GenerationModalProps> = ({
   open,
   onOpenChange,
@@ -48,13 +50,10 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
   children,
   className,
 }) => {
-  const sourcesList: Array<{ id: string; title: string }> = React.useMemo(() => {
+  const sourcesList: { id: string; title: string }[] = React.useMemo(() => {
     if (Array.isArray(selectedSources)) {
       return selectedSources.map((s, idx) => {
-        if (typeof s === "string") {
-          return { id: `src-${idx}`, title: s };
-        }
-        return { id: s.id, title: s.title };
+        return typeof s === "string" ? { id: `src-${idx}`, title: s } : { id: s.id, title: s.title };
       });
     }
     return [];
@@ -62,9 +61,9 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
 
   const sourceCount = Array.isArray(selectedSources)
     ? selectedSources.length
-    : typeof selectedSources === "number"
+    : (typeof selectedSources === "number"
     ? selectedSources
-    : 0;
+    : 0);
 
   const hasSources = sourceCount > 0;
   const toolTitle = tool?.label ?? "Artifact";
@@ -84,13 +83,7 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
         </DialogHeader>
 
         <DialogBody className="gap-[var(--nb-space-4)]">
-          {!hasSources ? (
-            <AlertBanner
-              tone="warn"
-              title="No sources selected"
-              message={zeroSourcesWarning}
-            />
-          ) : (
+          {hasSources ? (
             <div className="grid gap-[var(--nb-space-2)]">
               <div className="flex items-center justify-between text-xs font-medium text-[var(--nb-ink-2)]">
                 <span>
@@ -104,7 +97,7 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
                       key={src.id}
                       className="flex items-center gap-[var(--nb-space-2)] px-[var(--nb-space-2)] py-[var(--nb-space-1)] text-sm text-[var(--nb-ink)]"
                     >
-                      <FileText
+                      <FileTextIcon
                         {...resolveIconProps({ size: "sm" })}
                         className="shrink-0 text-[var(--nb-ink-2)]"
                       />
@@ -114,6 +107,12 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
                 </ul>
               ) : null}
             </div>
+          ) : (
+            <AlertBanner
+              tone="warn"
+              title="No sources selected"
+              message={zeroSourcesWarning}
+            />
           )}
 
           {children}
@@ -123,7 +122,7 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
           <Button
             type="button"
             variant="nb_btn_ghost"
-            onClick={() => onOpenChange(false)}
+            onClick={() => { onOpenChange(false); }}
             disabled={isGenerating}
           >
             Cancel

@@ -79,13 +79,13 @@ describe("editing bench patterns (ticket 16)", () => {
 
       const article = container.querySelector("article");
       expect(article).not.toBeNull();
-      expect(article?.getAttribute("data-state")).toBe(state);
+      expect(article?.dataset["state"]).toBe(state);
       expect(article?.className).toContain("part");
 
       // Rail is present
-      const rail = container.querySelector('[data-slot="rail"]');
+      const rail = container.querySelector<HTMLElement>('[data-slot="rail"]');
       expect(rail).not.toBeNull();
-      expect(rail?.getAttribute("data-state")).toBe(state);
+      expect(rail?.dataset["state"]).toBe(state);
 
       // Icon is present inside state label
       const stateLabel = container.querySelector('[data-slot="state-label"]');
@@ -308,7 +308,7 @@ describe("editing bench patterns (ticket 16)", () => {
             content: "v1",
             onSave,
             quietMs: 2000,
-            ceilingMs: 30000,
+            ceilingMs: 30_000,
           }}
         />
       );
@@ -320,7 +320,7 @@ describe("editing bench patterns (ticket 16)", () => {
             content: "v2",
             onSave,
             quietMs: 2000,
-            ceilingMs: 30000,
+            ceilingMs: 30_000,
           }}
         />
       );
@@ -338,7 +338,7 @@ describe("editing bench patterns (ticket 16)", () => {
             content: "v3",
             onSave,
             quietMs: 2000,
-            ceilingMs: 30000,
+            ceilingMs: 30_000,
           }}
         />
       );
@@ -365,7 +365,7 @@ describe("editing bench patterns (ticket 16)", () => {
               content: `continuous-${sec}`,
               onSave,
               quietMs: 2000,
-              ceilingMs: 30000,
+              ceilingMs: 30_000,
             }}
           />
         );

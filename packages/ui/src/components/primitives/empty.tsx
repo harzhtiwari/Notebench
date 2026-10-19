@@ -13,27 +13,49 @@ export interface EmptyStateItem {
 
 export interface EmptyStateProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
-  /** Optional icon or graphical badge element placed atop the empty container. */
+  /**
+  Optional icon or graphical badge element placed atop the empty container.
+  */
   icon?: React.ReactNode;
-  /** Primary headline. Rendered in serif read font. */
+  /**
+  Primary headline. Rendered in serif read font.
+  */
   title: React.ReactNode;
-  /** Explanatory description. Rendered in UI sans font with ink-2 color. */
+  /**
+  Explanatory description. Rendered in UI sans font with ink-2 color.
+  */
   description?: React.ReactNode;
-  /** Target roadmap milestone badge (e.g. "0.2", "0.3"). */
+  /**
+  Target roadmap milestone badge (e.g. "0.2", "0.3").
+  */
   milestone?: TargetMilestone | undefined;
-  /** Optional milestone announcement text (e.g. "Arrives in 0.3"). */
+  /**
+  Optional milestone announcement text (e.g. "Arrives in 0.3").
+  */
   milestoneText?: string | undefined;
-  /** Optional list of disabled/inactive feature preview rows. */
+  /**
+  Optional list of disabled/inactive feature preview rows.
+  */
   items?: readonly (string | EmptyStateItem)[] | undefined;
-  /** Optional primary action label. */
+  /**
+  Optional primary action label.
+  */
   actionLabel?: string | undefined;
-  /** Callback fired when primary action is clicked. */
+  /**
+  Callback fired when primary action is clicked.
+  */
   onAction?: (() => void) | undefined;
-  /** Optional secondary action label. */
+  /**
+  Optional secondary action label.
+  */
   secondaryActionLabel?: string | undefined;
-  /** Callback fired when secondary action is clicked. */
+  /**
+  Callback fired when secondary action is clicked.
+  */
   onSecondaryAction?: (() => void) | undefined;
-  /** Maximum container width variant. Defaults to "sm" (modal-sm). */
+  /**
+  Maximum container width variant. Defaults to "sm" (modal-sm).
+  */
   maxWidth?: "sm" | "md" | "lg" | "full" | undefined;
 }
 
@@ -140,9 +162,9 @@ export const EmptyStateItems = React.forwardRef<HTMLUListElement, EmptyStateItem
 EmptyStateItems.displayName = "EmptyStateItems";
 
 /**
- * Unified empty state (board `.empty`, board.test.html#L594-596): recessed well,
- * card radius, serif title, ink-2 description, and an actions row.
- */
+Unified empty state (board `.empty`, board.test.html#L594-596): recessed well,
+card radius, serif title, ink-2 description, and an actions row.
+*/
 export const EmptyState = React.forwardRef<HTMLDivElement, EmptyStateProps>(
   (
     {
@@ -163,7 +185,7 @@ export const EmptyState = React.forwardRef<HTMLDivElement, EmptyStateProps>(
     },
     ref
   ) => {
-    const showMilestoneRow = milestone !== undefined || milestoneText !== undefined;
+    const isShowMilestoneRow = milestone !== undefined || milestoneText !== undefined;
     const hasPrimaryAction = actionLabel !== undefined && onAction !== undefined;
     const hasSecondaryAction =
       secondaryActionLabel !== undefined && onSecondaryAction !== undefined;
@@ -178,24 +200,24 @@ export const EmptyState = React.forwardRef<HTMLDivElement, EmptyStateProps>(
         )}
         {...props}
       >
-        {icon !== undefined ? <EmptyStateMedia>{icon}</EmptyStateMedia> : null}
+        {icon === undefined ? null : <EmptyStateMedia>{icon}</EmptyStateMedia>}
 
-        {showMilestoneRow ? (
+        {isShowMilestoneRow ? (
           <div className="flex flex-wrap items-center gap-[var(--nb-space-2)]">
-            {milestone !== undefined ? <VersionBadge milestone={milestone} /> : null}
-            {milestoneText !== undefined ? (
+            {milestone === undefined ? null : <VersionBadge milestone={milestone} />}
+            {milestoneText === undefined ? null : (
               <span className="text-[length:var(--nb-text-xs)] font-semibold text-[var(--nb-ink-2)]">
                 {milestoneText}
               </span>
-            ) : null}
+            )}
           </div>
         ) : null}
 
         <EmptyStateTitle>{title}</EmptyStateTitle>
 
-        {description !== undefined ? (
+        {description === undefined ? null : (
           <EmptyStateDescription>{description}</EmptyStateDescription>
-        ) : null}
+        )}
 
         {items !== undefined && items.length > 0 ? (
           <EmptyStateItems>
@@ -210,7 +232,7 @@ export const EmptyState = React.forwardRef<HTMLDivElement, EmptyStateProps>(
                   className="flex cursor-not-allowed select-none items-center justify-between gap-[var(--nb-space-3)] rounded-[var(--nb-radius-control)] border-[length:var(--nb-border-1)] border-[var(--nb-hairline)] bg-[var(--nb-sheet)] px-[var(--nb-space-3)] py-[var(--nb-space-2)] text-[length:var(--nb-text-sm)] text-[var(--nb-disabled-fg)]"
                 >
                   <span>{text}</span>
-                  {milestone !== undefined ? <VersionBadge milestone={milestone} /> : null}
+                  {milestone === undefined ? null : <VersionBadge milestone={milestone} />}
                 </li>
               );
             })}
@@ -255,9 +277,9 @@ export interface EmptyListProps
 }
 
 /**
- * Backward-compatible adapter for the former empty-list primitive: settings and
- * audit screens rely on the default "Memory Rules" copy and milestone badge.
- */
+Backward-compatible adapter for the former empty-list primitive: settings and
+audit screens rely on the default "Memory Rules" copy and milestone badge.
+*/
 export const EmptyList = React.forwardRef<HTMLDivElement, EmptyListProps>(
   (
     {
@@ -283,10 +305,9 @@ export const EmptyList = React.forwardRef<HTMLDivElement, EmptyListProps>(
         ? "A persistent, user-defined instruction or style guideline injected into agent context to govern response tone and formatting."
         : undefined);
 
-    const showMilestoneBadge = isMemoryRulesDefault || milestone !== undefined;
-    const resolvedMilestone = showMilestoneBadge ? milestone : undefined;
+    const resolvedMilestone = milestone;
     const milestoneText =
-      isMemoryRulesDefault && milestone !== undefined
+      isMemoryRulesDefault
         ? `Memory rules arrive in ${milestone}`
         : undefined;
 
@@ -311,7 +332,7 @@ export const EmptyList = React.forwardRef<HTMLDivElement, EmptyListProps>(
 EmptyList.displayName = "EmptyList";
 
 export interface RefusalEmptyProps extends React.HTMLAttributes<HTMLDivElement> {
-  reason?: "no-sources" | "low-confidence" | "not-found" | string | undefined;
+  reason?: string | undefined;
   title?: string | undefined;
   message?: string | undefined;
   topic?: string | undefined;
@@ -322,9 +343,9 @@ export interface RefusalEmptyProps extends React.HTMLAttributes<HTMLDivElement> 
 }
 
 /**
- * Backward-compatible adapter for the chat refusal empty state (Tk 09 / Tk 10):
- * 0 sources selected, or fused RRF retrieval score below the confidence floor.
- */
+Backward-compatible adapter for the chat refusal empty state (Tk 09 / Tk 10):
+0 sources selected, or fused RRF retrieval score below the confidence floor.
+*/
 export const RefusalEmpty = React.forwardRef<HTMLDivElement, RefusalEmptyProps>(
   (
     {
@@ -357,11 +378,11 @@ export const RefusalEmpty = React.forwardRef<HTMLDivElement, RefusalEmptyProps>(
     if (resolvedMessage === undefined) {
       if (reason === "no-sources") {
         resolvedMessage = "Select at least one source to ground answers and citations.";
-      } else if (topic !== undefined) {
-        resolvedMessage = `I couldn't find information about "${topic}" in the selected sources.`;
-      } else {
+      } else if (topic === undefined) {
         resolvedMessage =
           "I couldn't find an answer to your question in the selected sources.";
+      } else {
+        resolvedMessage = `I couldn't find information about "${topic}" in the selected sources.`;
       }
     }
 
@@ -378,15 +399,15 @@ export const RefusalEmpty = React.forwardRef<HTMLDivElement, RefusalEmptyProps>(
             Topics present in sources: {availableTopics.join(", ")}
           </p>
         ) : null}
-        {actions !== undefined ? (
-          <EmptyStateActions>{actions}</EmptyStateActions>
-        ) : actionLabel !== undefined && onAction !== undefined ? (
+        {actions === undefined ? (actionLabel !== undefined && onAction !== undefined ? (
           <EmptyStateActions>
             <Button variant="nb_btn_secondary" size="nb_btn_sm" onClick={onAction} type="button">
               {actionLabel}
             </Button>
           </EmptyStateActions>
-        ) : null}
+        ) : null) : (
+          <EmptyStateActions>{actions}</EmptyStateActions>
+        )}
         {children}
       </EmptyState>
     );

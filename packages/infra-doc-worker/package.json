@@ -14,6 +14,7 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "test": "vitest run"
   },
   "dependencies": {
@@ -21,8 +22,10 @@
     "@notebench/logger": "workspace:*"
   },
   "devDependencies": {
+    "@notebench/eslint-config": "workspace:*",
     "@notebench/tsconfig": "workspace:*",
     "@types/node": "^26.6.5",
+    "eslint": "^10.0.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.4"
   }

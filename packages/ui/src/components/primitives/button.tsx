@@ -71,39 +71,39 @@ function ButtonSpinner() {
   );
 }
 
-function getIconAttributes(size?: ButtonSize, active?: boolean) {
+function getIconAttributes(size?: ButtonSize, isActive?: boolean) {
   const isLarge = size === "nb_btn_lg";
   return {
     size: isLarge ? sizeTokens["icon-md"] : sizeTokens["icon-sm"],
-    weight: active
+    weight: isActive
       ? iconTokens["weight-active"]
-      : isLarge
+      : (isLarge
         ? iconTokens["weight-default"]
-        : iconTokens["weight-small"],
+        : iconTokens["weight-small"]),
     className: isLarge
       ? "h-[var(--nb-size-icon-md)] w-[var(--nb-size-icon-md)] shrink-0"
       : "h-[var(--nb-size-icon-sm)] w-[var(--nb-size-icon-sm)] shrink-0",
   };
 }
 
-function getIconButtonIconAttributes(size?: ButtonSize, active?: boolean) {
+function getIconButtonIconAttributes(size?: ButtonSize, isActive?: boolean) {
   if (size === "nb_btn_icon_sm") {
     return {
       size: sizeTokens["icon-sm"],
-      weight: active ? iconTokens["weight-active"] : iconTokens["weight-small"],
+      weight: isActive ? iconTokens["weight-active"] : iconTokens["weight-small"],
       className: "h-[var(--nb-size-icon-sm)] w-[var(--nb-size-icon-sm)] shrink-0",
     };
   }
   if (size === "nb_btn_icon_lg") {
     return {
       size: sizeTokens["icon-lg"],
-      weight: active ? iconTokens["weight-active"] : iconTokens["weight-default"],
+      weight: isActive ? iconTokens["weight-active"] : iconTokens["weight-default"],
       className: "h-[var(--nb-size-icon-lg)] w-[var(--nb-size-icon-lg)] shrink-0",
     };
   }
   return {
     size: sizeTokens["icon-md"],
-    weight: active ? iconTokens["weight-active"] : iconTokens["weight-default"],
+    weight: isActive ? iconTokens["weight-active"] : iconTokens["weight-default"],
     className: "h-[var(--nb-size-icon-md)] w-[var(--nb-size-icon-md)] shrink-0",
   };
 }
@@ -120,13 +120,17 @@ export interface BaseButtonProps
   asChild?: boolean | undefined;
 }
 
-/** Standard button with visible text */
+/**
+Standard button with visible text
+*/
 export interface StandardButtonProps extends BaseButtonProps {
   size?: "nb_btn_sm" | "nb_btn_md" | "nb_btn_lg" | undefined;
   children: React.ReactNode;
 }
 
-/** Standalone icon button: aria-label is strictly required */
+/**
+Standalone icon button: aria-label is strictly required
+*/
 export interface IconButtonProps
   extends Omit<
     BaseButtonProps,
@@ -167,7 +171,7 @@ const Button = React.forwardRef<HTMLButtonElement, StandardButtonProps>(
           className={cn(buttonVariants({ variant, size, className }))}
           aria-busy={loading ? "true" : undefined}
           aria-pressed={active ? "true" : undefined}
-          disabled={disabled || loading}
+          disabled={loading || disabled}
           {...props}
         >
           {children}
@@ -181,21 +185,21 @@ const Button = React.forwardRef<HTMLButtonElement, StandardButtonProps>(
       <Comp
         ref={ref}
         className={cn(buttonVariants({ variant, size, className }))}
-        disabled={disabled || loading}
+        disabled={loading || disabled}
         aria-busy={loading ? "true" : undefined}
         aria-pressed={active ? "true" : undefined}
         {...props}
       >
         {loading ? (
           <ButtonSpinner />
-        ) : LeadingIcon ? (
+        ) : (LeadingIcon ? (
           <LeadingIcon
             size={iconAttrs.size}
             weight={iconAttrs.weight}
             aria-hidden="true"
             className={cn("shrink-0", iconAttrs.className)}
           />
-        ) : null}
+        ) : null)}
         {loading && loadingLabel ? loadingLabel : children}
         {!loading && TrailingIcon ? (
           <TrailingIcon
@@ -216,7 +220,7 @@ const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
     {
       className,
       variant = "nb_btn_ghost",
-      size = "nb_btn_icon_md",
+      size,
       icon: IconComp,
       active = false,
       loading = false,
@@ -238,7 +242,7 @@ const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
           aria-label={ariaLabel}
           aria-pressed={active ? "true" : undefined}
           aria-busy={loading ? "true" : undefined}
-          disabled={disabled || loading}
+          disabled={loading || disabled}
           {...props}
         >
           {children}
@@ -255,12 +259,12 @@ const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
         aria-label={ariaLabel}
         aria-pressed={active ? "true" : undefined}
         aria-busy={loading ? "true" : undefined}
-        disabled={disabled || loading}
+        disabled={loading || disabled}
         {...props}
       >
         {loading ? (
           <ButtonSpinner />
-        ) : IconComp ? (
+        ) : (IconComp ? (
           <IconComp
             size={iconAttrs.size}
             weight={iconAttrs.weight}
@@ -269,7 +273,7 @@ const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
           />
         ) : (
           children
-        )}
+        ))}
       </Comp>
     );
   }

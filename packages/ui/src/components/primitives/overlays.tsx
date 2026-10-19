@@ -5,7 +5,7 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 
 import { cn } from "../../lib/utils.js";
 import { Button, IconButton } from "./button.js";
-import { Quotes, X } from "./icons.js";
+import { QuotesIcon, XIcon } from "./icons.js";
 
 /* -------------------------------------------------------------------------- *
  * Dialog — board anatomy: header (title + close), body, footer.
@@ -20,7 +20,7 @@ const DialogPortal = DialogPrimitive.Portal;
 const DialogClose = DialogPrimitive.Close;
 
 const DialogOverlay = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Overlay>,
+  React.ComponentRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
@@ -46,14 +46,18 @@ const dialogSizeClassNames: Record<DialogSize, string> = {
 
 export interface DialogContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
-  /** Width preset from the board modal scale; `custom` leaves the width to the consumer. */
+  /**
+  Width preset from the board modal scale; `custom` leaves the width to the consumer.
+  */
   size?: DialogSize | undefined;
-  /** Renders the floating top-right close button for single-purpose dialogs. */
+  /**
+  Renders the floating top-right close button for single-purpose dialogs.
+  */
   showCloseButton?: boolean | undefined;
 }
 
 const DialogContent = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ComponentRef<typeof DialogPrimitive.Content>,
   DialogContentProps
 >(
   (
@@ -125,7 +129,7 @@ const DialogFooter = ({
 DialogFooter.displayName = "DialogFooter";
 
 const DialogTitle = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Title>,
+  React.ComponentRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
@@ -140,7 +144,7 @@ const DialogTitle = React.forwardRef<
 DialogTitle.displayName = DialogPrimitive.Title.displayName;
 
 const DialogDescription = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Description>,
+  React.ComponentRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
@@ -155,7 +159,7 @@ const DialogDescription = React.forwardRef<
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
 const DialogCloseButton = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Close>,
+  React.ComponentRef<typeof DialogPrimitive.Close>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Close>
 >(({ className, children, "aria-label": ariaLabel = "Close", ...props }, ref) => (
   <DialogPrimitive.Close asChild>
@@ -163,7 +167,7 @@ const DialogCloseButton = React.forwardRef<
       ref={ref}
       variant="nb_btn_ghost"
       size="nb_btn_icon_sm"
-      icon={X}
+      icon={XIcon}
       className={className}
       {...props}
       aria-label={ariaLabel}
@@ -187,7 +191,7 @@ const PopoverAnchor = PopoverPrimitive.Anchor;
 const PopoverClose = PopoverPrimitive.Close;
 
 const PopoverContent = React.forwardRef<
-  React.ElementRef<typeof PopoverPrimitive.Content>,
+  React.ComponentRef<typeof PopoverPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
 >(({ className, align = "center", sideOffset = 4, ...props }, ref) => (
   <PopoverPrimitive.Portal>
@@ -216,7 +220,7 @@ const Tooltip = TooltipPrimitive.Root;
 const TooltipTrigger = TooltipPrimitive.Trigger;
 
 const TooltipContent = React.forwardRef<
-  React.ElementRef<typeof TooltipPrimitive.Content>,
+  React.ComponentRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
 >(({ className, sideOffset = 4, ...props }, ref) => (
   <TooltipPrimitive.Portal>
@@ -238,37 +242,61 @@ TooltipContent.displayName = TooltipPrimitive.Content.displayName;
  * -------------------------------------------------------------------------- */
 
 export interface CitationPopoverProps {
-  /** The trigger element (e.g. CitationChip). If omitted, children is used as trigger. */
+  /**
+  The trigger element (e.g. CitationChip). If omitted, children is used as trigger.
+  */
   trigger?: React.ReactNode | undefined;
-  /** Children element; if trigger is omitted, children acts as trigger */
+  /**
+  Children element; if trigger is omitted, children acts as trigger
+  */
   children?: React.ReactNode | undefined;
-  /** Source title */
+  /**
+  Source title
+  */
   title: string;
-  /** Page or location subtitle (e.g. "Page 12, paragraph 2") */
+  /**
+  Page or location subtitle (e.g. "Page 12, paragraph 2")
+  */
   location?: React.ReactNode | undefined;
-  /** Cited passage content */
+  /**
+  Cited passage content
+  */
   passage?: React.ReactNode | undefined;
-  /** Excerpt alias for passage */
+  /**
+  Excerpt alias for passage
+  */
   excerpt?: React.ReactNode | undefined;
-  /** Callback when user clicks "Open in source" */
+  /**
+  Callback when user clicks "Open in source"
+  */
   onOpenSource?: (() => void) | undefined;
-  /** Label for the action button; defaults to "Open in source" */
+  /**
+  Label for the action button; defaults to "Open in source"
+  */
   openSourceLabel?: string | undefined;
-  /** Controlled open state */
+  /**
+  Controlled open state
+  */
   open?: boolean | undefined;
-  /** Controlled onOpenChange callback */
-  onOpenChange?: ((open: boolean) => void) | undefined;
-  /** Alignment relative to trigger */
+  /**
+  Controlled onOpenChange callback
+  */
+  onOpenChange?: ((isOpen: boolean) => void) | undefined;
+  /**
+  Alignment relative to trigger
+  */
   align?: "start" | "center" | "end" | undefined;
-  /** Side relative to trigger */
+  /**
+  Side relative to trigger
+  */
   side?: "top" | "right" | "bottom" | "left" | undefined;
   className?: string | undefined;
 }
 
 /**
- * CitationPopover (ticket 11): popover showing title + excerpt leading to
- * passage (board `.passage` class).
- */
+CitationPopover (ticket 11): popover showing title + excerpt leading to
+passage (board `.passage` class).
+*/
 export function CitationPopover({
   trigger,
   children,
@@ -316,7 +344,7 @@ export function CitationPopover({
                 </p>
               ) : null}
             </div>
-            <Quotes
+            <QuotesIcon
               size={16}
               aria-hidden="true"
               className="shrink-0 text-[var(--nb-ink-3)]"

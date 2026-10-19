@@ -4,20 +4,29 @@ import { getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core"
 import { pgSchema, sqliteSchema } from "../src/schema/index.js";
 
 /**
- * Ticket 28 — declared-schema parity across the two dialects.
- *
- * The SQLite and PostgreSQL drizzle schemas must describe the same logical
- * schema: the same tables, the same columns, and the same named indexes.
- * `getTableConfig` reads the declarations themselves, so this test fails on
- * drift in `schema/sqlite.ts` or `schema/pg.ts` without needing a database.
- */
+Ticket 28 — declared-schema parity across the two dialects.
+
+The SQLite and PostgreSQL drizzle schemas must describe the same logical
+schema: the same tables, the same columns, and the same named indexes.
+`getTableConfig` reads the declarations themselves, so this test fails on
+drift in `schema/sqlite.ts` or `schema/pg.ts` without needing a database.
+*/
 
 interface TableShape {
   columns: string[];
   indexes: { name: string; unique: boolean; columns: string[] }[];
 }
 
-/** Index columns may be column refs, raw SQL, or strings; only refs carry a name. */
+/**
+Code-unit string ordering — matches the default `Array#sort()` comparator.
+*/
+function compareCodeUnits(a: string, b: string): number {
+  return a < b ? -1 : (a > b ? 1 : 0);
+}
+
+/**
+Index columns may be column refs, raw SQL, or strings; only refs carry a name.
+*/
 function indexColumnName(column: unknown): string {
   if (typeof column === "string") {
     return column;
@@ -32,44 +41,48 @@ function indexColumnName(column: unknown): string {
 }
 
 function sqliteTableShape(tableName: string): TableShape {
-  const table = sqliteSchema[tableName as keyof typeof sqliteSchema];
+  const table = (
+    sqliteSchema as Record<string, (typeof sqliteSchema)[keyof typeof sqliteSchema]>
+  )[tableName];
   if (!table) {
     throw new Error(`sqlite schema has no table named ${tableName}`);
   }
   const config = getSqliteTableConfig(table);
   return {
-    columns: config.columns.map((column) => column.name).sort(),
+    columns: config.columns.map((column) => column.name).toSorted(compareCodeUnits),
     indexes: config.indexes
       .map((index) => ({
         name: index.config.name,
         unique: index.config.unique,
-        columns: index.config.columns.map(indexColumnName).sort(),
+        columns: index.config.columns.map((column) => indexColumnName(column)).toSorted(compareCodeUnits),
       }))
-      .sort((a, b) => a.name.localeCompare(b.name)),
+      .toSorted((a, b) => a.name.localeCompare(b.name)),
   };
 }
 
 function pgTableShape(tableName: string): TableShape {
-  const table = pgSchema[tableName as keyof typeof pgSchema];
+  const table = (
+    pgSchema as Record<string, (typeof pgSchema)[keyof typeof pgSchema]>
+  )[tableName];
   if (!table) {
     throw new Error(`pg schema has no table named ${tableName}`);
   }
   const config = getPgTableConfig(table);
   return {
-    columns: config.columns.map((column) => column.name).sort(),
+    columns: config.columns.map((column) => column.name).toSorted(compareCodeUnits),
     indexes: config.indexes
       .map((index) => ({
         name: index.config.name ?? "",
         unique: index.config.unique,
-        columns: index.config.columns.map(indexColumnName).sort(),
+        columns: index.config.columns.map((column) => indexColumnName(column)).toSorted(compareCodeUnits),
       }))
-      .sort((a, b) => a.name.localeCompare(b.name)),
+      .toSorted((a, b) => a.name.localeCompare(b.name)),
   };
 }
 
 describe("Ticket 28 — declared schema parity (schema/sqlite.ts vs schema/pg.ts)", () => {
-  const sqliteTableNames = Object.keys(sqliteSchema).sort();
-  const pgTableNames = Object.keys(pgSchema).sort();
+  const sqliteTableNames = Object.keys(sqliteSchema).toSorted(compareCodeUnits);
+  const pgTableNames = Object.keys(pgSchema).toSorted(compareCodeUnits);
 
   it("declares the same table names in both dialects", () => {
     expect(pgTableNames).toEqual(sqliteTableNames);

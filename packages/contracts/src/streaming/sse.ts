@@ -2,9 +2,9 @@ import { z } from "zod";
 import { NotebookErrorCodeSchema } from "../errors/codes.js";
 
 /**
- * Normalized Bounding Box in Page Coordinates: [x0, y0, x1, y1].
- * Values are normalized to [0, 1] relative to page dimensions.
- */
+Normalized Bounding Box in Page Coordinates: [x0, y0, x1, y1].
+Values are normalized to [0, 1] relative to page dimensions.
+*/
 export const BoundingBoxSchema = z.tuple([
   z.number().min(0).max(1),
   z.number().min(0).max(1),

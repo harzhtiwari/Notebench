@@ -10,7 +10,7 @@ import {
   sortTimelineEvents,
   type TimelineEventItem,
 } from "./index.js";
-import { GitBranch } from "../primitives/index.js";
+import { GitBranchIcon } from "../primitives/index.js";
 
 afterEach(() => {
   cleanup();
@@ -205,14 +205,14 @@ describe("timeline patterns (ticket 17)", () => {
         <TimelineEvent id="solo" date="2024-01-01" title="Solo event" />
       );
 
-      expect(container.querySelector('li > span[aria-hidden="true"]')).toBeNull();
+      expect(container.querySelector(':scope li > span[aria-hidden="true"]')).toBeNull();
     });
   });
 
   describe("Icon Centralization & GitBranch", () => {
     it("exports GitBranch from centralized icons", () => {
-      expect(GitBranch).toBeDefined();
-      const { container } = render(<GitBranch size={16} aria-hidden="true" />);
+      expect(GitBranchIcon).toBeDefined();
+      const { container } = render(<GitBranchIcon size={16} aria-hidden="true" />);
       const svg = container.querySelector("svg");
       expect(svg).not.toBeNull();
       expect(svg?.getAttribute("aria-hidden")).toBe("true");
@@ -282,7 +282,7 @@ describe("timeline patterns (ticket 17)", () => {
       expect(isValidTimelineDate("2024")).toBe(true);
 
       expect(isValidTimelineDate("")).toBe(false);
-      expect(isValidTimelineDate("   ")).toBe(false);
+      expect(isValidTimelineDate(' '.repeat(3))).toBe(false);
       expect(isValidTimelineDate("unknown")).toBe(false);
       expect(isValidTimelineDate("undated")).toBe(false);
       expect(isValidTimelineDate("invalid-date-format")).toBe(false);

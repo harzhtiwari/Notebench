@@ -1,23 +1,25 @@
 import * as React from "react";
-import { WarningCircle } from "./icons.js";
+import { WarningCircleIcon } from "./icons.js";
 import { cn } from "../../lib/utils.js";
 
 export interface ChipProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  /** Board pressed state: ink fill carries the meaning, never color-alone. */
+  /**
+  Board pressed state: ink fill carries the meaning, never color-alone.
+  */
   pressed?: boolean | undefined;
   /**
-   * Soft-cap variant (amber "50+ sources" chip). Board defines no warn chip,
-   * so this keeps the `.chip` shape with warn-wash/warn roles — deviation
-   * recorded in the ticket comments.
-   */
+  Soft-cap variant (amber "50+ sources" chip). Board defines no warn chip,
+  so this keeps the `.chip` shape with warn-wash/warn roles — deviation
+  recorded in the ticket comments.
+  */
   variant?: "default" | "warn" | undefined;
 }
 
 /**
- * Board `.chip` filter chip: label always, pressed = ink fill.
- * Category filters render in a `role="group"` parent; the soft-cap chip uses
- * `variant="warn"` with the "50+ sources" copy.
- */
+Board `.chip` filter chip: label always, pressed = ink fill.
+Category filters render in a `role="group"` parent; the soft-cap chip uses
+`variant="warn"` with the "50+ sources" copy.
+*/
 export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
   ({ className, pressed, variant = "default", type = "button", ...props }, ref) => (
     <button
@@ -42,9 +44,9 @@ export interface KeywordFallbackChipProps extends Omit<ChipProps, "variant"> {
 }
 
 /**
- * Keyword-fallback chip ("Keyword Search Only…", Tk 09 / L34).
- * Uses token wash / warning styling (variant="warn") and WarningCircle icon.
- */
+Keyword-fallback chip ("Keyword Search Only…", Tk 09 / L34).
+Uses token wash / warning styling (variant="warn") and WarningCircle icon.
+*/
 export const KeywordFallbackChip = React.forwardRef<
   HTMLButtonElement,
   KeywordFallbackChipProps
@@ -69,7 +71,7 @@ export const KeywordFallbackChip = React.forwardRef<
         className={cn("gap-[var(--nb-space-1)]", className)}
         {...props}
       >
-        <WarningCircle size={16} weight="fill" aria-hidden="true" />
+        <WarningCircleIcon size={16} weight="fill" aria-hidden="true" />
         <span>{text}</span>
       </Chip>
     );

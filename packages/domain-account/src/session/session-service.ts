@@ -18,7 +18,9 @@ export interface SessionServiceDependencies {
   accountRepository: AccountRepositoryPort;
   sessionRepository: SessionRepositoryPort;
   hasher: PasscodeHasher;
-  /** Injectable clock (milliseconds). Defaults to Date.now; tests inject a fake. */
+  /**
+  Injectable clock (milliseconds). Defaults to Date.now; tests inject a fake.
+  */
   now?: (() => number) | undefined;
 }
 
@@ -43,10 +45,10 @@ export interface ChangePasscodeOutcome {
 }
 
 /**
- * Domain service orchestrating passcode login, sliding session validation,
- * brute-force lockout, and session revocation (NOTEBENCH 1.41, 6.4, 6.5, 6.6).
- * Raw tokens never touch storage: only their SHA-256 digest is persisted.
- */
+Domain service orchestrating passcode login, sliding session validation,
+brute-force lockout, and session revocation (NOTEBENCH 1.41, 6.4, 6.5, 6.6).
+Raw tokens never touch storage: only their SHA-256 digest is persisted.
+*/
 export class SessionService {
   private readonly accountRepository: AccountRepositoryPort;
   private readonly sessionRepository: SessionRepositoryPort;
@@ -62,10 +64,38 @@ export class SessionService {
     this.now = deps.now ?? Date.now;
   }
 
+  private assertNotLocked(nowMs: number): void {
+    if (nowMs < this.lockedUntilMs) {
+      throw new RateLimitedError("Too many failed passcode attempts. Try again shortly.", {
+        retryAfterSeconds: Math.ceil((this.lockedUntilMs - nowMs) / 1000),
+        locked: true,
+      });
+    }
+    if (!(this.lockedUntilMs > 0)) {
+      return;
+    }
+
+    this.lockedUntilMs = 0;
+    this.consecutiveFailures = 0;
+  }
+
+  private recordFailure(nowMs: number): never {
+    this.consecutiveFailures += 1;
+    if (this.consecutiveFailures >= SESSION_CONFIG.lockoutMaxAttempts) {
+      this.lockedUntilMs = nowMs + SESSION_CONFIG.lockoutWindowSeconds * 1000;
+    }
+    throw new ValidationError("Incorrect passcode.", {
+      attemptsRemaining: Math.max(
+        SESSION_CONFIG.lockoutMaxAttempts - this.consecutiveFailures,
+        0
+      ),
+    });
+  }
+
   /**
-   * Opens a session for the correct owner passcode.
-   * With no passcode configured, reports no sign-in required and creates nothing.
-   */
+  Opens a session for the correct owner passcode.
+  With no passcode configured, reports no sign-in required and creates nothing.
+  */
   async login(input: LoginAttemptInput): Promise<LoginOutcome> {
     const nowMs = this.now();
     const owner = await this.accountRepository.findOwner();
@@ -79,8 +109,8 @@ export class SessionService {
     }
 
     this.assertNotLocked(nowMs);
-    const valid = await this.hasher.verify(owner.passcodeHash, input.passcode);
-    if (!valid) {
+    const isValid = await this.hasher.verify(owner.passcodeHash, input.passcode);
+    if (!isValid) {
       this.recordFailure(nowMs);
     }
     this.consecutiveFailures = 0;
@@ -104,9 +134,9 @@ export class SessionService {
   }
 
   /**
-   * Validates a raw session token and renews its sliding expiry.
-   * Expired sessions are rejected and purged.
-   */
+  Validates a raw session token and renews its sliding expiry.
+  Expired sessions are rejected and purged.
+  */
   async validateSession(rawToken: string): Promise<SessionRecord | null> {
     const nowMs = this.now();
     const record = await this.sessionRepository.findByTokenHash(hashSessionToken(rawToken));
@@ -125,22 +155,22 @@ export class SessionService {
   }
 
   /**
-   * Ends the current session only (logout).
-   */
+  Ends the current session only (logout).
+  */
   async logout(sessionId: string): Promise<void> {
     await this.sessionRepository.deleteSession(sessionId);
   }
 
   /**
-   * Ends every session of a user (log out everywhere, PRD A5).
-   */
+  Ends every session of a user (log out everywhere, PRD A5).
+  */
   async logoutEverywhere(userId: string): Promise<number> {
     return this.sessionRepository.deleteAllSessions(userId);
   }
 
   /**
-   * Lists a user's sessions as public summaries (digests never exposed).
-   */
+  Lists a user's sessions as public summaries (digests never exposed).
+  */
   async listSessions(userId: string, currentSessionId?: string): Promise<SessionSummary[]> {
     const rows = await this.sessionRepository.listSessions(userId);
     return rows.map((row) => ({
@@ -155,10 +185,10 @@ export class SessionService {
   }
 
   /**
-   * Changes the owner passcode and revokes every other session inside one
-   * transaction while the current session stays active (NOTEBENCH 6.6,
-   * PRD A4).
-   */
+  Changes the owner passcode and revokes every other session inside one
+  transaction while the current session stays active (NOTEBENCH 6.6,
+  PRD A4).
+  */
   async changePasscode(input: {
     currentSessionId: string;
     currentPasscode: string;
@@ -178,8 +208,8 @@ export class SessionService {
     }
 
     this.assertNotLocked(nowMs);
-    const valid = await this.hasher.verify(owner.passcodeHash, input.currentPasscode);
-    if (!valid) {
+    const isValid = await this.hasher.verify(owner.passcodeHash, input.currentPasscode);
+    if (!isValid) {
       this.recordFailure(nowMs);
     }
     this.consecutiveFailures = 0;
@@ -197,31 +227,5 @@ export class SessionService {
       });
     }
     return { revokedSessions: outcome.revokedSessions };
-  }
-
-  private assertNotLocked(nowMs: number): void {
-    if (nowMs < this.lockedUntilMs) {
-      throw new RateLimitedError("Too many failed passcode attempts. Try again shortly.", {
-        retryAfterSeconds: Math.ceil((this.lockedUntilMs - nowMs) / 1000),
-        locked: true,
-      });
-    }
-    if (this.lockedUntilMs > 0) {
-      this.lockedUntilMs = 0;
-      this.consecutiveFailures = 0;
-    }
-  }
-
-  private recordFailure(nowMs: number): never {
-    this.consecutiveFailures += 1;
-    if (this.consecutiveFailures >= SESSION_CONFIG.lockoutMaxAttempts) {
-      this.lockedUntilMs = nowMs + SESSION_CONFIG.lockoutWindowSeconds * 1000;
-    }
-    throw new ValidationError("Incorrect passcode.", {
-      attemptsRemaining: Math.max(
-        SESSION_CONFIG.lockoutMaxAttempts - this.consecutiveFailures,
-        0
-      ),
-    });
   }
 }

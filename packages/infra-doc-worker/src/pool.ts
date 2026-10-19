@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import os from "node:os";
-import { resolve } from "node:path";
+import path from "node:path";
 import { createLogger, type Logger } from "@notebench/logger";
 import {
   type DocWorkerPingResult,
@@ -59,23 +59,91 @@ export class DocWorkerPool implements PdfExtractorPort, DocxExtractorPort, Embed
     if (!docToolsDir || !existsSync(docToolsDir)) {
       let curr = process.cwd();
       for (let i = 0; i < 5; i++) {
-        const candidate = resolve(curr, "tools/doc-tools");
+        const candidate = path.resolve(curr, "tools/doc-tools");
         if (existsSync(candidate)) {
           docToolsDir = candidate;
           break;
         }
-        curr = resolve(curr, "..");
+        curr = path.resolve(curr, "..");
       }
     }
-    this.projectDir = docToolsDir ?? resolve(process.cwd(), "tools/doc-tools");
-    const cpus = os.cpus()?.length ?? 2;
+    this.projectDir = docToolsDir ?? path.resolve(process.cwd(), "tools/doc-tools");
+    const cpus = os.cpus().length;
     // Cap at min(2, os.cpus() - 1) per Settled Decision 9.2
     const defaultConcurrency = Math.min(2, Math.max(1, cpus - 1));
 
     this.minWorkers = options.minWorkers ?? defaultConcurrency;
     this.maxWorkers = options.maxWorkers ?? Math.max(this.minWorkers, defaultConcurrency);
-    this.requestTimeoutMs = options.requestTimeoutMs ?? 10000;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? 10_000;
     this.logger = options.logger ?? createLogger({ name: "doc-worker-pool" });
+  }
+
+  private async spawnWorker(): Promise<DocWorkerProcess> {
+    const worker = new DocWorkerProcess({
+      projectDir: this.projectDir,
+      requestTimeoutMs: this.requestTimeoutMs,
+      logger: this.logger,
+    });
+
+    worker.addEventListener("exit", (event) => {
+      this.handleWorkerExit(worker, (event as CustomEvent<WorkerExitInfo>).detail);
+    });
+
+    await worker.start();
+    this.workers.push(worker);
+    return worker;
+  }
+
+  private handleWorkerExit(worker: DocWorkerProcess, info: WorkerExitInfo): void {
+    const idx = this.workers.indexOf(worker);
+    if (idx !== -1) {
+      this.workers.splice(idx, 1);
+    }
+
+
+    if (!info.unexpected || this.isStopped) {
+      return;
+    }
+
+    this.logger.warn(`Worker PID ${info.pid} died unexpectedly. Auto-respawning replacement worker...`);
+    void this.spawnWorker().catch((error: unknown) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to auto-respawn worker: ${msg}`);
+    });
+  }
+
+  private async acquireWorker(): Promise<DocWorkerProcess> {
+    const liveWorkers = this.workers.filter((w) => w.alive);
+
+    if (liveWorkers.length === 0) {
+      if (!this.isStopped) {
+        // Emergency respawn if all crashed
+        const newWorker = await this.spawnWorker();
+        return newWorker;
+      }
+      throw new ParserFailedError("No available doc-workers in pool");
+    }
+
+    // Sort by pending requests (least busy first)
+    liveWorkers.sort((a, b) => a.pendingCount - b.pendingCount);
+    const leastBusy = liveWorkers[0];
+
+    if (!leastBusy) {
+      throw new ParserFailedError("Failed to select available doc-worker");
+    }
+
+    // If least busy already has pending tasks and pool has room to grow
+    if (leastBusy.pendingCount > 0 && liveWorkers.length < this.maxWorkers) {
+      try {
+        const scaledWorker = await this.spawnWorker();
+        return scaledWorker;
+      } catch {
+        // Fallback to least busy if spawn fails
+        return leastBusy;
+      }
+    }
+
+    return leastBusy;
   }
 
   public async start(): Promise<void> {
@@ -112,13 +180,9 @@ export class DocWorkerPool implements PdfExtractorPort, DocxExtractorPort, Embed
       });
     });
 
-    const spawnPromises: Promise<void>[] = [];
+    const spawnPromises: Promise<DocWorkerProcess>[] = [];
     for (let i = 0; i < this.minWorkers; i++) {
-      spawnPromises.push(
-        this.spawnWorker().then(() => {
-          // Worker ready
-        })
-      );
+      spawnPromises.push(this.spawnWorker());
     }
 
     await Promise.all(spawnPromises);
@@ -219,69 +283,4 @@ export class DocWorkerPool implements PdfExtractorPort, DocxExtractorPort, Embed
     this.logger.info("DocWorkerPool stopped cleanly");
   }
 
-  private async spawnWorker(): Promise<DocWorkerProcess> {
-    const worker = new DocWorkerProcess({
-      projectDir: this.projectDir,
-      requestTimeoutMs: this.requestTimeoutMs,
-      logger: this.logger,
-    });
-
-    worker.on("exit", (info: WorkerExitInfo) => {
-      this.handleWorkerExit(worker, info);
-    });
-
-    await worker.start();
-    this.workers.push(worker);
-    return worker;
-  }
-
-  private handleWorkerExit(worker: DocWorkerProcess, info: WorkerExitInfo): void {
-    const idx = this.workers.indexOf(worker);
-    if (idx !== -1) {
-      this.workers.splice(idx, 1);
-    }
-
-
-    if (info.unexpected && !this.isStopped) {
-      this.logger.warn(`Worker PID ${info.pid} died unexpectedly. Auto-respawning replacement worker...`);
-      void this.spawnWorker().catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        this.logger.error(`Failed to auto-respawn worker: ${msg}`);
-      });
-    }
-  }
-
-  private async acquireWorker(): Promise<DocWorkerProcess> {
-    const liveWorkers = this.workers.filter((w) => w.alive);
-
-    if (liveWorkers.length === 0) {
-      if (!this.isStopped) {
-        // Emergency respawn if all crashed
-        const newWorker = await this.spawnWorker();
-        return newWorker;
-      }
-      throw new ParserFailedError("No available doc-workers in pool");
-    }
-
-    // Sort by pending requests (least busy first)
-    liveWorkers.sort((a, b) => a.pendingCount - b.pendingCount);
-    const leastBusy = liveWorkers[0];
-
-    if (!leastBusy) {
-      throw new ParserFailedError("Failed to select available doc-worker");
-    }
-
-    // If least busy already has pending tasks and pool has room to grow
-    if (leastBusy.pendingCount > 0 && liveWorkers.length < this.maxWorkers) {
-      try {
-        const scaledWorker = await this.spawnWorker();
-        return scaledWorker;
-      } catch {
-        // Fallback to least busy if spawn fails
-        return leastBusy;
-      }
-    }
-
-    return leastBusy;
-  }
 }

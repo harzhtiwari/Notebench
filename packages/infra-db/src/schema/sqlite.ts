@@ -7,8 +7,8 @@ import {
 } from "drizzle-orm/sqlite-core";
 
 /**
- * Users account entity table.
- */
+Users account entity table.
+*/
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email"),
@@ -20,9 +20,9 @@ export const users = sqliteTable("users", {
 });
 
 /**
- * Notebooks workspace container table.
- * All records strictly require user_id.
- */
+Notebooks workspace container table.
+All records strictly require user_id.
+*/
 export const notebooks = sqliteTable("notebooks", {
   id: text("id").primaryKey(),
   userId: text("user_id")
@@ -35,9 +35,9 @@ export const notebooks = sqliteTable("notebooks", {
 });
 
 /**
- * Sources reference document table.
- * All records strictly require user_id.
- */
+Sources reference document table.
+All records strictly require user_id.
+*/
 export const sources = sqliteTable("sources", {
   id: text("id").primaryKey(),
   userId: text("user_id")
@@ -60,9 +60,9 @@ export const sources = sqliteTable("sources", {
 });
 
 /**
- * Artifacts living deliverable AST index table.
- * All records strictly require user_id.
- */
+Artifacts living deliverable AST index table.
+All records strictly require user_id.
+*/
 export const artifacts = sqliteTable("artifacts", {
   id: text("id").primaryKey(),
   userId: text("user_id")
@@ -80,9 +80,9 @@ export const artifacts = sqliteTable("artifacts", {
 });
 
 /**
- * Artifact versions append-only history DAG table.
- * All records strictly require user_id.
- */
+Artifact versions append-only history DAG table.
+All records strictly require user_id.
+*/
 export const artifactVersions = sqliteTable(
   "artifact_versions",
   {
@@ -102,18 +102,18 @@ export const artifactVersions = sqliteTable(
     contentDigest: text("content_digest"),
     createdAt: text("created_at").notNull(),
   },
-  (table) => ({
-    parentVersionFk: foreignKey({
+  (table) => [
+    foreignKey({
       columns: [table.parentVersionId],
       foreignColumns: [table.id],
     }),
-  })
+  ]
 );
 
 /**
- * Sessions dual-token authentication table.
- * All records strictly require user_id.
- */
+Sessions dual-token authentication table.
+All records strictly require user_id.
+*/
 export const sessions = sqliteTable("sessions", {
   id: text("id").primaryKey(),
   userId: text("user_id")
@@ -128,9 +128,9 @@ export const sessions = sqliteTable("sessions", {
 });
 
 /**
- * Deletion jobs 6-level cascading deletion table.
- * All records strictly require user_id.
- */
+Deletion jobs 6-level cascading deletion table.
+All records strictly require user_id.
+*/
 export const deletionJobs = sqliteTable("deletion_jobs", {
   id: text("id").primaryKey(),
   userId: text("user_id")
@@ -150,9 +150,9 @@ export const deletionJobs = sqliteTable("deletion_jobs", {
 });
 
 /**
- * Memory rules persistent context instructions table.
- * All records strictly require user_id.
- */
+Memory rules persistent context instructions table.
+All records strictly require user_id.
+*/
 export const memoryRules = sqliteTable("memory_rules", {
   id: text("id").primaryKey(),
   userId: text("user_id")
@@ -167,9 +167,9 @@ export const memoryRules = sqliteTable("memory_rules", {
 });
 
 /**
- * Provider keys encrypted credentials storage table.
- * All records strictly require user_id.
- */
+Provider keys encrypted credentials storage table.
+All records strictly require user_id.
+*/
 export const providerKeys = sqliteTable("provider_keys", {
   id: text("id").primaryKey(),
   userId: text("user_id")
@@ -187,11 +187,11 @@ export const providerKeys = sqliteTable("provider_keys", {
 });
 
 /**
- * Provider model selections table (Ticket 04, PRD D6/D7).
- * One row per (user_id, kind): chat and embedding models persist
- * independently, including custom typed model IDs.
- * All records strictly require user_id.
- */
+Provider model selections table (Ticket 04, PRD D6/D7).
+One row per (user_id, kind): chat and embedding models persist
+independently, including custom typed model IDs.
+All records strictly require user_id.
+*/
 export const providerModelSelections = sqliteTable(
   "provider_model_selections",
   {

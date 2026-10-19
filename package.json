@@ -20,6 +20,7 @@
     "build": "turbo run build --cache-dir=.tmp/cache/turbo",
     "typecheck": "turbo run typecheck --cache-dir=.tmp/cache/turbo",
     "lint": "turbo run lint --cache-dir=.tmp/cache/turbo",
+    "lint:tokens": "tsx scripts/lint-tokens.ts",
     "lint:licenses": "license-checker-rseidelsohn --production --excludePrivatePackages --onlyAllow 'MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD'",
     "lint:boundaries": "depcruise --config .dependency-cruiser.cjs apps packages tools scripts examples",
     "test": "vitest run",

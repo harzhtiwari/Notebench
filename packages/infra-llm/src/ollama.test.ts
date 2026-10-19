@@ -8,24 +8,24 @@ afterEach(async () => {
     openServers.splice(0).map(
       (s) =>
         new Promise<void>((resolve) => {
-          s.close(() => resolve());
+          s.close(() => { resolve(); });
         })
     )
   );
 });
 
 async function startFakeOllama(body: unknown): Promise<{ baseUrl: string; authSeen: boolean }> {
-  let authSeen = false;
+  let isAuthSeen = false;
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    if (req.headers["authorization"] !== undefined) {
-      authSeen = true;
+    if (req.headers.authorization !== undefined) {
+      isAuthSeen = true;
     }
     res.statusCode = 200;
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify(body));
   });
   await new Promise<void>((resolve) => {
-    server.listen(0, "127.0.0.1", () => resolve());
+    server.listen(0, "127.0.0.1", () => { resolve(); });
   });
   openServers.push(server);
   const address = server.address();
@@ -35,7 +35,7 @@ async function startFakeOllama(body: unknown): Promise<{ baseUrl: string; authSe
   return {
     baseUrl: `http://127.0.0.1:${String(address.port)}`,
     get authSeen() {
-      return authSeen;
+      return isAuthSeen;
     },
   };
 }
@@ -58,7 +58,13 @@ describe("OllamaAdapter against fake local server (Ticket 04 RED, Seam A)", () =
     const fake = await startFakeOllama({ models: [] });
     const adapter = new OllamaAdapter();
     const result = await adapter.testKey({ baseUrl: fake.baseUrl, apiKey: "" });
-    expect(result).toEqual({ ok: true, latencyMs: expect.any(Number) });
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(typeof result.latencyMs).toBe("number");
+    expect(result.latencyMs).toBeGreaterThanOrEqual(0);
   });
 
   it("a refused connection surfaces as network_error, not a hang", async () => {

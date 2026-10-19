@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Circle, Sparkle, CheckCircle, WarningCircle } from "../primitives/icons.js";
+import { CircleIcon, SparkleIcon, CheckCircleIcon, WarningCircleIcon } from "../primitives/icons.js";
 import { StatusBadge } from "../primitives/badges.js";
 import { CancelButton } from "../primitives/cancel-button.js";
 import { cn } from "../../lib/utils.js";
@@ -10,74 +10,91 @@ export interface ProgressStage {
   id?: string | undefined;
   name: string;
   status: StageStatus;
-  /** Optional secondary text, e.g. "Done in 12 s", "Waiting", or step summary. */
+  /**
+  Optional secondary text, e.g. "Done in 12 s", "Waiting", or step summary.
+  */
   description?: string | undefined;
-  /** Percentage (0-100) for active stage progress bar. */
+  /**
+  Percentage (0-100) for active stage progress bar.
+  */
   progress?: number | undefined;
-  /** Error message when status is "error". */
+  /**
+  Error message when status is "error".
+  */
   error?: string | undefined;
 }
 
 export interface ProgressStagesProps
   extends React.HTMLAttributes<HTMLOListElement> {
   stages: ProgressStage[];
-  /** Optional overall progress percentage (0-100). */
+  /**
+  Optional overall progress percentage (0-100).
+  */
   overallProgress?: number | undefined;
-  /** Accessible label for the progress list. Defaults to "Generation progress". */
+  /**
+  Accessible label for the progress list. Defaults to "Generation progress".
+  */
   label?: string | undefined;
-  /** Optional cancellation controller. */
+  /**
+  Optional cancellation controller.
+  */
   controller?: AbortController | undefined;
-  /** Optional cancellation callback. */
+  /**
+  Optional cancellation callback.
+  */
   onCancel?: (() => void) | undefined;
 }
 
 function StageLeadingIcon({ status }: { status: StageStatus }): React.JSX.Element {
   switch (status) {
-    case "done":
+    case "done": {
       return (
-        <CheckCircle
+        <CheckCircleIcon
           size={20}
           weight="fill"
           aria-hidden="true"
           className="shrink-0 text-[var(--nb-ok)]"
         />
       );
-    case "active":
+    }
+    case "active": {
       return (
-        <Sparkle
+        <SparkleIcon
           size={20}
           weight="fill"
           aria-hidden="true"
           className="shrink-0 text-[var(--nb-ai)] animate-pulse motion-reduce:animate-none"
         />
       );
-    case "error":
+    }
+    case "error": {
       return (
-        <WarningCircle
+        <WarningCircleIcon
           size={20}
           weight="fill"
           aria-hidden="true"
           className="shrink-0 text-[var(--nb-danger)]"
         />
       );
-    case "pending":
-    default:
+    }
+    default: {
       return (
-        <Circle
+        <CircleIcon
           size={20}
           aria-hidden="true"
           className="shrink-0 text-[var(--nb-ink-3)]"
         />
       );
+    }
   }
 }
 
 /**
- * Artifact generation progress pattern (Ticket 13).
- * Composes board `.steps` / `.progress` patterns (`docs/ui/board.test.html:574-577`).
- * Renders SSE stage list (pending, active, done, error), progress bar, status badges,
- * and optional cancellation.
- */
+Artifact generation progress pattern (Ticket 13).
+Composes board `.steps` / `.progress` patterns (`docs/ui/board.test.html:574-577`).
+Renders SSE stage list (pending, active, done, error), progress bar, status badges,
+and optional cancellation.
+*/
 const ProgressStages = React.forwardRef<HTMLOListElement, ProgressStagesProps>(
   (
     {
@@ -93,7 +110,7 @@ const ProgressStages = React.forwardRef<HTMLOListElement, ProgressStagesProps>(
   ) => {
     return (
       <div className="w-full max-w-[var(--nb-layout-modal-sm)] space-y-[var(--nb-space-2)]">
-        {overallProgress !== undefined ? (
+        {overallProgress === undefined ? null : (
           <div className="space-y-[var(--nb-space-1)]">
             <div
               role="progressbar"
@@ -110,7 +127,7 @@ const ProgressStages = React.forwardRef<HTMLOListElement, ProgressStagesProps>(
               />
             </div>
           </div>
-        ) : null}
+        )}
 
         <ol
           ref={ref}
@@ -144,15 +161,15 @@ const ProgressStages = React.forwardRef<HTMLOListElement, ProgressStagesProps>(
                     <StatusBadge status={stage.status} />
                   </div>
 
-                  {helperText !== undefined ? (
+                  {helperText === undefined ? null : (
                     <div className="text-xs text-[var(--nb-ink-2)]">{helperText}</div>
-                  ) : null}
+                  )}
 
-                  {errorMessage !== undefined ? (
+                  {errorMessage === undefined ? null : (
                     <div className="text-xs text-[var(--nb-danger)]">{errorMessage}</div>
-                  ) : null}
+                  )}
 
-                  {stage.progress !== undefined ? (
+                  {stage.progress === undefined ? null : (
                     <div
                       role="progressbar"
                       aria-label={stage.name}
@@ -169,7 +186,7 @@ const ProgressStages = React.forwardRef<HTMLOListElement, ProgressStagesProps>(
                         className="block h-full rounded-[var(--nb-radius-chip)] bg-[var(--nb-ink)] transition-all duration-[var(--nb-dur-base)] ease-[var(--nb-ease)] motion-reduce:transition-none"
                       />
                     </div>
-                  ) : null}
+                  )}
                 </div>
               </li>
             );

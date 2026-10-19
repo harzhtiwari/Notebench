@@ -1,16 +1,16 @@
 import { mkdir as fsMkdir, writeFile as fsWriteFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import path from "node:path";
 import { defaultReadFile } from "./defaults.js";
 
 /**
- * Run-identity lifecycle for the dev orchestrator (`run/<ns>/identity.json`).
- *
- * A record is live only when every recorded PID still exists AND its process
- * start time matches the recorded value; otherwise the record is stale and
- * must be cleaned up, never signaled. Liveness itself is an injected
- * predicate so unit tests plant stale records deterministically, while the
- * real wiring supplies an OS-backed checker.
- */
+Run-identity lifecycle for the dev orchestrator (`run/<ns>/identity.json`).
+
+A record is live only when every recorded PID still exists AND its process
+start time matches the recorded value; otherwise the record is stale and
+must be cleaned up, never signaled. Liveness itself is an injected
+predicate so unit tests plant stale records deterministically, while the
+real wiring supplies an OS-backed checker.
+*/
 
 export interface ChildIdentity {
   pid: number;
@@ -36,14 +36,16 @@ function isChildIdentity(value: unknown): value is ChildIdentity {
   const startTimeMs: unknown = value["startTimeMs"];
   return (
     typeof pid === "number" &&
-    Number.isInteger(pid) &&
+    Number.isSafeInteger(pid) &&
     pid > 0 &&
     typeof startTimeMs === "number" &&
     Number.isFinite(startTimeMs)
   );
 }
 
-/** Narrow an unknown payload to a run identity; null for anything else. */
+/**
+Narrow an unknown payload to a run identity; null for anything else.
+*/
 export function parseIdentity(input: unknown): RunIdentity | null {
   if (!isRecord(input)) return null;
   const runId: unknown = input["runId"];
@@ -52,20 +54,22 @@ export function parseIdentity(input: unknown): RunIdentity | null {
   const orchestratorStartTimeMs: unknown = input["orchestratorStartTimeMs"];
   const children: unknown = input["children"];
   const createdAt: unknown = input["createdAt"];
-  if (typeof runId !== "string" || runId === "") return null;
-  if (typeof namespace !== "string" || namespace === "") return null;
   if (
+    typeof runId !== "string" ||
+    runId === "" ||
+    typeof namespace !== "string" ||
+    namespace === "" ||
     typeof orchestratorPid !== "number" ||
-    !Number.isInteger(orchestratorPid) ||
-    orchestratorPid <= 0
+    typeof orchestratorStartTimeMs !== "number" ||
+    typeof createdAt !== "string" ||
+    createdAt === "" ||
+    !Number.isSafeInteger(orchestratorPid) ||
+    orchestratorPid <= 0 ||
+    !Number.isFinite(orchestratorStartTimeMs) ||
+    !isRecord(children)
   ) {
     return null;
   }
-  if (typeof orchestratorStartTimeMs !== "number" || !Number.isFinite(orchestratorStartTimeMs)) {
-    return null;
-  }
-  if (typeof createdAt !== "string" || createdAt === "") return null;
-  if (!isRecord(children)) return null;
   const parsedChildren: Record<string, ChildIdentity> = {};
   for (const [key, value] of Object.entries(children)) {
     if (!isChildIdentity(value)) return null;
@@ -87,12 +91,12 @@ export interface IdentityIoDeps {
   mkdir?: ((path: string) => Promise<void> | void) | undefined;
 }
 
-async function defaultWriteFile(path: string, content: string, exclusive: boolean): Promise<void> {
-  if (exclusive) {
-    await fsWriteFile(path, content, { encoding: "utf-8", flag: "wx" });
+async function defaultWriteFile(path: string, content: string, isExclusive: boolean): Promise<void> {
+  if (isExclusive) {
+    await fsWriteFile(path, content, { encoding: "utf8", flag: "wx" });
     return;
   }
-  await fsWriteFile(path, content, "utf-8");
+  await fsWriteFile(path, content, "utf8");
 }
 
 async function defaultMkdir(path: string): Promise<void> {
@@ -101,36 +105,38 @@ async function defaultMkdir(path: string): Promise<void> {
 
 export interface WriteIdentityOptions {
   /**
-   * Exclusive claim: fail with `EEXIST` when the record already exists, so
-   * two near-simultaneous starts cannot both pass recovery and clobber each
-   * other's run records.
-   */
+  Exclusive claim: fail with `EEXIST` when the record already exists, so
+  two near-simultaneous starts cannot both pass recovery and clobber each
+  other's run records.
+  */
   exclusive?: boolean | undefined;
 }
 
-/** Persist one run identity record. */
+/**
+Persist one run identity record.
+*/
 export async function writeIdentity(
   file: string,
   identity: RunIdentity,
-  deps?: IdentityIoDeps | undefined,
-  options?: WriteIdentityOptions | undefined
+  deps?: IdentityIoDeps  ,
+  options?: WriteIdentityOptions  
 ): Promise<void> {
-  const exclusive = options?.exclusive === true;
+  const isExclusive = options?.exclusive === true;
   const writeFile =
     deps?.writeFile ??
-    ((path: string, content: string) => defaultWriteFile(path, content, exclusive));
+    ((path: string, content: string) => defaultWriteFile(path, content, isExclusive));
   const mkdir = deps?.mkdir ?? defaultMkdir;
-  await mkdir(dirname(file));
+  await mkdir(path.dirname(file));
   await writeFile(file, `${JSON.stringify(identity, null, 2)}\n`);
 }
 
 /**
- * Load a run identity record. Resolves null for missing files and corrupt
- * payloads instead of throwing, so stale recovery stays total.
- */
+Load a run identity record. Resolves null for missing files and corrupt
+payloads instead of throwing, so stale recovery stays total.
+*/
 export async function readIdentity(
   file: string,
-  deps?: IdentityIoDeps | undefined
+  deps?: IdentityIoDeps  
 ): Promise<RunIdentity | null> {
   const readFile = deps?.readFile ?? defaultReadFile;
   let content: string;
@@ -149,9 +155,9 @@ export async function readIdentity(
 }
 
 /**
- * Liveness predicate: true only when the PID exists AND its process start
- * time matches the recorded value. Sync or async providers both work.
- */
+Liveness predicate: true only when the PID exists AND its process start
+time matches the recorded value. Sync or async providers both work.
+*/
 export type PidLiveness = (pid: number, startTimeMs: number) => Promise<boolean> | boolean;
 
 export interface LivenessProvider {
@@ -160,26 +166,25 @@ export interface LivenessProvider {
 }
 
 /**
- * Build the liveness predicate from an existence check plus a process
- * start-time lookup. Unverifiable PIDs (unknown start time) count as stale,
- * so callers never signal them.
- */
+Build the liveness predicate from an existence check plus a process
+start-time lookup. Unverifiable PIDs (unknown start time) count as stale,
+so callers never signal them.
+*/
 export function createPidLivenessChecker(provider: LivenessProvider): PidLiveness {
   return (pid: number, startTimeMs: number) => {
     if (!provider.pidExists(pid)) return false;
     const current: number | null = provider.getStartTimeMs(pid);
-    if (current === null) return false;
-    return current === startTimeMs;
+    return current !== null && current === startTimeMs;
   };
 }
 
 /**
- * Namespace ownership check: the record still belongs to its orchestrator
- * when the orchestrator PID verifies. Children liveness never decides
- * ownership — a record whose server already died while the orchestrator is
- * still tearing down must read busy, not stale, so a successor cannot claim
- * the namespace mid-teardown (round-2 P11a).
- */
+Namespace ownership check: the record still belongs to its orchestrator
+when the orchestrator PID verifies. Children liveness never decides
+ownership — a record whose server already died while the orchestrator is
+still tearing down must read busy, not stale, so a successor cannot claim
+the namespace mid-teardown (round-2 P11a).
+*/
 export async function isOrchestratorLive(
   identity: RunIdentity,
   isPidLive: PidLiveness
@@ -188,11 +193,11 @@ export async function isOrchestratorLive(
 }
 
 /**
- * The record is live only when the orchestrator PID and every child PID
- * verify. Anything else is stale: clean it up, never signal it. Prefer
- * `isOrchestratorLive` for ownership decisions; the full-record check is for
- * stale cleanup and unit-level verification.
- */
+The record is live only when the orchestrator PID and every child PID
+verify. Anything else is stale: clean it up, never signal it. Prefer
+`isOrchestratorLive` for ownership decisions; the full-record check is for
+stale cleanup and unit-level verification.
+*/
 export async function isIdentityLive(
   identity: RunIdentity,
   isPidLive: PidLiveness
@@ -207,15 +212,17 @@ export async function isIdentityLive(
 }
 
 /**
- * Derive this process start time from a clock reading and uptime seconds
- * (`Date.now()` minus `process.uptime() * 1000`), kept pure for tests.
- */
+Derive this process start time from a clock reading and uptime seconds
+(`Date.now()` minus `process.uptime() * 1000`), kept pure for tests.
+*/
 export function currentProcessStartTimeMs(nowMs: number, uptimeSeconds: number): number {
   return nowMs - uptimeSeconds * 1000;
 }
 
-/** Best-effort PID existence check via signal zero (EPERM means alive). */
-export function defaultPidExists(pid: number): boolean {
+/**
+Best-effort PID existence check via signal zero (EPERM means alive).
+*/
+export function isDefaultPidExists(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;

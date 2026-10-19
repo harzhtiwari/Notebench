@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import "./globals.css";
 import { ThemeWatcher } from "@notebench/ui";
+import { buildThemeBootScript } from "../lib/theme-boot";
 
 export const metadata = {
   title: "Notebench",
@@ -15,6 +16,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/*
+          Pre-paint theme boot: runs during HTML parsing, before the first
+          paint, so a stored dark preference never flashes light. ThemeWatcher
+          re-applies the same resolution during hydration (covers the dev
+          remount and OS appearance changes).
+        */}
+        <script dangerouslySetInnerHTML={{ __html: buildThemeBootScript() }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

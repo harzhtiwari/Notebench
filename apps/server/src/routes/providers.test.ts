@@ -104,7 +104,7 @@ describe("providers routes (Ticket 04 RED, Seam B)", () => {
       payload: { apiKey: key },
     });
     expect(res.statusCode).toBe(401);
-    const body = res.json() as { error: { code: string; message: string } };
+    const body = res.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe("UNAUTHORIZED");
     expect(body.error.message).not.toContain(key);
     expect(body.error.message).toContain("[REDACTED]");
@@ -160,7 +160,7 @@ describe("providers routes (Ticket 04 RED, Seam B)", () => {
       payload: { apiKey: key },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { provider: string; keyId: string; maskedKey: string };
+    const body = res.json<{ provider: string; keyId: string; maskedKey: string }>();
     expect(body.provider).toBe("openai");
     expect(body.maskedKey).toContain(key.slice(-4));
     expect(res.body).not.toContain(key);
@@ -263,7 +263,7 @@ describe("providers routes wired in buildServer (Ticket 04, composition root)", 
         expect(listed.statusCode).toBe(200);
         expect(listed.json()).toEqual({ models: [{ id: "wired-model" }] });
         expect(listed.body).not.toContain(key);
-        expect(adapter.calls[adapter.calls.length - 1]?.apiKey).toBe(key);
+        expect(adapter.calls.at(-1)?.apiKey).toBe(key);
       } finally {
         await app.close();
       }

@@ -3,7 +3,7 @@ import * as React from "react";
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
 
-import { WarningCircle, Warning, CheckCircle } from "./icons.js";
+import { WarningCircleIcon, WarningIcon, CheckCircleIcon } from "./icons.js";
 import { Toast, ToastViewport, useToast, toast } from "./toast.js";
 
 afterEach(() => {
@@ -35,7 +35,9 @@ function expectToneGlyph(container: HTMLElement, Icon: PhosphorIconComponent) {
   cleanup();
 }
 
-/** Mirrors how a consumer renders store toasts, including hover / focus pause wiring. */
+/**
+Mirrors how a consumer renders store toasts, including hover / focus pause wiring.
+*/
 function ToastHarness() {
   const { toasts, show, dismiss, clear, pause, resume } = useToast();
 
@@ -55,7 +57,7 @@ function ToastHarness() {
       <button type="button" onClick={() => show({ message: "Sticky", duration: 0 })}>
         spawn-sticky
       </button>
-      <button type="button" onClick={() => clear()}>
+      <button type="button" onClick={() => { clear(); }}>
         clear
       </button>
       {toasts.map((t) => (
@@ -66,11 +68,11 @@ function ToastHarness() {
           message={t.message}
           actionLabel={t.actionLabel}
           onAction={t.onAction}
-          onDismiss={() => dismiss(t.id)}
-          onMouseEnter={() => pause(t.id)}
-          onMouseLeave={() => resume(t.id)}
-          onFocus={() => pause(t.id)}
-          onBlur={() => resume(t.id)}
+          onDismiss={() => { dismiss(t.id); }}
+          onMouseEnter={() => { pause(t.id); }}
+          onMouseLeave={() => { resume(t.id); }}
+          onFocus={() => { pause(t.id); }}
+          onBlur={() => { resume(t.id); }}
         />
       ))}
     </div>
@@ -128,16 +130,16 @@ describe("Toast Primitive & useToast Hook", () => {
 
     expect(root.getAttribute("role")).toBe("alert");
     expect(root.getAttribute("aria-live")).toBe("assertive");
-    expectToneGlyph(container, WarningCircle);
+    expectToneGlyph(container, WarningCircleIcon);
   });
 
   it("maps ok tone to CheckCircle and warn tone to Warning", () => {
     const { container: okContainer } = render(<Toast tone="ok" message="Saved" />);
-    expectToneGlyph(okContainer, CheckCircle);
+    expectToneGlyph(okContainer, CheckCircleIcon);
     cleanup();
 
     const { container: warnContainer } = render(<Toast tone="warn" message="Careful" />);
-    expectToneGlyph(warnContainer, Warning);
+    expectToneGlyph(warnContainer, WarningIcon);
   });
 
   it("fires onAction callback and dismisses toast", () => {
@@ -157,7 +159,7 @@ describe("Toast Primitive & useToast Hook", () => {
     const viewport = container.firstElementChild as HTMLElement;
 
     expect(viewport.getAttribute("aria-live")).toBe("polite");
-    expect(viewport.getAttribute("data-placement")).toBe("bottom-center");
+    expect(viewport.dataset["placement"]).toBe("bottom-center");
     expect(viewport.className).toContain("fixed");
     expect(viewport.className).toContain("z-[var(--nb-z-toast)]");
     expect(viewport.className).toContain("pointer-events-none");
@@ -167,7 +169,7 @@ describe("Toast Primitive & useToast Hook", () => {
   it("ToastViewport supports alternate placements", () => {
     const { container } = render(<ToastViewport placement="bottom-right" />);
     const viewport = container.firstElementChild as HTMLElement;
-    expect(viewport.getAttribute("data-placement")).toBe("bottom-right");
+    expect(viewport.dataset["placement"]).toBe("bottom-right");
     expect(viewport.className).toContain("items-end");
   });
 
@@ -205,7 +207,7 @@ describe("Toast Primitive & useToast Hook", () => {
       fireEvent.click(screen.getByRole("button", { name: "spawn-sticky" }));
 
       act(() => {
-        vi.advanceTimersByTime(60000);
+        vi.advanceTimersByTime(60_000);
       });
       expect(screen.getByText("Sticky")).toBeDefined();
     });
@@ -222,7 +224,7 @@ describe("Toast Primitive & useToast Hook", () => {
 
       // Three more seconds of hover must not consume the remaining 2s.
       act(() => {
-        vi.advanceTimersByTime(10000);
+        vi.advanceTimersByTime(10_000);
       });
       expect(screen.getByRole("status")).toBeDefined();
 

@@ -1,19 +1,19 @@
 import type { Pool } from "pg";
 
 /**
- * Ticket 28 — hand-written PostgreSQL bootstrap DDL.
- *
- * Mirrors the SQLite design in `initializeSqliteSchema`
- * (sqlite/notebook-repository.ts): the schema is bootstrapped with idempotent
- * DDL rather than generated migration artifacts (the repo has no
- * drizzle-kit migrations folder). Column names and nullability follow
- * `schema/pg.ts`, which is kept in parity with `schema/sqlite.ts` by
- * `test/schema-parity.test.ts`.
- *
- * The pgvector extension and the vector table are owned by
- * `PgVectorStore.init()` (infra-vectorstore) and are intentionally not part
- * of the relational schema bootstrap.
- */
+Ticket 28 — hand-written PostgreSQL bootstrap DDL.
+
+Mirrors the SQLite design in `initializeSqliteSchema`
+(sqlite/notebook-repository.ts): the schema is bootstrapped with idempotent
+DDL rather than generated migration artifacts (the repo has no
+drizzle-kit migrations folder). Column names and nullability follow
+`schema/pg.ts`, which is kept in parity with `schema/sqlite.ts` by
+`test/schema-parity.test.ts`.
+
+The pgvector extension and the vector table are owned by
+`PgVectorStore.init()` (infra-vectorstore) and are intentionally not part
+of the relational schema bootstrap.
+*/
 export const PG_SCHEMA_STATEMENTS: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS users (
     id uuid PRIMARY KEY,
@@ -132,9 +132,9 @@ export const PG_SCHEMA_STATEMENTS: readonly string[] = [
 ];
 
 /**
- * Applies the PostgreSQL schema to a database. Idempotent; safe to run on an
- * empty database or repeatedly over an existing one.
- */
+Applies the PostgreSQL schema to a database. Idempotent; safe to run on an
+empty database or repeatedly over an existing one.
+*/
 export async function initializePgSchema(pool: Pool): Promise<void> {
   for (const statement of PG_SCHEMA_STATEMENTS) {
     await pool.query(statement);

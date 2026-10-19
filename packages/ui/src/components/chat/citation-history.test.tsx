@@ -76,7 +76,7 @@ describe("Citation and history patterns (ticket 11)", () => {
       const passageEl = screen.getByText(/Evening peak demand moved from 6 pm to 8 pm/).closest(".passage");
       expect(passageEl).not.toBeNull();
       // Verifies Quotes icon is present in the popover
-      expect(container.querySelector("svg") || document.body.querySelector("svg")).not.toBeNull();
+      expect(container.querySelector("svg") ?? document.body.querySelector("svg")).not.toBeNull();
     });
 
     it("renders Open in source action and fires callback on click", () => {

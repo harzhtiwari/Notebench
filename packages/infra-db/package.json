@@ -30,6 +30,7 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "test": "vitest run"
   },
   "dependencies": {
@@ -40,11 +41,13 @@
     "pg": "^8.13.3"
   },
   "devDependencies": {
+    "@notebench/eslint-config": "workspace:*",
     "@notebench/tsconfig": "workspace:*",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.31.11",
+    "eslint": "^10.0.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.4"
   }

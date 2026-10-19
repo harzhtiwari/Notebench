@@ -14,18 +14,15 @@ import { NotebookService, type DashboardSortKey } from "@notebench/domain-notebo
 export interface NotebooksRoutesOptions {
   notebookService?: NotebookService | undefined;
   /**
-   * Notebook repository. Required alongside notebookService for non-title
-   * PATCH updates (e.g. trashedAt); title updates run through the service.
-   */
+  Notebook repository. Required alongside notebookService for non-title
+  PATCH updates (e.g. trashedAt); title updates run through the service.
+  */
   notebookRepo?: NotebookRepositoryPort | undefined;
   defaultUserId?: string | undefined;
   resolveOwnerId?: (() => Promise<string | null>) | undefined;
 }
 
-export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async (
-  app,
-  options
-) => {
+export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = (app, options) => {
   const explicitDefaultUserId = options.defaultUserId;
 
   const getService = (): NotebookService => {
@@ -45,10 +42,7 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
     if (explicitDefaultUserId) {
       return explicitDefaultUserId;
     }
-    if (options.resolveOwnerId) {
-      return options.resolveOwnerId();
-    }
-    return null;
+    return options.resolveOwnerId ? options.resolveOwnerId() : null;
   };
 
   const requireUserId = async (request: FastifyRequest, reply: FastifyReply): Promise<string | null> => {
@@ -74,14 +68,14 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
       }
       const service = getService();
       const metrics = await service.getMetrics(userId);
-      return reply.status(200).send({ metrics });
-    } catch (err) {
-      if (err instanceof NotebookError) {
+      return await reply.status(200).send({ metrics });
+    } catch (error) {
+      if (error instanceof NotebookError) {
         return reply.status(400).send({
-          error: { code: err.code, message: err.message },
+          error: { code: error.code, message: error.message },
         });
       }
-      throw err;
+      throw error;
     }
   });
 
@@ -105,14 +99,14 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
         query.sort,
         query.dir
       );
-      return reply.status(200).send({ notebooks });
-    } catch (err) {
-      if (err instanceof NotebookError) {
+      return await reply.status(200).send({ notebooks });
+    } catch (error) {
+      if (error instanceof NotebookError) {
         return reply.status(400).send({
-          error: { code: err.code, message: err.message },
+          error: { code: error.code, message: error.message },
         });
       }
-      throw err;
+      throw error;
     }
   });
 
@@ -125,7 +119,7 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
       }
       const bodyResult = CreateNotebookInputSchema.safeParse(request.body);
       if (!bodyResult.success) {
-        return reply.status(400).send({
+        return await reply.status(400).send({
           error: {
             code: "VALIDATION_ERROR",
             message: bodyResult.error.issues[0]?.message ?? "Invalid notebook input",
@@ -135,19 +129,19 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
 
       const service = getService();
       const notebook = await service.createNotebook(userId, bodyResult.data.title);
-      return reply.status(201).send({ notebook });
-    } catch (err) {
-      if (err instanceof ValidationError) {
+      return await reply.status(201).send({ notebook });
+    } catch (error) {
+      if (error instanceof ValidationError) {
         return reply.status(400).send({
-          error: { code: err.code, message: err.message },
+          error: { code: error.code, message: error.message },
         });
       }
-      if (err instanceof NotebookError) {
+      if (error instanceof NotebookError) {
         return reply.status(400).send({
-          error: { code: err.code, message: err.message },
+          error: { code: error.code, message: error.message },
         });
       }
-      throw err;
+      throw error;
     }
   });
 
@@ -162,23 +156,23 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
       const service = getService();
       const notebook = await service.getNotebook(id, userId);
       if (!notebook) {
-        return reply.status(404).send({
+        return await reply.status(404).send({
           error: { code: "NOT_FOUND", message: `Notebook '${id}' not found` },
         });
       }
-      return reply.status(200).send({ notebook });
-    } catch (err) {
-      if (err instanceof NotFoundError) {
+      return await reply.status(200).send({ notebook });
+    } catch (error) {
+      if (error instanceof NotFoundError) {
         return reply.status(404).send({
-          error: { code: err.code, message: err.message },
+          error: { code: error.code, message: error.message },
         });
       }
-      if (err instanceof NotebookError) {
+      if (error instanceof NotebookError) {
         return reply.status(400).send({
-          error: { code: err.code, message: err.message },
+          error: { code: error.code, message: error.message },
         });
       }
-      throw err;
+      throw error;
     }
   });
 
@@ -192,7 +186,7 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
       const { id } = request.params as { id: string };
       const bodyResult = UpdateNotebookInputSchema.safeParse(request.body);
       if (!bodyResult.success) {
-        return reply.status(400).send({
+        return await reply.status(400).send({
           error: {
             code: "VALIDATION_ERROR",
             message: bodyResult.error.issues[0]?.message ?? "Invalid update input",
@@ -207,7 +201,7 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
           userId,
           bodyResult.data.title
         );
-        return reply.status(200).send({ notebook });
+        return await reply.status(200).send({ notebook });
       }
 
       // If updating other fields like trashedAt
@@ -216,7 +210,7 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
         request.log.error(
           "NotebooksRoutes cannot apply a non-title update without the notebookRepo dependency"
         );
-        return reply.status(500).send({
+        return await reply.status(500).send({
           error: {
             code: "INVARIANCE_VIOLATION" satisfies NotebookErrorCode,
             message: "Notebook repository dependency is not configured for this update",
@@ -224,24 +218,24 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
         });
       }
       const notebook = await repo.update(id, userId, bodyResult.data);
-      return reply.status(200).send({ notebook });
-    } catch (err) {
-      if (err instanceof NotFoundError) {
+      return await reply.status(200).send({ notebook });
+    } catch (error) {
+      if (error instanceof NotFoundError) {
         return reply.status(404).send({
-          error: { code: err.code, message: err.message },
+          error: { code: error.code, message: error.message },
         });
       }
-      if (err instanceof ValidationError) {
+      if (error instanceof ValidationError) {
         return reply.status(400).send({
-          error: { code: err.code, message: err.message },
+          error: { code: error.code, message: error.message },
         });
       }
-      if (err instanceof NotebookError) {
+      if (error instanceof NotebookError) {
         return reply.status(400).send({
-          error: { code: err.code, message: err.message },
+          error: { code: error.code, message: error.message },
         });
       }
-      throw err;
+      throw error;
     }
   });
 
@@ -255,7 +249,7 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
       const { id } = request.params as { id: string };
       const bodyResult = DuplicateNotebookInputSchema.safeParse(request.body ?? {});
       if (!bodyResult.success) {
-        return reply.status(400).send({
+        return await reply.status(400).send({
           error: {
             code: "VALIDATION_ERROR",
             message: bodyResult.error.issues[0]?.message ?? "Invalid duplicate input",
@@ -269,19 +263,19 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
         userId,
         bodyResult.data
       );
-      return reply.status(201).send({ notebook: duplicated });
-    } catch (err) {
-      if (err instanceof NotFoundError) {
+      return await reply.status(201).send({ notebook: duplicated });
+    } catch (error) {
+      if (error instanceof NotFoundError) {
         return reply.status(404).send({
-          error: { code: err.code, message: err.message },
+          error: { code: error.code, message: error.message },
         });
       }
-      if (err instanceof NotebookError) {
+      if (error instanceof NotebookError) {
         return reply.status(400).send({
-          error: { code: err.code, message: err.message },
+          error: { code: error.code, message: error.message },
         });
       }
-      throw err;
+      throw error;
     }
   });
 
@@ -295,19 +289,21 @@ export const notebooksRoutes: FastifyPluginAsync<NotebooksRoutesOptions> = async
       const { id } = request.params as { id: string };
       const service = getService();
       await service.deleteNotebook(id, userId);
-      return reply.status(204).send();
-    } catch (err) {
-      if (err instanceof NotFoundError) {
+      return await reply.status(204).send();
+    } catch (error) {
+      if (error instanceof NotFoundError) {
         return reply.status(404).send({
-          error: { code: err.code, message: err.message },
+          error: { code: error.code, message: error.message },
         });
       }
-      if (err instanceof NotebookError) {
+      if (error instanceof NotebookError) {
         return reply.status(400).send({
-          error: { code: err.code, message: err.message },
+          error: { code: error.code, message: error.message },
         });
       }
-      throw err;
+      throw error;
     }
   });
+
+  return Promise.resolve();
 };

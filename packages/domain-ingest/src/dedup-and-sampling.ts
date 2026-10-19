@@ -2,42 +2,52 @@ import { blake3 } from "hash-wasm";
 import type { Source } from "@notebench/contracts";
 
 /**
- * Normalizes input string to canonical representation:
- * Strips UTF-8 BOM, normalizes Unicode to NFC, normalizes CRLF to LF, and trims edge whitespace.
- */
+Deterministic UTF-16 code-unit string ordering (locale-independent).
+*/
+function compareCodeUnits(a: string, b: string): number {
+  if (a < b) {
+    return -1;
+  }
+  return a > b ? 1 : 0;
+}
+
+/**
+Normalizes input string to canonical representation:
+Strips UTF-8 BOM, normalizes Unicode to NFC, normalizes CRLF to LF, and trims edge whitespace.
+*/
 export function normalizeForHashing(input: string): string {
   return SourceNormalizer.normalizeText(input).canonicalContent;
 }
 
-/**
- * Multi-modal source normalizer per Research 21 Section 3.2.
- */
-export class SourceNormalizer {
-  private static readonly TRACKING_PARAMS = new Set([
-    "utm_source",
-    "utm_medium",
-    "utm_campaign",
-    "utm_term",
-    "utm_content",
-    "fbclid",
-    "gclid",
-    "gbraid",
-    "wbraid",
-    "msclkid",
-    "ref",
-    "ref_src",
-    "source",
-  ]);
+const TRACKING_PARAMS = new Set([
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+  "fbclid",
+  "gclid",
+  "gbraid",
+  "wbraid",
+  "msclkid",
+  "ref",
+  "ref_src",
+  "source",
+]);
 
+/**
+Multi-modal source normalizer per Research 21 Section 3.2.
+*/
+export const SourceNormalizer = {
   /**
-   * Normalizes raw text strings (pasted notes, markdown, extracted documents).
-   */
-  public static normalizeText(rawText: string): { canonicalContent: string; characterCount: number } {
+  Normalizes raw text strings (pasted notes, markdown, extracted documents).
+  */
+  normalizeText(rawText: string): { canonicalContent: string; characterCount: number } {
     if (rawText.length === 0) {
       return { canonicalContent: "", characterCount: 0 };
     }
 
-    let text = rawText.replace(/^\uFEFF/, "").normalize("NFC").replace(/\r\n|\r/g, "\n");
+    let text = rawText.replace(/^\u{FEFF}/u, "").normalize("NFC").replaceAll(/\r\n|\r/g, "\n");
     text = text
       .split("\n")
       .map((line) => line.trimEnd())
@@ -48,12 +58,12 @@ export class SourceNormalizer {
       canonicalContent: text,
       characterCount: text.length,
     };
-  }
+  },
 
   /**
-   * Canonicalizes a web URL to defeat tracking token variance and duplicate paths.
-   */
-  public static normalizeUrl(rawUrl: string): string {
+  Canonicalizes a web URL to defeat tracking token variance and duplicate paths.
+  */
+  normalizeUrl(rawUrl: string): string {
     const parsed = new URL(rawUrl);
 
     parsed.protocol = parsed.protocol.toLowerCase();
@@ -69,36 +79,40 @@ export class SourceNormalizer {
     parsed.hash = "";
 
     const cleanedSearchParams = new URLSearchParams();
-    const sortedKeys = Array.from(parsed.searchParams.keys()).sort();
+    // UTF-16 code-unit order (locale-independent) keeps normalization deterministic.
+    const keyIterator = parsed.searchParams.keys();
+    const sortedKeys = [...keyIterator].toSorted(compareCodeUnits);
 
     for (const key of sortedKeys) {
-      if (!this.TRACKING_PARAMS.has(key.toLowerCase())) {
-        const values = parsed.searchParams.getAll(key);
-        for (const val of values) {
-          cleanedSearchParams.append(key, val);
-        }
+      if (TRACKING_PARAMS.has(key.toLowerCase())) {
+        continue;
+      }
+
+      const values = parsed.searchParams.getAll(key);
+      for (const val of values) {
+        cleanedSearchParams.append(key, val);
       }
     }
 
     parsed.search = cleanedSearchParams.toString() ? `?${cleanedSearchParams.toString()}` : "";
 
-    let normalized = parsed.toString();
+    let normalized = parsed.href;
     if (normalized.endsWith("/") && parsed.pathname === "/") {
       normalized = normalized.slice(0, -1);
     }
 
     return normalized;
-  }
-}
+  },
+};
 
 /**
- * Deduplication service.
- * Computes deterministic 64-character lowercase BLAKE3 hex hashes via hash-wasm.
- * No fallback: a hashing failure surfaces to the caller.
- */
+Deduplication service.
+Computes deterministic 64-character lowercase BLAKE3 hex hashes via hash-wasm.
+No fallback: a hashing failure surfaces to the caller.
+*/
 export class DeduplicationService {
   public async computeHash(input: string | Buffer): Promise<string> {
-    const data = typeof input === "string" ? Buffer.from(normalizeForHashing(input), "utf-8") : input;
+    const data = typeof input === "string" ? Buffer.from(normalizeForHashing(input), "utf8") : input;
     return blake3(data, 256);
   }
 }
@@ -159,9 +173,9 @@ export interface StratifiedSampleResult {
 }
 
 /**
- * Salience-stratified document sampling service.
- * Allocates 40% Lead + 20% Headings + 40% Tail to fit within strict LLM token budgets.
- */
+Salience-stratified document sampling service.
+Allocates 40% Lead + 20% Headings + 40% Tail to fit within strict LLM token budgets.
+*/
 export class StratifiedSamplingService {
   public sample(text: string, tokenBudget = 6000): StratifiedSampleResult {
     const charBudget = Math.max(100, tokenBudget * 4);
@@ -218,8 +232,8 @@ export class StratifiedSamplingService {
 }
 
 /**
- * Asynchronous Source Summarizer prompt builder per Research 21 Section 2.3.
- */
+Asynchronous Source Summarizer prompt builder per Research 21 Section 2.3.
+*/
 export class SourceSummarizer {
   public static readonly SYSTEM_PROMPT = `You are Notebench's source analysis engine. Your sole task is to analyze document text and generate an executive summary and exploratory suggested questions.
 

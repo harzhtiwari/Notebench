@@ -1,11 +1,11 @@
 import * as React from "react";
 import {
-  GitBranch,
-  Lock,
-  Sparkle,
-  PencilSimple,
-  Warning,
-  Question,
+  GitBranchIcon,
+  LockIcon,
+  SparkleIcon,
+  PencilSimpleIcon,
+  WarningIcon,
+  QuestionIcon,
 } from "../primitives/icons.js";
 import { CitationPopover } from "../primitives/overlays.js";
 import { CitationChip } from "../primitives/citations.js";
@@ -46,13 +46,13 @@ export interface TimelineEventItem {
 }
 
 /**
- * Checks if a string represents a valid timeline date.
- * Accepts:
- * - Year-only strings (e.g. "1776", "2024")
- * - ISO 8601 timestamps and calendar dates (e.g. "2024-04-12", "2024-04-12T10:30:00Z")
- * Rejects:
- * - Empty, null, undefined, "unknown", "undated", or non-parsable strings
- */
+Checks if a string represents a valid timeline date.
+Accepts:
+- Year-only strings (e.g. "1776", "2024")
+- ISO 8601 timestamps and calendar dates (e.g. "2024-04-12", "2024-04-12T10:30:00Z")
+Rejects:
+- Empty, null, undefined, "unknown", "undated", or non-parsable strings
+*/
 export function isValidTimelineDate(dateStr: string | undefined | null): boolean {
   if (!dateStr || typeof dateStr !== "string") return false;
   const trimmed = dateStr.trim();
@@ -65,7 +65,7 @@ export function isValidTimelineDate(dateStr: string | undefined | null): boolean
   }
   // 1-4 digit year format (e.g. "1776", "2024", "-500")
   if (/^-?\d{1,4}$/.test(trimmed)) {
-    const year = parseInt(trimmed, 10);
+    const year = Number(trimmed);
     return !Number.isNaN(year) && year >= -9999 && year <= 9999;
   }
   const parsed = Date.parse(trimmed);
@@ -73,23 +73,23 @@ export function isValidTimelineDate(dateStr: string | undefined | null): boolean
 }
 
 /**
- * Returns a UTC timestamp in milliseconds for sorting timeline dates.
- * Returns null if date is missing, unknown, or invalid.
- */
+Returns a UTC timestamp in milliseconds for sorting timeline dates.
+Returns null if date is missing, unknown, or invalid.
+*/
 export function getTimelineTimestamp(dateStr: string | undefined | null): number | null {
   if (!isValidTimelineDate(dateStr)) return null;
   const trimmed = dateStr ? dateStr.trim() : "";
   if (/^-?\d{1,4}$/.test(trimmed)) {
-    const year = parseInt(trimmed, 10);
+    const year = Number(trimmed);
     return yearOnlyTimestamp(year);
   }
   return Date.parse(trimmed);
 }
 
 /**
- * Jan 1 UTC of a year-only token. `Date.UTC` remaps years 0-99 to 1900-1999,
- * so the year is applied with `setUTCFullYear` to keep it literal.
- */
+Jan 1 UTC of a year-only token. `Date.UTC` remaps years 0-99 to 1900-1999,
+so the year is applied with `setUTCFullYear` to keep it literal.
+*/
 function yearOnlyTimestamp(year: number): number {
   const date = new Date(0);
   date.setUTCHours(0, 0, 0, 0);
@@ -98,15 +98,15 @@ function yearOnlyTimestamp(year: number): number {
 }
 
 /**
- * Formats a timeline date string into a user-facing label.
- * Year-only strings are kept as-is (e.g. "1776").
- * Valid ISO strings are formatted via Intl.DateTimeFormat in UTC.
- * Unknown or invalid dates return fallbackLabel (defaults to "Date unknown").
- */
+Formats a timeline date string into a user-facing label.
+Year-only strings are kept as-is (e.g. "1776").
+Valid ISO strings are formatted via Intl.DateTimeFormat in UTC.
+Unknown or invalid dates return fallbackLabel (defaults to "Date unknown").
+*/
 export function formatTimelineDate(
   dateStr: string | undefined | null,
   options?: Intl.DateTimeFormatOptions,
-  fallbackLabel: string = "Date unknown"
+  fallbackLabel = "Date unknown"
 ): string {
   if (!isValidTimelineDate(dateStr)) return fallbackLabel;
   const trimmed = dateStr ? dateStr.trim() : "";
@@ -131,17 +131,17 @@ export function formatTimelineDate(
 }
 
 /**
- * Sorts timeline events chronologically.
- * Valid dated entries sort first (oldest to newest by default, or desc if specified).
- * Undated / unknown / invalid date entries always sort last.
- */
+Sorts timeline events chronologically.
+Valid dated entries sort first (oldest to newest by default, or desc if specified).
+Undated / unknown / invalid date entries always sort last.
+*/
 export function sortTimelineEvents<T extends { date?: string | undefined | null }>(
   events: readonly T[],
   direction: "asc" | "desc" = "asc"
 ): T[] {
   return events
     .map((event, index) => ({ event, index, time: getTimelineTimestamp(event.date) }))
-    .sort((a, b) => {
+    .toSorted((a, b) => {
       if (a.time === null && b.time === null) return a.index - b.index;
       if (a.time === null) return 1;
       if (b.time === null) return -1;
@@ -171,10 +171,10 @@ export interface TimelineEventProps
 }
 
 /**
- * TimelineEvent: individual event entry along a TimelineTrack (ticket 17).
- * Reuses CitationPopover from ticket 11 for citations and grounding details.
- * Strictly adheres to elevation shadow invariant (zero shadows on in-page cards).
- */
+TimelineEvent: individual event entry along a TimelineTrack (ticket 17).
+Reuses CitationPopover from ticket 11 for citations and grounding details.
+Strictly adheres to elevation shadow invariant (zero shadows on in-page cards).
+*/
 export const TimelineEvent = React.forwardRef<HTMLLIElement, TimelineEventProps>(
   (
     {
@@ -212,12 +212,12 @@ export const TimelineEvent = React.forwardRef<HTMLLIElement, TimelineEventProps>
         {...props}
       >
         {/* Continuous Track Spine (vertical connecting line) */}
-        {!isLast ? (
+        {isLast ? null : (
           <span
             aria-hidden="true"
             className="absolute left-[calc(var(--nb-size-control-sm)/2-var(--nb-border-1)/2)] top-[var(--nb-size-control-sm)] bottom-0 w-[var(--nb-border-1)] bg-[var(--nb-hairline)]"
           />
-        ) : null}
+        )}
 
         {/* Node Marker along the track */}
         <div className="relative z-[var(--nb-z-raised)] shrink-0">
@@ -226,7 +226,7 @@ export const TimelineEvent = React.forwardRef<HTMLLIElement, TimelineEventProps>
               data-slot="timeline-marker"
               className="flex h-[var(--nb-size-control-sm)] w-[var(--nb-size-control-sm)] items-center justify-center rounded-[var(--nb-radius-control)] border border-[var(--nb-hairline)] bg-[var(--nb-sheet)] text-[var(--nb-ink-2)]"
             >
-              {icon ?? <GitBranch size={16} aria-hidden="true" />}
+              {icon ?? <GitBranchIcon size={16} aria-hidden="true" />}
             </div>
           )}
         </div>
@@ -247,7 +247,7 @@ export const TimelineEvent = React.forwardRef<HTMLLIElement, TimelineEventProps>
                 <Badge
                   data-slot="date-badge"
                   variant="default"
-                  icon={<Question size={12} aria-hidden="true" className="shrink-0" />}
+                  icon={<QuestionIcon size={12} aria-hidden="true" className="shrink-0" />}
                   className="rounded-[var(--nb-radius-tag)] border border-[var(--nb-hairline)] text-[length:var(--nb-text-2xs)] font-[number:var(--nb-weight-medium)] text-[var(--nb-ink-3)]"
                 >
                   {unknownDateLabel}
@@ -259,7 +259,7 @@ export const TimelineEvent = React.forwardRef<HTMLLIElement, TimelineEventProps>
                 <Badge
                   data-slot="state-badge"
                   variant="ai"
-                  icon={<GitBranch size={12} aria-hidden="true" />}
+                  icon={<GitBranchIcon size={12} aria-hidden="true" />}
                 >
                   Milestone
                 </Badge>
@@ -269,7 +269,7 @@ export const TimelineEvent = React.forwardRef<HTMLLIElement, TimelineEventProps>
                 <Badge
                   data-slot="state-badge"
                   variant="ai"
-                  icon={<Sparkle size={12} aria-hidden="true" />}
+                  icon={<SparkleIcon size={12} aria-hidden="true" />}
                 >
                   AI
                 </Badge>
@@ -279,7 +279,7 @@ export const TimelineEvent = React.forwardRef<HTMLLIElement, TimelineEventProps>
                 <Badge
                   data-slot="state-badge"
                   variant="you"
-                  icon={<PencilSimple size={12} aria-hidden="true" />}
+                  icon={<PencilSimpleIcon size={12} aria-hidden="true" />}
                 >
                   You
                 </Badge>
@@ -289,7 +289,7 @@ export const TimelineEvent = React.forwardRef<HTMLLIElement, TimelineEventProps>
                 <Badge
                   data-slot="state-badge"
                   variant="warn"
-                  icon={<Warning size={12} aria-hidden="true" />}
+                  icon={<WarningIcon size={12} aria-hidden="true" />}
                 >
                   Stale
                 </Badge>
@@ -300,7 +300,7 @@ export const TimelineEvent = React.forwardRef<HTMLLIElement, TimelineEventProps>
                 <Badge
                   data-slot="locked-badge"
                   variant="default"
-                  icon={<Lock size={12} aria-hidden="true" />}
+                  icon={<LockIcon size={12} aria-hidden="true" />}
                 >
                   Locked
                 </Badge>
@@ -361,19 +361,25 @@ TimelineEvent.displayName = "TimelineEvent";
 
 export interface TimelineTrackProps
   extends React.OlHTMLAttributes<HTMLOListElement> {
-  /** Optional array of timeline events to render */
+  /**
+  Optional array of timeline events to render
+  */
   events?: TimelineEventItem[] | undefined;
-  /** Direction to sort events when `events` array is provided. Defaults to "asc". Set to false to disable auto-sort. */
+  /**
+  Direction to sort events when `events` array is provided. Defaults to "asc". Set to false to disable auto-sort.
+  */
   sortDirection?: "asc" | "desc" | false | undefined;
-  /** Custom render function for each event when `events` array is provided */
+  /**
+  Custom render function for each event when `events` array is provided
+  */
   renderEvent?: ((event: TimelineEventItem, index: number, isLast: boolean) => React.ReactNode) | undefined;
   children?: React.ReactNode | undefined;
 }
 
 /**
- * TimelineTrack: track container for timeline events (ticket 17).
- * Applies .timeline-track semantic class and accessible role.
- */
+TimelineTrack: track container for timeline events (ticket 17).
+Applies .timeline-track semantic class and accessible role.
+*/
 export const TimelineTrack = React.forwardRef<HTMLOListElement, TimelineTrackProps>(
   (
     {
@@ -390,9 +396,9 @@ export const TimelineTrack = React.forwardRef<HTMLOListElement, TimelineTrackPro
     let resolvedEvents: TimelineEventItem[] = [];
     if (events) {
       resolvedEvents =
-        sortDirection !== false
-          ? sortTimelineEvents(events, sortDirection)
-          : [...events];
+        sortDirection === false
+          ? [...events]
+          : sortTimelineEvents(events, sortDirection);
     }
 
     return (

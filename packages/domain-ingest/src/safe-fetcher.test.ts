@@ -58,10 +58,7 @@ describe("SafeUrlFetcher & SSRF Firewall (Seam 3 - RED phase)", () => {
       let callCount = 0;
       const mockHttpDispatch = vi.fn().mockImplementation(async (url: string) => {
         callCount++;
-        if (url === "http://example.com/loop-a") {
-          return { status: 302, headers: { location: "http://example.com/loop-b" } };
-        }
-        return { status: 302, headers: { location: "http://example.com/loop-a" } };
+        return ({ status: 302, headers: ({ location: url === "https://example.com/loop-a" ? "https://example.com/loop-b" : "https://example.com/loop-a" }) });
       });
 
       const fetcher = new SafeUrlFetcher({
@@ -70,7 +67,9 @@ describe("SafeUrlFetcher & SSRF Firewall (Seam 3 - RED phase)", () => {
         maxRedirects: 5,
       });
 
-      await expect(fetcher.fetch("http://example.com/loop-a")).rejects.toThrow(/redirect loop/i);
+      await expect(fetcher.fetch("https://example.com/loop-a")).rejects.toThrow(/redirect loop/i);
+      // Loop detected before dispatching the third request: a → b, then a is already visited.
+      expect(callCount).toBe(2);
     });
 
     it("rejects non-http/https protocols immediately", async () => {
@@ -84,7 +83,7 @@ describe("SafeUrlFetcher & SSRF Firewall (Seam 3 - RED phase)", () => {
       const mockDnsLookup = vi.fn().mockResolvedValue([{ address: "169.254.169.254", family: 4 }]);
       const fetcher = new SafeUrlFetcher({ dnsLookup: mockDnsLookup });
 
-      await expect(fetcher.fetch("http://evil-cloud-metadata.com")).rejects.toThrow(SsrfBlockedError);
+      await expect(fetcher.fetch("https://evil-cloud-metadata.com")).rejects.toThrow(SsrfBlockedError);
       expect(mockDnsLookup).toHaveBeenCalled();
     });
 
@@ -92,7 +91,7 @@ describe("SafeUrlFetcher & SSRF Firewall (Seam 3 - RED phase)", () => {
       const mockDnsLookup = vi.fn().mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
       const mockHttpDispatch = vi.fn().mockResolvedValue({
         status: 302,
-        headers: { location: "http://example.com/redirect" },
+        headers: { location: "https://example.com/redirect" },
       });
 
       const fetcher = new SafeUrlFetcher({
@@ -101,7 +100,7 @@ describe("SafeUrlFetcher & SSRF Firewall (Seam 3 - RED phase)", () => {
         maxRedirects: 3,
       });
 
-      await expect(fetcher.fetch("http://example.com/start")).rejects.toThrow(/redirect/i);
+      await expect(fetcher.fetch("https://example.com/start")).rejects.toThrow(/redirect/i);
     });
 
     it("rejects response when content-length exceeds 10 MB", async () => {
@@ -117,13 +116,13 @@ describe("SafeUrlFetcher & SSRF Firewall (Seam 3 - RED phase)", () => {
         httpDispatch: mockHttpDispatch,
       });
 
-      await expect(fetcher.fetch("http://example.com/huge-file.pdf")).rejects.toThrow(/exceeds/i);
+      await expect(fetcher.fetch("https://example.com/huge-file.pdf")).rejects.toThrow(/exceeds/i);
     });
 
     it("rejects URLs with embedded credentials (user:pass@host) in Tier 1", async () => {
       const fetcher = new SafeUrlFetcher();
-      await expect(fetcher.fetch("http://admin:secret@example.com")).rejects.toThrow(SsrfBlockedError);
-      await expect(fetcher.fetch("http://admin@example.com")).rejects.toThrow(SsrfBlockedError);
+      await expect(fetcher.fetch("https://admin:secret@example.com")).rejects.toThrow(SsrfBlockedError);
+      await expect(fetcher.fetch("https://admin@example.com")).rejects.toThrow(SsrfBlockedError);
     });
 
     it("blocks alternative representations of IPv6 loopback and bracketed hosts", async () => {
@@ -149,7 +148,7 @@ describe("SafeUrlFetcher & SSRF Firewall (Seam 3 - RED phase)", () => {
         httpDispatch: mockHttpDispatch,
       });
 
-      await expect(fetcher.fetch("http://example.com/binary")).rejects.toThrow(/content-type/i);
+      await expect(fetcher.fetch("https://example.com/binary")).rejects.toThrow(/content-type/i);
     });
 
     it("verifies Undici custom lookup compatibility with Node 22 { all: true }", async () => {

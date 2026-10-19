@@ -1,25 +1,33 @@
 import * as React from "react";
 import { CloudDisclosureBadge } from "../primitives/badges.js";
-import { Key } from "../primitives/icons.js";
+import { KeyIcon } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
 export interface ProviderRowProps
   extends React.HTMLAttributes<HTMLDivElement> {
-  /** Provider display name (OpenAI, Anthropic, Ollama, …). */
+  /**
+  Provider display name (OpenAI, Anthropic, Ollama, …).
+  */
   name: string;
-  /** Helper line under the name (board `.help`). */
+  /**
+  Helper line under the name (board `.help`).
+  */
   description?: string | undefined;
-  /** Cloud providers show the transmitted-data badge; local ones omit it. */
+  /**
+  Cloud providers show the transmitted-data badge; local ones omit it.
+  */
   cloud?: boolean | undefined;
-  /** Name interpolated into the badge copy; defaults to `name`. */
+  /**
+  Name interpolated into the badge copy; defaults to `name`.
+  */
   providerName?: string | undefined;
 }
 
 /**
- * Provider row in the board `.src` shape: icon tile + name/helper + action
- * slot. Key inputs and `KeyTestButton` are composed by the parent through
- * `children` — this row owns no inputs itself.
- */
+Provider row in the board `.src` shape: icon tile + name/helper + action
+slot. Key inputs and `KeyTestButton` are composed by the parent through
+`children` — this row owns no inputs itself.
+*/
 const ProviderRow = React.forwardRef<HTMLDivElement, ProviderRowProps>(
   (
     { className, name, description, cloud = false, providerName, children, ...props },
@@ -34,15 +42,15 @@ const ProviderRow = React.forwardRef<HTMLDivElement, ProviderRowProps>(
       {...props}
     >
       <span className="grid h-[var(--nb-size-tile-icon)] w-[var(--nb-size-tile-icon)] place-items-center rounded-[var(--nb-radius-menu)] bg-[var(--nb-sheet)] text-[var(--nb-ink-2)]">
-        <Key size={20} aria-hidden="true" />
+        <KeyIcon size={20} aria-hidden="true" />
       </span>
       <div className="grid min-w-0 gap-[var(--nb-space-1)]">
         <div className="truncate text-sm font-semibold text-[var(--nb-ink)]">
           {name}
         </div>
-        {description !== undefined ? (
+        {description === undefined ? null : (
           <div className="text-xs text-[var(--nb-ink-3)]">{description}</div>
-        ) : null}
+        )}
         {cloud ? (
           <div>
             <CloudDisclosureBadge providerName={providerName ?? name} />

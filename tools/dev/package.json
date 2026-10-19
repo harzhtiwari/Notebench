@@ -6,7 +6,8 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@playwright/test": "^1.64.0",
@@ -14,8 +15,10 @@
     "tsx": "^4.19.2"
   },
   "devDependencies": {
+    "@notebench/eslint-config": "workspace:*",
     "@notebench/tsconfig": "workspace:*",
     "@types/node": "^26.6.5",
+    "eslint": "^10.0.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.4"
   },

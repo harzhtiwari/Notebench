@@ -1,11 +1,6 @@
-import * as sqliteSchema from "./sqlite.js";
-import * as pgSchema from "./pg.js";
-
-export { sqliteSchema, pgSchema };
-
 /**
- * Canonical list of all tables owned by users where user_id is mandatory.
- */
+Canonical list of all tables owned by users where user_id is mandatory.
+*/
 export const USER_OWNED_TABLE_NAMES = [
   "notebooks",
   "sources",
@@ -19,3 +14,6 @@ export const USER_OWNED_TABLE_NAMES = [
 ] as const;
 
 export type UserOwnedTableName = (typeof USER_OWNED_TABLE_NAMES)[number];
+
+export * as sqliteSchema from "./sqlite.js";
+export * as pgSchema from "./pg.js";

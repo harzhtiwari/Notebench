@@ -2,29 +2,46 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Ticket 07 RED suite (written before implementation).
- *
- * The API client defaults to same-origin paths (relative URLs reach the web
- * origin, which the sidecar proxies to the live backend); the explicit
- * backend-URL override keeps working for out-of-band consumers. Typed
- * backend errors are preserved through a narrow parser: the `{code,
- * message}` shape survives untouched, anything else falls back safely.
- */
+Ticket 07 RED suite (written before implementation).
+
+The API client defaults to same-origin paths (relative URLs reach the web
+origin, which the sidecar proxies to the live backend); the explicit
+backend-URL override keeps working for out-of-band consumers. Typed
+backend errors are preserved through a narrow parser: the `{code,
+message}` shape survives untouched, anything else falls back safely.
+*/
 
 const ENV_KEY = "NEXT_PUBLIC_API_URL";
 
 async function loadApi(envValue: string | undefined): Promise<typeof import("./api")> {
   vi.resetModules();
   if (envValue === undefined) {
-    delete process.env[ENV_KEY];
+    Reflect.deleteProperty(process.env, ENV_KEY);
   } else {
     process.env[ENV_KEY] = envValue;
   }
   return import("./api");
 }
 
+/**
+Resolves to the fulfilled value or to the rejection reason, mirroring the
+`then(onFulfilled, onRejected)` shape without a promise chain.
+*/
+async function captureFailure(task: Promise<unknown>): Promise<unknown> {
+  try {
+    await task;
+    return null;
+  } catch (error: unknown) {
+    return error;
+  }
+}
+
+function stubFetchOnce(response: unknown): void {
+  vi.stubGlobal("fetch", vi.fn(async () => response));
+}
+
 afterEach(() => {
-  delete process.env[ENV_KEY];
+  Reflect.deleteProperty(process.env, ENV_KEY);
   vi.resetModules();
 });
 
@@ -73,10 +90,6 @@ describe("ticket 07: typed backend errors are preserved", () => {  it("preserves
 });
 
 describe("ticket 07: typed fetch preserves backend errors end to end", () => {
-  function stubFetchOnce(response: unknown): void {
-    vi.stubGlobal("fetch", vi.fn(async () => response));
-  }
-
   it("resolves parsed JSON when the backend responds ok", async () => {
     const api = await loadApi(undefined);
     stubFetchOnce({ ok: true, json: async () => ({ status: "ok" }) });
@@ -91,10 +104,7 @@ describe("ticket 07: typed fetch preserves backend errors end to end", () => {
       ok: false,
       json: async () => ({ error: { code: "SETUP_ALREADY_COMPLETED", message: "Done." } }),
     });
-    const failure = await api.fetchApiJson("/api/setup").then(
-      () => null,
-      (error: unknown) => error,
-    );
+    const failure = await captureFailure(api.fetchApiJson("/api/setup"));
     expect(failure).toBeInstanceOf(ApiRequestError);
     expect((failure as InstanceType<typeof ApiRequestError>).code).toBe("SETUP_ALREADY_COMPLETED");
     expect((failure as Error).message).toContain("Done.");
@@ -105,10 +115,7 @@ describe("ticket 07: typed fetch preserves backend errors end to end", () => {
     const api = await loadApi(undefined);
     const { ApiRequestError } = api;
     stubFetchOnce({ ok: false, json: async () => null });
-    const malformed = await api.fetchApiJson("/api/doctor").then(
-      () => null,
-      (error: unknown) => error,
-    );
+    const malformed = await captureFailure(api.fetchApiJson("/api/doctor"));
     expect(malformed).toBeInstanceOf(ApiRequestError);
     expect((malformed as InstanceType<typeof ApiRequestError>).code).toBe("UNKNOWN");
     vi.stubGlobal(
@@ -166,10 +173,7 @@ describe("ticket 01 UI: field issues surface from validation errors", () => {
     const api = await loadApi(undefined);
     const { ApiRequestError } = api;
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ISSUES_PAYLOAD })));
-    const failure = await api.fetchApiJson("/api/setup").then(
-      () => null,
-      (error: unknown) => error,
-    );
+    const failure = await captureFailure(api.fetchApiJson("/api/setup"));
     expect(failure).toBeInstanceOf(ApiRequestError);
     const thrown = failure as InstanceType<typeof ApiRequestError>;
     expect(thrown.code).toBe("VALIDATION_ERROR");

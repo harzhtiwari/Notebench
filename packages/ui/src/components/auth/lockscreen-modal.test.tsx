@@ -124,7 +124,7 @@ describe("session lockout patterns (ticket 05)", () => {
     });
     rerender(<LockscreenModal open={false} onUnlock={() => {}} />);
     rerender(<LockscreenModal open onUnlock={() => {}} />);
-    const input = screen.getByLabelText("Passcode") as HTMLInputElement;
+    const input = screen.getByLabelText<HTMLInputElement>("Passcode");
     expect(input.value).toBe("");
   });
 
@@ -139,7 +139,7 @@ describe("session lockout patterns (ticket 05)", () => {
     const { unmount } = render(<CountdownProbe targetMs={1_005_000} />);
     expect(screen.getByRole("status").textContent).toBe("5");
     act(() => {
-      vi.advanceTimersByTime(2_000);
+      vi.advanceTimersByTime(2000);
     });
     expect(screen.getByRole("status").textContent).toBe("3");
     act(() => {

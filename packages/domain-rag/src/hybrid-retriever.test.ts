@@ -16,7 +16,7 @@ describe("ReciprocalRankFusionService & HybridRetriever (Ticket #15 - RED phase)
       const ftsResults: FtsSearchResult[] = [
         { chunkRowid: 1, rank: -10.5 }, // 1st in FTS
         { chunkRowid: 2, rank: -8.2 },  // 2nd in FTS
-        { chunkRowid: 3, rank: -5.0 },  // 3rd in FTS
+        { chunkRowid: 3, rank: -5 },  // 3rd in FTS
       ];
 
       const vectorResults: VectorSearchResult[] = [
@@ -76,7 +76,7 @@ describe("ReciprocalRankFusionService & HybridRetriever (Ticket #15 - RED phase)
 
     it("breaks ties deterministically by chunkRowid when RRF scores are equal", () => {
       // Chunk 10 has FTS rank 1 (score 1/61)
-      const fts: FtsSearchResult[] = [{ chunkRowid: 10, rank: -5.0 }];
+      const fts: FtsSearchResult[] = [{ chunkRowid: 10, rank: -5 }];
       // Chunk 5 has Vector rank 1 (score 1/61)
       const vec: VectorSearchResult[] = [{ chunkRowid: 5, distance: 0.1 }];
 
@@ -93,20 +93,20 @@ describe("ReciprocalRankFusionService & HybridRetriever (Ticket #15 - RED phase)
     it("coordinates FtsStorePort and VectorStorePort and returns fused ranked chunks", async () => {
       const mockFtsStore: FtsStorePort = {
         search: async () => [
-          { chunkRowid: 10, rank: -12.0 },
-          { chunkRowid: 20, rank: -8.0 },
+          { chunkRowid: 10, rank: -12 },
+          { chunkRowid: 20, rank: -8 },
         ],
-        deleteByNotebookId: async () => {},
+        deleteByNotebookId: () => Promise.resolve(),
       };
 
       const mockVectorStore: VectorStorePort = {
-        insert: async () => {},
-        insertBatch: async () => {},
+        insert: () => Promise.resolve(),
+        insertBatch: () => Promise.resolve(),
         searchKnn: async () => [
           { chunkRowid: 20, distance: 0.05 },
           { chunkRowid: 30, distance: 0.12 },
         ],
-        deleteByNotebookId: async () => {},
+        deleteByNotebookId: () => Promise.resolve(),
       };
 
       const retriever = new HybridRetriever({

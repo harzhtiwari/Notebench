@@ -11,12 +11,12 @@ export const SourceTypeSchema = z.enum([
 export type SourceType = z.infer<typeof SourceTypeSchema>;
 
 export const SourceSchema = z.object({
-  id: z.string().uuid(),
-  userId: z.string().uuid(),
-  notebookId: z.string().uuid(),
+  id: z.uuid(),
+  userId: z.uuid(),
+  notebookId: z.uuid(),
   title: z.string().min(1),
   type: SourceTypeSchema,
-  url: z.string().url().optional(),
+  url: z.url().optional(),
   filePath: z.string().optional(),
   mimeType: z.string().optional(),
   byteSize: z.number().int().nonnegative().optional(),
@@ -27,16 +27,16 @@ export const SourceSchema = z.object({
   suggestedQuestions: z.array(z.string()).optional(),
   status: z.enum(["pending", "processing", "ready", "failed"]).default("ready"),
   statusMessage: z.string().optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 });
 export type Source = z.infer<typeof SourceSchema>;
 
 export const CreateSourceInputSchema = z.object({
-  notebookId: z.string().uuid(),
+  notebookId: z.uuid(),
   title: z.string().min(1),
   type: SourceTypeSchema,
-  url: z.string().url().optional(),
+  url: z.url().optional(),
   content: z.string().optional(),
 });
 export type CreateSourceInput = z.infer<typeof CreateSourceInputSchema>;

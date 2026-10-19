@@ -18,14 +18,14 @@ import {
 } from "./pg-harness.js";
 
 /**
- * Ticket 28 — `createPgDatabase` against a real Postgres.
- *
- * Needs POSTGRES_URL (`pnpm test:postgres`); skips cleanly without it. Each
- * harness instance gets a brand-new empty database, so "the migrator applies
- * to an empty Postgres database" is proven literally, and the live schema is
- * compared against both the declared pg schema and the runtime SQLite
- * bootstrap.
- */
+Ticket 28 — `createPgDatabase` against a real Postgres.
+
+Needs POSTGRES_URL (`pnpm test:postgres`); skips cleanly without it. Each
+harness instance gets a brand-new empty database, so "the migrator applies
+to an empty Postgres database" is proven literally, and the live schema is
+compared against both the declared pg schema and the runtime SQLite
+bootstrap.
+*/
 
 const skipReason = pgIntegrationSkipReason();
 const skipSuffix = skipReason
@@ -36,6 +36,13 @@ if (skipReason) {
 }
 
 const describePg = skipReason ? describe.skip : describe;
+
+/**
+Code-unit string ordering — matches the default `Array#sort()` comparator.
+*/
+function compareCodeUnits(a: string, b: string): number {
+  return a < b ? -1 : (a > b ? 1 : 0);
+}
 
 describePg(
   `Ticket 28 — PostgreSQL factory, migrator, and schema parity (integration)${skipSuffix}`,
@@ -50,7 +57,9 @@ describePg(
   });
 
   afterAll(async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- teardown must survive a beforeAll failure
     await pgDb?.close();
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- teardown must survive a beforeAll failure
     await fresh?.close();
   });
 
@@ -85,21 +94,21 @@ describePg(
       const liveTables = await target.pool.query<{ table_name: string }>(
         `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'`
       );
-      expect(liveTables.rows.map((row) => row.table_name).sort()).toEqual(
-        Object.keys(pgSchema).sort()
+      expect(liveTables.rows.map((row) => row.table_name).toSorted(compareCodeUnits)).toEqual(
+        Object.keys(pgSchema).toSorted(compareCodeUnits)
       );
 
       for (const tableName of Object.keys(pgSchema)) {
         const table = pgSchema[tableName as keyof typeof pgSchema];
         const config = getPgTableConfig(table);
-        const declared = config.columns.map((column) => column.name).sort();
+        const declared = config.columns.map((column) => column.name).toSorted(compareCodeUnits);
         const live = await target.pool.query<{ column_name: string }>(
           `SELECT column_name FROM information_schema.columns
            WHERE table_schema = 'public' AND table_name = $1`,
           [config.name]
         );
         expect(
-          live.rows.map((row) => row.column_name).sort(),
+          live.rows.map((row) => row.column_name).toSorted(compareCodeUnits),
           `columns of ${tableName}`
         ).toEqual(declared);
       }
@@ -156,7 +165,7 @@ describePg(
           .prepare(
             `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name`
           )
-          .all() as Array<{ name: string }>
+          .all() as { name: string }[]
       ).map((row) => row.name);
       const pgTables = await pgDb.pool.query<{ table_name: string }>(
         `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`
@@ -172,11 +181,11 @@ describePg(
           .prepare(
             `SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%' ORDER BY name`
           )
-          .all() as Array<{ name: string }>
+          .all() as { name: string }[]
       ).map((row) => row.name);
       const pgIndexes = await pgDb.pool.query<{ indexname: string }>(
-        `SELECT indexname FROM pg_indexes
-         WHERE schemaname = 'public' AND indexname NOT LIKE '%\\_pkey' ORDER BY indexname`
+        String.raw`SELECT indexname FROM pg_indexes
+         WHERE schemaname = 'public' AND indexname NOT LIKE '%\_pkey' ORDER BY indexname`
       );
       expect(pgIndexes.rows.map((row) => row.indexname)).toEqual(sqliteIndexes);
       expect(sqliteIndexes).toContain("provider_model_selections_user_kind");

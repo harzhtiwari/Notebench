@@ -148,33 +148,54 @@ export const DELETION_LEVELS: readonly DeletionLevelDefinition[] = [
   },
 ] as const;
 
-const levelsById = {} as Record<DeletionLevel, DeletionLevelDefinition>;
-const levelsByNumber = {} as Record<number, DeletionLevelDefinition>;
+const levelsById = new Map<DeletionLevel, DeletionLevelDefinition>(
+  DELETION_LEVELS.map((def): [DeletionLevel, DeletionLevelDefinition] => [def.id, def])
+);
+const levelsByNumber = new Map<number, DeletionLevelDefinition>(
+  DELETION_LEVELS.map((def): [number, DeletionLevelDefinition] => [def.level, def])
+);
 
-for (const def of DELETION_LEVELS) {
-  levelsById[def.id] = def;
-  levelsByNumber[def.level] = def;
+function requireLevelById(id: DeletionLevel): DeletionLevelDefinition {
+  const found = levelsById.get(id);
+  if (found === undefined) {
+    throw new Error(`Invalid deletion level id: ${id}`);
+  }
+  return found;
 }
 
-export const DELETION_LEVELS_BY_ID: Record<DeletionLevel, DeletionLevelDefinition> = levelsById;
-export const DELETION_LEVELS_BY_NUMBER: Record<number, DeletionLevelDefinition> = levelsByNumber;
+function requireLevelByNumber(level: number): DeletionLevelDefinition {
+  const found = levelsByNumber.get(level);
+  if (found === undefined) {
+    throw new Error(`Invalid deletion level number: ${level}`);
+  }
+  return found;
+}
+
+export const DELETION_LEVELS_BY_ID: Record<DeletionLevel, DeletionLevelDefinition> = {
+  cache: requireLevelById("cache"),
+  memory: requireLevelById("memory"),
+  notebook: requireLevelById("notebook"),
+  all_notebooks: requireLevelById("all_notebooks"),
+  keys: requireLevelById("keys"),
+  everything: requireLevelById("everything"),
+};
+
+export const DELETION_LEVELS_BY_NUMBER: Record<number, DeletionLevelDefinition> = {
+  1: requireLevelByNumber(1),
+  2: requireLevelByNumber(2),
+  3: requireLevelByNumber(3),
+  4: requireLevelByNumber(4),
+  5: requireLevelByNumber(5),
+  6: requireLevelByNumber(6),
+};
 
 export function getDeletionLevel(
   level: number | DeletionLevel | DeletionLevelDefinition
 ): DeletionLevelDefinition {
-  if (typeof level === "object" && level !== null && "level" in level) {
+  if (typeof level === "object") {
     return level;
   }
-  if (typeof level === "number") {
-    const found = DELETION_LEVELS_BY_NUMBER[level];
-    if (!found) {
-      throw new Error(`Invalid deletion level number: ${level}`);
-    }
-    return found;
-  }
-  const found = DELETION_LEVELS_BY_ID[level];
-  if (!found) {
-    throw new Error(`Invalid deletion level id: ${String(level)}`);
-  }
-  return found;
+  return typeof level === "number"
+    ? requireLevelByNumber(level)
+    : requireLevelById(level);
 }

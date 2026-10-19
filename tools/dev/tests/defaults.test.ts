@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createServer } from "node:http";
 import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import {
-  defaultProbeHttp,
+  isDefaultProbeHttp,
   defaultReadFile,
   defaultReadFileSync,
   defaultSleep,
@@ -11,12 +11,12 @@ import {
 import { makeTempRoot, removeTempRoots } from "./temp-dir.js";
 
 /**
- * Hygiene suite for the shared orchestrator defaults (src/defaults.ts).
- *
- * These values are injected-default seams: each probe/io/sleep default is
- * wired into deps as a fallback, so the module is exercised the way the
- * orchestrator uses it — real timers, real files, and a real HTTP server.
- */
+Hygiene suite for the shared orchestrator defaults (src/defaults.ts).
+
+These values are injected-default seams: each probe/io/sleep default is
+wired into deps as a fallback, so the module is exercised the way the
+orchestrator uses it — real timers, real files, and a real HTTP server.
+*/
 
 const tempRoots: string[] = [];
 
@@ -29,13 +29,13 @@ describe("shared orchestrator defaults", () => {
 
   it("defaultReadFile and defaultReadFileSync read UTF-8 files", async () => {
     const root = makeTempRoot(tempRoots, "notebench-defaults-");
-    const file = join(root, "sample.txt");
-    writeFileSync(file, "héllo wörld\nsecond line\n", "utf-8");
+    const file = path.join(root, "sample.txt");
+    writeFileSync(file, "héllo wörld\nsecond line\n", "utf8");
     await expect(defaultReadFile(file)).resolves.toBe("héllo wörld\nsecond line\n");
     expect(defaultReadFileSync(file)).toBe("héllo wörld\nsecond line\n");
   });
 
-  it("defaultProbeHttp returns true only for 2xx statuses", async () => {
+  it("isDefaultProbeHttp returns true only for 2xx statuses", async () => {
     const server = createServer((req, res) => {
       const status = Number(req.url?.slice(1) ?? "500");
       res.writeHead(status);
@@ -50,11 +50,11 @@ describe("shared orchestrator defaults", () => {
         throw new Error("expected the fixture server to listen on a TCP port");
       }
       const base = `http://127.0.0.1:${String(address.port)}`;
-      await expect(defaultProbeHttp(`${base}/200`)).resolves.toBe(true);
-      await expect(defaultProbeHttp(`${base}/299`)).resolves.toBe(true);
-      await expect(defaultProbeHttp(`${base}/300`)).resolves.toBe(false);
-      await expect(defaultProbeHttp(`${base}/404`)).resolves.toBe(false);
-      await expect(defaultProbeHttp(`${base}/500`)).resolves.toBe(false);
+      await expect(isDefaultProbeHttp(`${base}/200`)).resolves.toBe(true);
+      await expect(isDefaultProbeHttp(`${base}/299`)).resolves.toBe(true);
+      await expect(isDefaultProbeHttp(`${base}/300`)).resolves.toBe(false);
+      await expect(isDefaultProbeHttp(`${base}/404`)).resolves.toBe(false);
+      await expect(isDefaultProbeHttp(`${base}/500`)).resolves.toBe(false);
     } finally {
       server.closeAllConnections();
       await new Promise<void>((resolve, reject) => {

@@ -34,7 +34,7 @@ describe("PdfParserService & Coordinate Geometry (Domain Parser)", () => {
   });
 
   it("handles preflight scanned detection", async () => {
-    const mockExtractor: PdfExtractorPort = {
+    const mockExtractor = {
       preflightPdf: vi.fn().mockResolvedValue({
         isScanned: true,
         scannedMessage: "Scanned PDF. OCR arrives in 0.2",
@@ -42,7 +42,7 @@ describe("PdfParserService & Coordinate Geometry (Domain Parser)", () => {
         totalCharacters: 0,
       } satisfies PdfPreflightResult),
       extractPdf: vi.fn(),
-    };
+    } satisfies PdfExtractorPort;
 
     const service = new PdfParserService(mockExtractor);
     const preflight = await service.preflight("/path/to/scanned.pdf");
@@ -124,7 +124,7 @@ describe("PdfParserService & Coordinate Geometry (Domain Parser)", () => {
   });
 
   it("handles scanned PDF by returning scanned document without ghost embeddings", async () => {
-    const mockExtractor: PdfExtractorPort = {
+    const mockExtractor = {
       preflightPdf: vi.fn().mockResolvedValue({
         isScanned: true,
         scannedMessage: "Scanned PDF. OCR arrives in 0.2",
@@ -132,7 +132,7 @@ describe("PdfParserService & Coordinate Geometry (Domain Parser)", () => {
         totalCharacters: 10,
       }),
       extractPdf: vi.fn(),
-    };
+    } satisfies PdfExtractorPort;
 
     const service = new PdfParserService(mockExtractor);
     const parsed = await service.parse("/path/to/scanned.pdf");

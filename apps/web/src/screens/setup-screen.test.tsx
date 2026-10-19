@@ -37,15 +37,28 @@ function errorBody(status: number, body: unknown): unknown {
   return { ok: false, status, json: async () => body };
 }
 
+/**
+Reads the JSON body a stubbed request received; every stub here posts JSON text.
+*/
+function jsonBody(init: RequestInit | undefined): unknown {
+  const body = init?.body;
+  if (typeof body !== "string") {
+    throw new TypeError("Expected a JSON string request body.");
+  }
+  return JSON.parse(body);
+}
+
 const SETUP_FORM_SELECTOR = '[data-testid="setup-form"]';
 
 function typeInto(input: HTMLInputElement | null, value: string): void {
-  expect(input).not.toBeNull();
-  fireEvent.change(input as HTMLInputElement, { target: { value } });
+  if (input === null) {
+    throw new Error("Expected the input element to be rendered.");
+  }
+  fireEvent.change(input, { target: { value } });
 }
 
 function submitForm(): void {
-  const button = screen.getByRole("button", { name: "Create account" });
+  const button = screen.getByRole("button", { name: /Create (workspace|account)/i });
   expect(button).not.toBeNull();
   fireEvent.click(button);
 }
@@ -124,6 +137,52 @@ describe("setup screen (ticket 01 UI)", () => {
     ).toBe(false);
   });
 
+  it("blocks the submit client-side when confirmation passcode does not match", async () => {
+    const calls = stubFetch(async () => okBody({}));
+    const { container } = render(<SetupScreen navigate={vi.fn()} />);
+    typeInto(passcodeInput(container), "correct horse battery stallion");
+    typeInto(container.querySelector<HTMLInputElement>("#setup-passcode-confirm"), "different passcode altogether");
+    submitForm();
+    expect(screen.getByText("Passcodes do not match.")).not.toBeNull();
+    expect(calls.some((call) => call.init?.method === "POST")).toBe(false);
+  });
+
+  it("allows skipping passcode directly via skip action", async () => {
+    const calls = stubFetch(call => {
+      if (call.init?.method === "POST") {
+        return Promise.resolve(
+          okBody({
+            owner: {
+              id: "u-1",
+              email: null,
+              displayName: "Solo",
+              role: "owner",
+              hasPasscode: false,
+              createdAt: "2026-10-17T00:00:00.000Z",
+            },
+          }),
+        );
+      }
+      return Promise.resolve(
+        okBody({ setupComplete: false, requiresPasscode: false, signInRequired: false }),
+      );
+    });
+    const navigate = vi.fn();
+    const { container } = render(<SetupScreen navigate={navigate} />);
+    typeInto(container.querySelector<HTMLInputElement>("#setup-display-name"), "Solo");
+    typeInto(passcodeInput(container), "a long passcode that will be ignored");
+    const skipBtn = screen.getByRole("button", { name: /Skip the passcode/i });
+    fireEvent.click(skipBtn);
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith("/");
+    });
+    const post = calls.find((call) => call.init?.method === "POST");
+    expect(post).not.toBeNull();
+    expect(jsonBody(post?.init)).toEqual({
+      displayName: "Solo",
+    });
+  });
+
   it("posts the trimmed values and navigates to /login when a passcode is set", async () => {
     const calls = stubFetch(call => {
       if (call.init?.method === "POST") {
@@ -156,7 +215,7 @@ describe("setup screen (ticket 01 UI)", () => {
     const post = calls.find((call) => call.init?.method === "POST");
     expect(post).not.toBeNull();
     expect(post?.url).toBe("/api/setup");
-    expect(JSON.parse(String(post?.init?.body))).toEqual({
+    expect(jsonBody(post?.init)).toEqual({
       displayName: "Ada",
       email: "ada@example.com",
       passcode: "correct horse battery stallion",
@@ -191,11 +250,11 @@ describe("setup screen (ticket 01 UI)", () => {
     });
     const post = calls.find((call) => call.init?.method === "POST");
     expect(post).not.toBeNull();
-    expect(JSON.parse(String(post?.init?.body))).toEqual({});
+    expect(jsonBody(post?.init)).toEqual({});
   });
 
   it("handles SETUP_ALREADY_COMPLETED by re-probing: /login when a passcode is set", async () => {
-    let getCallCount = 0;
+    let probeCount = 0;
     stubFetch(call => {
       if (call.init?.method === "POST") {
         return Promise.resolve(
@@ -204,11 +263,11 @@ describe("setup screen (ticket 01 UI)", () => {
           }),
         );
       }
-      getCallCount += 1;
+      probeCount += 1;
       // First GET is the mount probe; the second is the post-409 re-probe.
       return Promise.resolve(
         okBody(
-          getCallCount === 1
+          probeCount === 1
             ? { setupComplete: false, requiresPasscode: false, signInRequired: false }
             : { setupComplete: true, requiresPasscode: true, signInRequired: true },
         ),
@@ -224,7 +283,7 @@ describe("setup screen (ticket 01 UI)", () => {
   });
 
   it("handles SETUP_ALREADY_COMPLETED by re-probing: / when the owner has no passcode", async () => {
-    let getCallCount = 0;
+    let probeCount = 0;
     stubFetch(call => {
       if (call.init?.method === "POST") {
         return Promise.resolve(
@@ -233,13 +292,11 @@ describe("setup screen (ticket 01 UI)", () => {
           }),
         );
       }
-      getCallCount += 1;
+      probeCount += 1;
       // First GET is the mount probe; the second is the post-409 re-probe.
       return Promise.resolve(
         okBody(
-          getCallCount === 1
-            ? { setupComplete: false, requiresPasscode: false, signInRequired: false }
-            : { setupComplete: true, requiresPasscode: false, signInRequired: false },
+          ({ setupComplete: probeCount === 1 ? false : true, requiresPasscode: false, signInRequired: false }),
         ),
       );
     });

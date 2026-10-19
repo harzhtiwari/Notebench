@@ -27,11 +27,11 @@ interface LoginResponse {
 }
 
 /**
- * Owner sign-in screen (ticket 02). Presents the shared `LockscreenModal`
- * when the daemon reports a passcode gate, establishes the sliding session
- * cookie via `/api/session/login`, and surfaces server-driven lockout state
- * (remaining attempts, 60s countdown) without owning any policy itself.
- */
+Owner sign-in screen (ticket 02). Presents the shared `LockscreenModal`
+when the daemon reports a passcode gate, establishes the sliding session
+cookie via `/api/session/login`, and surfaces server-driven lockout state
+(remaining attempts, 60s countdown) without owning any policy itself.
+*/
 export function LoginScreen({ navigate }: { navigate: (to: string) => void }) {
   const [checking, setChecking] = useState(true);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -92,6 +92,14 @@ export function LoginScreen({ navigate }: { navigate: (to: string) => void }) {
     void probe();
   }, [navigate]);
 
+  if (checking) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[var(--nb-surface)] p-6 text-[var(--nb-ink)]">
+        <div className="text-sm text-[var(--nb-ink-2)]">Checking system state...</div>
+      </main>
+    );
+  }
+
   const handleUnlock = async (passcode: string) => {
     if (busy || lockedSecondsRemaining > 0) {
       return;
@@ -120,20 +128,12 @@ export function LoginScreen({ navigate }: { navigate: (to: string) => void }) {
       setError(data.error?.message ?? "Sign-in failed. Please try again.");
       const remaining = data.error?.details?.attemptsRemaining;
       setAttemptsRemaining(typeof remaining === "number" ? remaining : undefined);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to connect to the server.");
+    } catch (error_: unknown) {
+      setError(error_ instanceof Error ? error_.message : "Failed to connect to the server.");
     } finally {
       setBusy(false);
     }
   };
-
-  if (checking) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[var(--nb-surface)] p-6 text-[var(--nb-ink)]">
-        <div className="text-sm text-[var(--nb-ink-2)]">Checking system state...</div>
-      </main>
-    );
-  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[var(--nb-surface)] p-6 text-[var(--nb-ink)]">

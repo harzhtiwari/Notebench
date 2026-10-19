@@ -13,12 +13,9 @@ export interface SetupRouteOptions {
 }
 
 /**
- * Fastify route plugin handling first-run owner onboarding and app-state status probe.
- */
-export const setupRoutes: FastifyPluginAsync<SetupRouteOptions> = async (
-  app,
-  options
-) => {
+Fastify route plugin handling first-run owner onboarding and app-state status probe.
+*/
+export const setupRoutes: FastifyPluginAsync<SetupRouteOptions> = (app, options) => {
   const { ownerSetupService } = options;
 
   const handleSetupPost = async (
@@ -39,40 +36,40 @@ export const setupRoutes: FastifyPluginAsync<SetupRouteOptions> = async (
 
     try {
       const result = await ownerSetupService.setupOwner(parseResult.data);
-      return reply.status(201).send({
+      return await reply.status(201).send({
         success: true,
         owner: result.owner,
       });
-    } catch (err: unknown) {
-      if (err instanceof SetupAlreadyCompletedError) {
-        return reply.status(err.statusCode).send({
+    } catch (error: unknown) {
+      if (error instanceof SetupAlreadyCompletedError) {
+        return reply.status(error.statusCode).send({
           error: {
-            code: err.code,
-            message: err.message,
+            code: error.code,
+            message: error.message,
           },
         });
       }
 
-      if (err instanceof ValidationError) {
-        return reply.status(err.statusCode).send({
+      if (error instanceof ValidationError) {
+        return reply.status(error.statusCode).send({
           error: {
-            code: err.code,
-            message: err.message,
-            details: err.details,
+            code: error.code,
+            message: error.message,
+            details: error.details,
           },
         });
       }
 
-      if (err instanceof NotebookError) {
-        return reply.status(err.statusCode).send({
+      if (error instanceof NotebookError) {
+        return reply.status(error.statusCode).send({
           error: {
-            code: err.code,
-            message: err.message,
+            code: error.code,
+            message: error.message,
           },
         });
       }
 
-      request.log.error(err, "Unexpected error occurred during owner setup");
+      request.log.error(error, "Unexpected error occurred during owner setup");
       return reply.status(500).send({
         error: {
           code: "INVARIANCE_VIOLATION" satisfies NotebookErrorCode,
@@ -112,4 +109,6 @@ export const setupRoutes: FastifyPluginAsync<SetupRouteOptions> = async (
 
   // 3. Application State endpoint (/api/app-state)
   app.get("/api/app-state", handleStateGet);
+
+  return Promise.resolve();
 };

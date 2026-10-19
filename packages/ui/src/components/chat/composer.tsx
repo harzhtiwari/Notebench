@@ -1,7 +1,7 @@
 import * as React from "react";
 import { IconButton } from "../primitives/button.js";
 import { Input } from "../primitives/fields.js";
-import { PaperPlaneRight } from "../primitives/icons.js";
+import { PaperPlaneRightIcon } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
 export interface ComposerProps
@@ -57,14 +57,14 @@ export const ComposerInput = React.forwardRef<HTMLInputElement, ComposerInputPro
 ComposerInput.displayName = "ComposerInput";
 
 /**
- * Board `.composer` pattern (board.test.html:541-546).
- * Grounded chat input with send button, Enter-to-submit, and secondary slot.
- */
+Board `.composer` pattern (board.test.html:541-546).
+Grounded chat input with send button, Enter-to-submit, and secondary slot.
+*/
 export const Composer = React.forwardRef<HTMLDivElement, ComposerProps>(
   (
     {
       value,
-      defaultValue,
+      defaultValue = "",
       placeholder = "Ask a question or create something",
       disabled = false,
       allowEmpty = false,
@@ -84,7 +84,7 @@ export const Composer = React.forwardRef<HTMLDivElement, ComposerProps>(
     ref
   ) => {
     const isControlled = value !== undefined;
-    const [internalValue, setInternalValue] = React.useState(defaultValue ?? "");
+    const [internalValue, setInternalValue] = React.useState(defaultValue);
     const currentValue = isControlled ? value : internalValue;
     const { onChange: inputOnChange, ...restInputProps } = inputProps ?? {};
 
@@ -111,13 +111,12 @@ export const Composer = React.forwardRef<HTMLDivElement, ComposerProps>(
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       onKeyDown?.(e);
-      if (e.defaultPrevented) return;
-      if (e.key === "Enter" && !e.shiftKey) {
-        if (!e.nativeEvent.isComposing) {
-          e.preventDefault();
-          handleSend();
-        }
+      if (e.defaultPrevented || e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) {
+        return;
       }
+
+      e.preventDefault();
+      handleSend();
     };
 
     const secondaryContent = footer ?? children;
@@ -150,7 +149,7 @@ export const Composer = React.forwardRef<HTMLDivElement, ComposerProps>(
             aria-label={sendAriaLabel}
             disabled={!canSend}
             onClick={handleSend}
-            icon={PaperPlaneRight}
+            icon={PaperPlaneRightIcon}
           />
         </ComposerRow>
         {secondaryContent ? <ComposerRow>{secondaryContent}</ComposerRow> : null}

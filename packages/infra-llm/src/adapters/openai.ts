@@ -17,8 +17,9 @@ function parseOpenAiList(bodyText: string): readonly ModelRef[] {
   if (!isRecord(parsed) || !Array.isArray(parsed["data"])) {
     throw new ProviderError("server_error", "Provider returned an unexpected model list shape");
   }
+  const data = parsed["data"];
   const models: ModelRef[] = [];
-  for (const entry of parsed["data"]) {
+  for (const entry of data) {
     if (isRecord(entry) && typeof entry["id"] === "string" && entry["id"].length > 0) {
       models.push({ id: entry["id"] });
     }
@@ -27,9 +28,9 @@ function parseOpenAiList(bodyText: string): readonly ModelRef[] {
 }
 
 /**
- * OpenAI adapter: `GET {baseUrl}/v1/models` with `Authorization: Bearer`.
- * The list endpoint has no pagination — one page holds every model.
- */
+OpenAI adapter: `GET {baseUrl}/v1/models` with `Authorization: Bearer`.
+The list endpoint has no pagination — one page holds every model.
+*/
 export class OpenAiAdapter implements ProviderAdapter {
   readonly id = "openai" as const;
   readonly defaultBaseUrl = "https://api.openai.com";
@@ -49,12 +50,12 @@ export class OpenAiAdapter implements ProviderAdapter {
     const started = Date.now();
     try {
       await this.listModels(params);
-    } catch (err: unknown) {
-      const failed = toFailedTestResult(err);
+    } catch (error: unknown) {
+      const failed = toFailedTestResult(error);
       if (failed) {
         return failed;
       }
-      throw err;
+      throw error;
     }
     return { ok: true, latencyMs: Date.now() - started };
   }

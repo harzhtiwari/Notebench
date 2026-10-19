@@ -1,9 +1,11 @@
 import { z } from "zod";
 
+const EmbeddingMatrixSchema = z.array(z.array(z.number()));
+
 export const EmbeddingBatchResultSchema = z.object({
   model: z.string(),
   dimensions: z.number().int().positive(),
-  embeddings: z.array(z.array(z.number())),
+  embeddings: EmbeddingMatrixSchema,
 });
 export type EmbeddingBatchResult = z.infer<typeof EmbeddingBatchResultSchema>;
 
@@ -15,8 +17,8 @@ export const EmbeddingQueryResultSchema = z.object({
 export type EmbeddingQueryResult = z.infer<typeof EmbeddingQueryResultSchema>;
 
 /**
- * Port interface for calculating dense vector embeddings.
- */
+Port interface for calculating dense vector embeddings.
+*/
 export interface EmbeddingPort {
   embedBatch(
     texts: string[],

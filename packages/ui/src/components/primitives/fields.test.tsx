@@ -20,7 +20,7 @@ describe("consolidated fields.tsx (board /* fields */)", () => {
   describe("Input (board .input)", () => {
     it("renders the board shape and accepts typing", () => {
       render(<Input placeholder="Type query..." defaultValue="Initial" />);
-      const input = screen.getByPlaceholderText("Type query...") as HTMLInputElement;
+      const input = screen.getByPlaceholderText<HTMLInputElement>("Type query...");
       expect(input.value).toBe("Initial");
       expect(input.className).toContain("min-h-[var(--nb-size-control-md)]");
       expect(input.className).toContain("bg-[var(--nb-well)]");
@@ -54,7 +54,7 @@ describe("consolidated fields.tsx (board /* fields */)", () => {
 
     it("binds disabled styles to the disabled tokens", () => {
       render(<Input aria-label="Set by your admin" disabled />);
-      const input = screen.getByLabelText("Set by your admin") as HTMLInputElement;
+      const input = screen.getByLabelText<HTMLInputElement>("Set by your admin");
       expect(input.disabled).toBe(true);
       expect(input.className).toContain("disabled:bg-[var(--nb-disabled-bg)]");
       expect(input.className).toContain("disabled:text-[var(--nb-disabled-fg)]");
@@ -135,7 +135,7 @@ describe("consolidated fields.tsx (board /* fields */)", () => {
   describe("PasswordInput", () => {
     it("masks by default and unmasks through the IconButton toggle", () => {
       render(<PasswordInput aria-label="Session passcode" />);
-      const input = screen.getByLabelText("Session passcode") as HTMLInputElement;
+      const input = screen.getByLabelText<HTMLInputElement>("Session passcode");
       expect(input.type).toBe("password");
       const toggle = screen.getByRole("button", { name: "Show passcode" });
       fireEvent.click(toggle);
@@ -146,7 +146,7 @@ describe("consolidated fields.tsx (board /* fields */)", () => {
 
     it("toggles back to masked on a second press", () => {
       render(<PasswordInput aria-label="Session passcode" />);
-      const input = screen.getByLabelText("Session passcode") as HTMLInputElement;
+      const input = screen.getByLabelText<HTMLInputElement>("Session passcode");
       fireEvent.click(screen.getByRole("button", { name: "Show passcode" }));
       fireEvent.click(screen.getByRole("button", { name: "Hide passcode" }));
       expect(input.type).toBe("password");
@@ -161,7 +161,7 @@ describe("consolidated fields.tsx (board /* fields */)", () => {
       const { container } = render(
         <SearchInput aria-label="Search notebooks" placeholder="Search the web for new sources" />
       );
-      const input = screen.getByLabelText("Search notebooks") as HTMLInputElement;
+      const input = screen.getByLabelText<HTMLInputElement>("Search notebooks");
       expect(input.getAttribute("type")).toBe("search");
       expect(container.querySelector("svg")).not.toBeNull();
       const wrapper = input.parentElement;
@@ -179,7 +179,7 @@ describe("consolidated fields.tsx (board /* fields */)", () => {
   describe("Checkbox (board .check)", () => {
     it("renders a native checkbox: 24px square, ink accent, control-md touch target", () => {
       render(<Checkbox defaultChecked>Use in this task</Checkbox>);
-      const box = screen.getByRole("checkbox", { name: "Use in this task" }) as HTMLInputElement;
+      const box = screen.getByRole<HTMLInputElement>("checkbox", { name: "Use in this task" });
       expect(box.checked).toBe(true);
       expect(box.className).toContain("h-[var(--nb-size-icon-lg)]");
       expect(box.className).toContain("w-[var(--nb-size-icon-lg)]");
@@ -218,7 +218,7 @@ describe("consolidated fields.tsx (board /* fields */)", () => {
       const group = screen.getByRole("group", { name: "Mode" });
       expect(group.className).toContain("rounded-[var(--nb-radius-control)]");
       expect(group.className).toContain("bg-[var(--nb-well)]");
-      const web = screen.getByRole("radio", { name: "Web" }) as HTMLInputElement;
+      const web = screen.getByRole<HTMLInputElement>("radio", { name: "Web" });
       expect(web.checked).toBe(true);
       fireEvent.click(screen.getByRole("radio", { name: "Fast research" }));
       expect(onChange).toHaveBeenCalledWith("fast");

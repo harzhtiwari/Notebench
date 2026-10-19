@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { join } from "node:path";
+import path from "node:path";
 import { resolveWebCompilerEnv } from "../src/config-duality.js";
 
 /**
- * Ticket 05 RED slice 1 — web compiler duality resolver.
- *
- * Seams under test (public boundaries only):
- * - (B) config-duality resolver observed via return values / throws
- *   (env in, resolved paths out). No filesystem, no Next import.
- *
- * Vocabulary: orchestrator, server, web sidecar, namespace (spec section 1).
- */
+Ticket 05 RED slice 1 — web compiler duality resolver.
+
+Seams under test (public boundaries only):
+- (B) config-duality resolver observed via return values / throws
+  (env in, resolved paths out). No filesystem, no Next import.
+
+Vocabulary: orchestrator, server, web sidecar, namespace (spec section 1).
+*/
 describe("ticket 05: web compiler duality resolver", () => {
   it("resolves absolute distDir with turbopack default and derived tsconfig under the build dir", () => {
     expect(
@@ -22,7 +22,7 @@ describe("ticket 05: web compiler duality resolver", () => {
       )
     ).toEqual({
       distDir: "/repo/.tmp/build/ns/web-dist",
-      tsconfigPath: join("/repo/.tmp/build/ns", "tsconfig.dev.json"),
+      tsconfigPath: path.join("/repo/.tmp/build/ns", "tsconfig.dev.json"),
       bundler: "turbopack",
     });
   });

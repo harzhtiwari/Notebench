@@ -2,6 +2,18 @@ import { describe, it, expect, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildServer } from "../app.js";
 
+interface DoctorProbe {
+  id: string;
+  status: string;
+  message: string;
+}
+
+interface DoctorBody {
+  status: string;
+  version: string;
+  probes: DoctorProbe[];
+}
+
 describe("Doctor Diagnostic Route GET /api/doctor (Ticket 24 - RED phase)", () => {
   it("returns exactly six probes and overall ok status when all pass", async () => {
     const mockDocWorker = {
@@ -24,7 +36,7 @@ describe("Doctor Diagnostic Route GET /api/doctor (Ticket 24 - RED phase)", () =
     });
 
     expect(response.statusCode).toBe(200);
-    const body = JSON.parse(response.body);
+    const body = JSON.parse(response.body) as DoctorBody;
 
     expect(body.status).toBeDefined();
     expect(body.version).toBe("0.1.0");
@@ -54,12 +66,12 @@ describe("Doctor Diagnostic Route GET /api/doctor (Ticket 24 - RED phase)", () =
     });
 
     expect(response.statusCode).toBe(200);
-    const body = JSON.parse(response.body);
-    const exposureProbe = body.probes.find((p: { id: string }) => p.id === "exposure");
+    const body = JSON.parse(response.body) as DoctorBody;
+    const exposureProbe = body.probes.find((p) => p.id === "exposure");
 
     expect(exposureProbe).toBeDefined();
-    expect(exposureProbe.status).toBe("warn");
-    expect(exposureProbe.message).toContain("Security Notice: Notebench is accessible on your local network");
+    expect(exposureProbe?.status).toBe("warn");
+    expect(exposureProbe?.message).toContain("Security Notice: Notebench is accessible on your local network");
 
     await server.close();
   });
@@ -76,12 +88,12 @@ describe("Doctor Diagnostic Route GET /api/doctor (Ticket 24 - RED phase)", () =
     });
 
     expect(response.statusCode).toBe(200);
-    const body = JSON.parse(response.body);
-    const exposureProbe = body.probes.find((p: { id: string }) => p.id === "exposure");
+    const body = JSON.parse(response.body) as DoctorBody;
+    const exposureProbe = body.probes.find((p) => p.id === "exposure");
 
     expect(exposureProbe).toBeDefined();
-    expect(exposureProbe.status).toBe("pass");
-    expect(exposureProbe.message).not.toContain("without a passcode");
+    expect(exposureProbe?.status).toBe("pass");
+    expect(exposureProbe?.message).not.toContain("without a passcode");
 
     await server.close();
   });

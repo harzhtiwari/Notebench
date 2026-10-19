@@ -1,6 +1,6 @@
 import { Sheet, SheetHeader, SheetTitle, SheetDescription, SheetContent } from "../primitives/surface.js";
 import { Button } from "../primitives/button.js";
-import { Notebook, Plus, resolveIconProps } from "../primitives/icons.js";
+import { NotebookIcon, PlusIcon, resolveIconProps } from "../primitives/icons.js";
 
 export interface FirstRunBlankStateProps {
   onCreateNotebook?: (() => void) | undefined;
@@ -12,7 +12,7 @@ export function FirstRunBlankState({ onCreateNotebook }: FirstRunBlankStateProps
       <Sheet className="w-full max-w-[var(--nb-layout-modal-sm)] border-[var(--nb-edge)] bg-[var(--nb-sheet)] text-center p-6">
         <SheetHeader className="items-center p-0 mb-4">
           <div className="mb-3 flex h-[var(--nb-size-logo)] w-[var(--nb-size-logo)] items-center justify-center rounded-[var(--nb-radius-chip)] bg-[var(--nb-well)] text-[var(--nb-ink)]">
-            <Notebook {...resolveIconProps({ size: "lg" })} />
+            <NotebookIcon {...resolveIconProps({ size: "lg" })} />
           </div>
           <SheetTitle className="text-xl font-semibold text-[var(--nb-ink)]">
             Welcome to Notebench
@@ -25,7 +25,7 @@ export function FirstRunBlankState({ onCreateNotebook }: FirstRunBlankStateProps
         <SheetContent className="p-0 pt-2 flex justify-center">
           <Button
             size="nb_btn_lg"
-            leadingIcon={Plus}
+            leadingIcon={PlusIcon}
             onClick={onCreateNotebook}
           >
             + Create Notebook

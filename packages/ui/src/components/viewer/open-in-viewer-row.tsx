@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Button } from "../primitives/button.js";
-import { BookOpen, CaretRight } from "../primitives/icons.js";
+import { BookOpenIcon, CaretRightIcon } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
 export interface OpenInViewerRowProps
@@ -9,10 +9,10 @@ export interface OpenInViewerRowProps
 }
 
 /**
- * "Open in Source Viewer" row (ticket 09): the citation-popover action that
- * opens the `ViewerModal` at the cited page. Icon + label always, never
- * icon-alone. The cited locator travels via the parent's `onOpen`.
- */
+"Open in Source Viewer" row (ticket 09): the citation-popover action that
+opens the `ViewerModal` at the cited page. Icon + label always, never
+icon-alone. The cited locator travels via the parent's `onOpen`.
+*/
 const OpenInViewerRow = React.forwardRef<
   HTMLButtonElement,
   OpenInViewerRowProps
@@ -23,8 +23,8 @@ const OpenInViewerRow = React.forwardRef<
     variant="nb_btn_ghost"
     size="nb_btn_sm"
     aria-label="Open in Source Viewer"
-    leadingIcon={BookOpen}
-    trailingIcon={CaretRight}
+    leadingIcon={BookOpenIcon}
+    trailingIcon={CaretRightIcon}
     onClick={() => {
       onOpen?.();
     }}

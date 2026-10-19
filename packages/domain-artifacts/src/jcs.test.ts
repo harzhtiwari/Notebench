@@ -2,12 +2,12 @@ import { describe, it, expect } from "vitest";
 import { canonicalizeJson } from "./jcs.js";
 
 /**
- * RED suite for the hand-rolled RFC 8785 (JCS) canonicalizer.
- * No npm `canonicalize` dependency: string/number escaping delegates to
- * JSON.stringify, object keys sort as UTF-16 code units, no normalization.
- * (Research: docs/research/2026-10-15/02-storage-health-release-baseline.md §12;
- * RFC 8785 https://www.rfc-editor.org/rfc/rfc8785.txt)
- */
+RED suite for the hand-rolled RFC 8785 (JCS) canonicalizer.
+No npm `canonicalize` dependency: string/number escaping delegates to
+JSON.stringify, object keys sort as UTF-16 code units, no normalization.
+(Research: docs/research/2026-10-15/02-storage-health-release-baseline.md §12;
+RFC 8785 https://www.rfc-editor.org/rfc/rfc8785.txt)
+*/
 describe("RFC 8785 hand-rolled JSON canonicalizer (JCS)", () => {
   it("emits no whitespace and sorts keys as UTF-16 code units", () => {
     expect(canonicalizeJson({ b: 1, a: [3, 2] })).toBe('{"a":[3,2],"b":1}');
@@ -43,23 +43,23 @@ describe("RFC 8785 hand-rolled JSON canonicalizer (JCS)", () => {
   });
 
   it("rejects non-finite numbers per RFC 8785 §3.2.2.3", () => {
-    expect(() => canonicalizeJson(Number.NaN)).toThrow(TypeError);
-    expect(() => canonicalizeJson(Number.POSITIVE_INFINITY)).toThrow(TypeError);
-    expect(() => canonicalizeJson({ n: Number.NEGATIVE_INFINITY })).toThrow(TypeError);
+    expect(() => canonicalizeJson(NaN)).toThrow(TypeError);
+    expect(() => canonicalizeJson(Infinity)).toThrow(TypeError);
+    expect(() => canonicalizeJson({ n: -Infinity })).toThrow(TypeError);
   });
 
   it("preserves Unicode as-is with no normalization", () => {
     // U+00E9 as a single code point stays literal (JSON.stringify behaviour).
-    expect(canonicalizeJson({ t: "caf\u00e9" })).toBe('{"t":"caf\u00e9"}');
+    expect(canonicalizeJson({ t: "caf\u{E9}" })).toBe('{"t":"caf\u{E9}"}');
     // Composed vs decomposed forms are distinct inputs with distinct outputs.
-    expect(canonicalizeJson({ t: "\u00e9" })).not.toBe(canonicalizeJson({ t: "e\u0301" }));
+    expect(canonicalizeJson({ t: "\u{E9}" })).not.toBe(canonicalizeJson({ t: "e\u{301}" }));
   });
 
   it("rejects lone surrogates per RFC 8785 §3.2.2.2", () => {
-    expect(() => canonicalizeJson({ t: "\ud800" })).toThrow(TypeError);
-    expect(() => canonicalizeJson({ t: "a\udc00" })).toThrow(TypeError);
+    expect(() => canonicalizeJson({ t: "\u{D800}" })).toThrow(TypeError);
+    expect(() => canonicalizeJson({ t: "a\u{DC00}" })).toThrow(TypeError);
     // A well-formed surrogate pair is accepted.
-    expect(canonicalizeJson({ t: "\ud83d\ude00" })).toBe('{"t":"\ud83d\ude00"}');
+    expect(canonicalizeJson({ t: "\u{1F600}" })).toBe('{"t":"\u{1F600}"}');
   });
 
   it("rejects non-I-JSON values (undefined, bigint, function, symbol)", () => {
@@ -81,11 +81,27 @@ describe("RFC 8785 hand-rolled JSON canonicalizer (JCS)", () => {
   });
 });
 
+/**
+Interprets a 64-bit IEEE 754 hex word (RFC 8785 Appendix B) as a JS Number.
+*/
+function numberFromIeee754Hex(hex: string): number {
+  const view = new DataView(new ArrayBuffer(8));
+  view.setBigUint64(0, BigInt(`0x${hex}`), false);
+  return view.getFloat64(0, false);
+}
+
 describe("RFC 8785 official test vectors", () => {
   it("matches the Section 3.2.2 end-to-end canonicalization sample", () => {
     const sample = {
-      numbers: [333333333.33333329, 1e30, 4.5, 2e-3, 0.000000000000000000000000001],
-      string: "\u20ac$\u000f\nA'B\"\\\\\"/",
+      numbers: [
+        // RFC §3.2.2 sample: the 17-digit decimal 333333333.33333329 parses to this double.
+        Number("333333333.33333329"),
+        1e30,
+        4.5,
+        2e-3,
+        0.000000000000000000000000001,
+      ],
+      string: "\u{20AC}$\u{F}\nA'B\"\\\\\"/",
       literals: [null, true, false],
     };
 
@@ -96,13 +112,13 @@ describe("RFC 8785 official test vectors", () => {
 
   it("sorts Section 3.2.3 mixed-Unicode property names in UTF-16 code-unit order", () => {
     const input = {
-      "\u20ac": "Euro Sign",
+      "\u{20AC}": "Euro Sign",
       "\r": "Carriage Return",
-      "\ufb33": "Hebrew Letter Dalet With Dagesh",
+      "\u{FB33}": "Hebrew Letter Dalet With Dagesh",
       "1": "One",
-      "\ud83d\ude00": "Emoji: Grinning Face",
-      "\u0080": "Control",
-      "\u00f6": "Latin Small Letter O With Diaeresis",
+      "\u{1F600}": "Emoji: Grinning Face",
+      "\u{80}": "Control",
+      "\u{F6}": "Latin Small Letter O With Diaeresis",
     };
 
     // Expected order from RFC 8785 §3.2.3: U+000D, U+0031, U+0080, U+00F6,
@@ -110,27 +126,20 @@ describe("RFC 8785 official test vectors", () => {
     // as-is (not ASCII controls); U+000D is written as the "\r" escape.
     const expected =
       "{" +
-      '"\\r":"Carriage Return",' +
+      String.raw`"\r":"Carriage Return",` +
       '"1":"One",' +
-      '"\u0080":"Control",' +
-      '"\u00f6":"Latin Small Letter O With Diaeresis",' +
-      '"\u20ac":"Euro Sign",' +
-      '"\ud83d\ude00":"Emoji: Grinning Face",' +
-      '"\ufb33":"Hebrew Letter Dalet With Dagesh"' +
+      '"\u{80}":"Control",' +
+      '"\u{F6}":"Latin Small Letter O With Diaeresis",' +
+      '"\u{20AC}":"Euro Sign",' +
+      '"\u{1F600}":"Emoji: Grinning Face",' +
+      '"\u{FB33}":"Hebrew Letter Dalet With Dagesh"' +
       "}";
 
     expect(canonicalizeJson(input)).toBe(expected);
   });
 
-  /** Interprets a 64-bit IEEE 754 hex word (RFC 8785 Appendix B) as a JS Number. */
-  function numberFromIeee754Hex(hex: string): number {
-    const view = new DataView(new ArrayBuffer(8));
-    view.setBigUint64(0, BigInt(`0x${hex}`), false);
-    return view.getFloat64(0, false);
-  }
-
   // RFC 8785 Appendix B, Table 1. `null` marks values that MUST error (NaN/Infinity).
-  const APPENDIX_B_VECTORS: ReadonlyArray<readonly [string, string | null]> = [
+  const APPENDIX_B_VECTORS: readonly (readonly [string, string | null])[] = [
     ["0000000000000000", "0"], // Zero
     ["8000000000000000", "0"], // Minus zero
     ["0000000000000001", "5e-324"], // Min pos number
@@ -174,22 +183,26 @@ describe("RFC 8785 official test vectors", () => {
   });
 });
 
-/** Deterministic PRNG (mulberry32) — no extra test dependencies. */
+/**
+Deterministic PRNG (mulberry32) — no extra test dependencies.
+*/
 function mulberry32(seed: number): () => number {
   let state = seed >>> 0;
   return () => {
+    // eslint-disable-next-line unicorn/prefer-math-trunc -- mulberry32 requires ToInt32 wrap-around; Math.trunc is not equivalent
     state |= 0;
-    state = (state + 0x6d2b79f5) | 0;
+    // eslint-disable-next-line unicorn/prefer-math-trunc -- mulberry32 requires ToInt32 wrap-around; Math.trunc is not equivalent
+    state = (state + 0x6D_2B_79_F5) | 0;
     let t = Math.imul(state ^ (state >>> 15), 1 | state);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
   };
 }
 
 type JsonLeaf = string | number | boolean | null;
 type JsonTree = JsonLeaf | JsonTree[] | { [key: string]: JsonTree };
 
-const LEAF_POOL: JsonLeaf[] = ["a", "Z", "", "caf\u00e9", 0, -0, 1.5, 1e30, true, false, null];
+const LEAF_POOL: JsonLeaf[] = ["a", "Z", "", "caf\u{E9}", 0, -0, 1.5, 1e30, true, false, null];
 
 function randomTree(rand: () => number, depth: number): JsonTree {
   const roll = rand();
@@ -203,22 +216,27 @@ function randomTree(rand: () => number, depth: number): JsonTree {
   }
   const keys = ["a", "Z", "id", "text", "0", "_", "m", "Ab"];
   const count = Math.floor(rand() * 4);
-  const obj: { [key: string]: JsonTree } = {};
+  const obj: Record<string, JsonTree> = {};
   for (let i = 0; i < count; i++) {
-    const key = keys[Math.floor(rand() * keys.length)] as string;
+    const key = keys[Math.floor(rand() * keys.length)];
+    if (key === undefined) {
+      throw new Error("randomTree invariant violated: key index out of range");
+    }
     obj[key] = randomTree(rand, depth - 1);
   }
   return obj;
 }
 
-/** Shuffles insertion order by rebuilding objects with rotated key order. */
+/**
+Shuffles insertion order by rebuilding objects with rotated key order.
+*/
 function shuffleKeys(value: JsonTree, rand: () => number): JsonTree {
   if (Array.isArray(value)) return value.map((v) => shuffleKeys(v, rand));
   if (value !== null && typeof value === "object") {
     const keys = Object.keys(value);
     const offset = Math.floor(rand() * (keys.length + 1));
     const rotated = [...keys.slice(offset), ...keys.slice(0, offset)];
-    const out: { [key: string]: JsonTree } = {};
+    const out: Record<string, JsonTree> = {};
     for (const k of rotated) {
       out[k] = shuffleKeys((value as Record<string, JsonTree>)[k] as JsonTree, rand);
     }
@@ -229,7 +247,7 @@ function shuffleKeys(value: JsonTree, rand: () => number): JsonTree {
 
 describe("JCS canonicalizer property-based random-tree checks", () => {
   it("is stable under key reordering and round-trips through JSON.parse (200 trees)", () => {
-    const rand = mulberry32(0x12c0ff33);
+    const rand = mulberry32(0x12_C0_FF_33);
     for (let i = 0; i < 200; i++) {
       const tree = randomTree(rand, 4);
       const shuffled = shuffleKeys(tree, rand);
@@ -237,6 +255,7 @@ describe("JCS canonicalizer property-based random-tree checks", () => {
       // Key order never affects the canonical form.
       expect(canonicalizeJson(shuffled)).toBe(base);
       // Canonical form always parses back to a deep-equal value.
+      // eslint-disable-next-line unicorn/prefer-structured-clone -- JSON round-trip deliberately normalizes -0 to 0 (JCS §3.2.2.3); structuredClone preserves -0 and toEqual distinguishes them
       expect(JSON.parse(base)).toEqual(JSON.parse(JSON.stringify(tree)));
     }
   });

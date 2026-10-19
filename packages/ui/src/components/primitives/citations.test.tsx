@@ -23,7 +23,7 @@ describe("CitationChip", () => {
     expect(chip.className).toContain("text-[var(--nb-on-marker)]");
     expect(chip.className).toContain("border-[var(--nb-marker-text)]");
     expect(chip.className).toContain("min-h-[var(--nb-size-target-min)]");
-    expect(chip.getAttribute("data-state")).toBe("normal");
+    expect(chip.dataset["state"]).toBe("normal");
     expect(chip.getAttribute("aria-current")).toBeNull();
     expect(chip.className).not.toContain("cite--missing");
   });
@@ -37,7 +37,7 @@ describe("CitationChip", () => {
     render(<CitationChip label="14:32" current />);
     const chip = screen.getByRole("button", { name: "14:32" });
     expect(chip.getAttribute("aria-current")).toBe("true");
-    expect(chip.getAttribute("data-state")).toBe("current");
+    expect(chip.dataset["state"]).toBe("current");
     expect(chip.className).toContain("bg-[var(--nb-ink)]");
     expect(chip.className).toContain("text-[var(--nb-ink-inv)]");
   });
@@ -46,7 +46,7 @@ describe("CitationChip", () => {
     render(<CitationChip label="p. 31" state="current" />);
     const chip = screen.getByRole("button", { name: "p. 31" });
     expect(chip.getAttribute("aria-current")).toBe("true");
-    expect(chip.getAttribute("data-state")).toBe("current");
+    expect(chip.dataset["state"]).toBe("current");
   });
 
   it("renders the missing state with .cite--missing and a warning icon", () => {
@@ -55,7 +55,7 @@ describe("CitationChip", () => {
     expect(chip.className).toContain("cite--missing");
     expect(chip.className).toContain("bg-[var(--nb-warn-wash)]");
     expect(chip.className).toContain("text-[var(--nb-warn)]");
-    expect(chip.getAttribute("data-state")).toBe("missing");
+    expect(chip.dataset["state"]).toBe("missing");
     expect(container.querySelector("svg")).not.toBeNull();
   });
 
@@ -122,7 +122,7 @@ describe("CitationHighlight", () => {
     );
     const highlight = screen.getByText("Highlighted");
     expect(highlight.className).toContain("extra-hl");
-    expect(highlight.getAttribute("data-citation-id")).toBe("c-1");
+    expect(highlight.dataset["citationId"]).toBe("c-1");
   });
 });
 

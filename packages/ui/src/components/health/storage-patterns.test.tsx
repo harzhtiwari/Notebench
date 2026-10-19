@@ -9,7 +9,7 @@ import {
   type StorageCategoryItem,
 } from "./index.js";
 import { LevelActions } from "../trash/index.js";
-import { HardDrive, Database } from "../primitives/index.js";
+import { HardDriveIcon, DatabaseIcon } from "../primitives/index.js";
 
 afterEach(() => {
   cleanup();
@@ -17,20 +17,20 @@ afterEach(() => {
 
 describe("Storage Page Patterns (Issue 22 / Ticket 23)", () => {
   const sampleCategories: StorageCategoryItem[] = [
-    { id: "database", label: "Database", bytes: 268435456 }, // 256 MB
-    { id: "uploads", label: "Uploads", bytes: 805306368 }, // 768 MB
-    { id: "artifacts", label: "Artifacts", bytes: 134217728 }, // 128 MB
-    { id: "vault", label: "Vault Keys", bytes: 1048576 }, // 1 MB
-    { id: "cache", label: "Cache", bytes: 67108864 }, // 64 MB
-    { id: "logs", label: "Logs", bytes: 33554432 }, // 32 MB
+    { id: "database", label: "Database", bytes: 268_435_456 }, // 256 MB
+    { id: "uploads", label: "Uploads", bytes: 805_306_368 }, // 768 MB
+    { id: "artifacts", label: "Artifacts", bytes: 134_217_728 }, // 128 MB
+    { id: "vault", label: "Vault Keys", bytes: 1_048_576 }, // 1 MB
+    { id: "cache", label: "Cache", bytes: 67_108_864 }, // 64 MB
+    { id: "logs", label: "Logs", bytes: 33_554_432 }, // 32 MB
   ];
 
   describe("Icons Export", () => {
     it("exports HardDrive and Database as renderable SVG icons", () => {
-      const { container: c1 } = render(<HardDrive size={16} />);
+      const { container: c1 } = render(<HardDriveIcon size={16} />);
       expect(c1.querySelector("svg")).not.toBeNull();
 
-      const { container: c2 } = render(<Database size={16} />);
+      const { container: c2 } = render(<DatabaseIcon size={16} />);
       expect(c2.querySelector("svg")).not.toBeNull();
     });
   });
@@ -38,7 +38,7 @@ describe("Storage Page Patterns (Issue 22 / Ticket 23)", () => {
   describe("UsageBar Component", () => {
     it("has 5.0 GB default safe cap constant matching PRD 1.34", () => {
       expect(DEFAULT_STORAGE_SAFE_CAP_BYTES).toBe(5 * 1024 * 1024 * 1024);
-      expect(DEFAULT_STORAGE_SAFE_CAP_BYTES).toBe(5368709120);
+      expect(DEFAULT_STORAGE_SAFE_CAP_BYTES).toBe(5_368_709_120);
     });
 
     it("renders headline with total usage and safe cap percentage", () => {
@@ -100,7 +100,7 @@ describe("Storage Page Patterns (Issue 22 / Ticket 23)", () => {
     it("supports custom capBytes and handles 0 B / empty categories", () => {
       const customCap = 1024 * 1024 * 1024; // 1 GB
       const singleCat: StorageCategoryItem[] = [
-        { id: "database", label: "Database", bytes: 536870912 }, // 512 MB
+        { id: "database", label: "Database", bytes: 536_870_912 }, // 512 MB
       ];
 
       render(<UsageBar categories={singleCat} capBytes={customCap} />);
@@ -198,10 +198,10 @@ describe("Storage Page Patterns (Issue 22 / Ticket 23)", () => {
     it("disables deletion actions when export-first gating is active (exported: false)", () => {
       render(<LevelActions exported={false} gated={true} />);
 
-      const deleteButtons = screen.getAllByRole("button", { name: /Clear|Delete|Reset|Purge/i });
-      expect(deleteButtons.length).toBeGreaterThan(0);
+      const levelActionButtons = screen.getAllByRole("button", { name: /Clear|Delete|Reset|Purge/i });
+      expect(levelActionButtons.length).toBeGreaterThan(0);
 
-      for (const btn of deleteButtons) {
+      for (const btn of levelActionButtons) {
         expect(btn.getAttribute("disabled")).not.toBeNull();
       }
     });
@@ -209,10 +209,10 @@ describe("Storage Page Patterns (Issue 22 / Ticket 23)", () => {
     it("enables deletion actions when exported is true", () => {
       render(<LevelActions exported={true} gated={true} />);
 
-      const deleteButtons = screen.getAllByRole("button", { name: /Clear|Delete|Reset|Purge/i });
-      expect(deleteButtons.length).toBeGreaterThan(0);
+      const levelActionButtons = screen.getAllByRole("button", { name: /Clear|Delete|Reset|Purge/i });
+      expect(levelActionButtons.length).toBeGreaterThan(0);
 
-      for (const btn of deleteButtons) {
+      for (const btn of levelActionButtons) {
         expect(btn.getAttribute("disabled")).toBeNull();
       }
     });

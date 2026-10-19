@@ -3,9 +3,16 @@ import { z } from "zod";
 export const DocxNodeTypeSchema = z.enum(["heading", "paragraph", "list-item", "table"]);
 export type DocxNodeType = z.infer<typeof DocxNodeTypeSchema>;
 
+const DocxStringArraySchema = z.array(z.string());
+
+const DocxTableNodeSchema = z.object({
+  rows: z.array(DocxStringArraySchema),
+  headers: DocxStringArraySchema.optional(),
+});
+
 /**
- * Extracted DOCX semantic structural block.
- */
+Extracted DOCX semantic structural block.
+*/
 export const DocxBlockSchema = z.object({
   index: z.number().int().nonnegative(),
   nodeType: DocxNodeTypeSchema,
@@ -14,18 +21,13 @@ export const DocxBlockSchema = z.object({
   charStart: z.number().int().nonnegative(),
   charEnd: z.number().int().nonnegative(),
   headingHierarchy: z.array(z.string()).default([]),
-  table: z
-    .object({
-      rows: z.array(z.array(z.string())),
-      headers: z.array(z.string()).optional(),
-    })
-    .optional(),
+  table: DocxTableNodeSchema.optional(),
 });
 export type DocxBlock = z.infer<typeof DocxBlockSchema>;
 
 /**
- * Result of extracting a DOCX document via python-docx.
- */
+Result of extracting a DOCX document via python-docx.
+*/
 export const DocxExtractResultSchema = z.object({
   totalCharacters: z.number().int().nonnegative(),
   totalWords: z.number().int().nonnegative(),
@@ -37,8 +39,8 @@ export const DocxExtractResultSchema = z.object({
 export type DocxExtractResult = z.infer<typeof DocxExtractResultSchema>;
 
 /**
- * Port interface for querying DOCX extraction capabilities.
- */
+Port interface for querying DOCX extraction capabilities.
+*/
 export interface DocxExtractorPort {
   extractDocx(filePath: string): Promise<DocxExtractResult>;
 }

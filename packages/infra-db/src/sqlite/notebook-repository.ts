@@ -15,8 +15,8 @@ import {
 import { sqliteSchema } from "../schema/index.js";
 
 /**
- * Initializes the SQLite tables if they do not exist.
- */
+Initializes the SQLite tables if they do not exist.
+*/
 export function initializeSqliteSchema(sqlite: Database.Database): void {
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -135,6 +135,35 @@ export class SqliteNotebookRepository implements NotebookRepositoryPort {
     this.sqlite = sqlite;
   }
 
+  /**
+  Single INSERT path for `sources` rows. duplicate() copies sources through
+  this method (instead of open-coded SQL) so copied rows stay in lockstep
+  with the table definition.
+  */
+  private async insertSourceRow(
+    row: typeof sqliteSchema.sources.$inferInsert
+  ): Promise<void> {
+    await this.db.insert(sqliteSchema.sources).values(row);
+  }
+
+  /**
+  Single INSERT path for `artifacts` rows, used by duplicate().
+  */
+  private async insertArtifactRow(
+    row: typeof sqliteSchema.artifacts.$inferInsert
+  ): Promise<void> {
+    await this.db.insert(sqliteSchema.artifacts).values(row);
+  }
+
+  /**
+  Single INSERT path for `artifact_versions` rows, used by duplicate().
+  */
+  private async insertArtifactVersionRow(
+    row: typeof sqliteSchema.artifactVersions.$inferInsert
+  ): Promise<void> {
+    await this.db.insert(sqliteSchema.artifactVersions).values(row);
+  }
+
   public async findById(id: string, userId: string): Promise<Notebook | null> {
     const rows = await this.db
       .select()
@@ -219,8 +248,8 @@ export class SqliteNotebookRepository implements NotebookRepositoryPort {
     return {
       id,
       userId,
-      title: input.title !== undefined ? input.title : existing.title,
-      trashedAt: input.trashedAt !== undefined ? input.trashedAt : existing.trashedAt,
+      title: input.title ?? existing.title,
+      trashedAt: input.trashedAt === undefined ? existing.trashedAt : input.trashedAt,
       createdAt: existing.createdAt,
       updatedAt: now,
     };
@@ -263,11 +292,11 @@ export class SqliteNotebookRepository implements NotebookRepositoryPort {
           FROM sources 
           WHERE notebook_id = ? AND user_id = ?
         `)
-        .all(nb.id, userId) as Array<{
+        .all(nb.id, userId) as {
           title: string;
           byte_size: number | null;
           file_path: string | null;
-        }>;
+        }[];
 
       // Count artifacts for this notebook
       const artifactCountRow = this.sqlite
@@ -298,42 +327,13 @@ export class SqliteNotebookRepository implements NotebookRepositoryPort {
         createdAt: nb.createdAt,
         updatedAt: nb.updatedAt,
         sourcesCount: sourceRows.length,
-        artifactsCount: artifactCountRow ? Number(artifactCountRow.count) : 0,
+        artifactsCount: artifactCountRow.count,
         storageBytes,
         sourceFileNames,
       });
     }
 
     return summaries;
-  }
-
-  /**
-   * Single INSERT path for `sources` rows. duplicate() copies sources through
-   * this method (instead of open-coded SQL) so copied rows stay in lockstep
-   * with the table definition.
-   */
-  private async insertSourceRow(
-    row: typeof sqliteSchema.sources.$inferInsert
-  ): Promise<void> {
-    await this.db.insert(sqliteSchema.sources).values(row);
-  }
-
-  /**
-   * Single INSERT path for `artifacts` rows, used by duplicate().
-   */
-  private async insertArtifactRow(
-    row: typeof sqliteSchema.artifacts.$inferInsert
-  ): Promise<void> {
-    await this.db.insert(sqliteSchema.artifacts).values(row);
-  }
-
-  /**
-   * Single INSERT path for `artifact_versions` rows, used by duplicate().
-   */
-  private async insertArtifactVersionRow(
-    row: typeof sqliteSchema.artifactVersions.$inferInsert
-  ): Promise<void> {
-    await this.db.insert(sqliteSchema.artifactVersions).values(row);
   }
 
   public async duplicate(
@@ -347,17 +347,17 @@ export class SqliteNotebookRepository implements NotebookRepositoryPort {
     }
 
     const newTitle = input?.title ?? `Copy of ${original.title}`;
-    const duplicateSources = input?.duplicateSources ?? true;
-    const duplicateArtifacts = input?.duplicateArtifacts ?? true;
+    const isDuplicateSources = input?.duplicateSources ?? true;
+    const isDuplicateArtifacts = input?.duplicateArtifacts ?? true;
 
     // Use repository's create method (Decision / reuse rule)
     const newNotebook = await this.create(userId, { title: newTitle });
     const now = new Date().toISOString();
 
-    if (duplicateSources) {
+    if (isDuplicateSources) {
       const sourceRows = this.sqlite
         .prepare(`SELECT * FROM sources WHERE notebook_id = ? AND user_id = ?`)
-        .all(sourceNotebookId, userId) as Array<{
+        .all(sourceNotebookId, userId) as {
           id: string;
           title: string;
           type: string;
@@ -368,7 +368,7 @@ export class SqliteNotebookRepository implements NotebookRepositoryPort {
           content_hash: string | null;
           token_count: number | null;
           summary: string | null;
-        }>;
+        }[];
 
       for (const src of sourceRows) {
         await this.insertSourceRow({
@@ -390,16 +390,16 @@ export class SqliteNotebookRepository implements NotebookRepositoryPort {
       }
     }
 
-    if (duplicateArtifacts) {
+    if (isDuplicateArtifacts) {
       const artifactRows = this.sqlite
         .prepare(`SELECT * FROM artifacts WHERE notebook_id = ? AND user_id = ?`)
-        .all(sourceNotebookId, userId) as Array<{
+        .all(sourceNotebookId, userId) as {
           id: string;
           type: string;
           title: string;
           schema_version: number;
           current_version_id: string | null;
-        }>;
+        }[];
 
       for (const art of artifactRows) {
         const newArtifactId = randomUUID();
@@ -413,7 +413,7 @@ export class SqliteNotebookRepository implements NotebookRepositoryPort {
             WHERE artifact_id = ? AND user_id = ?
             ORDER BY number ASC
           `)
-          .all(art.id, userId) as Array<{
+          .all(art.id, userId) as {
             id: string;
             number: number;
             created_by: string;
@@ -422,7 +422,7 @@ export class SqliteNotebookRepository implements NotebookRepositoryPort {
             parent_version_id: string | null;
             content: string;
             content_digest: string | null;
-          }>;
+          }[];
 
         let newCurrentVersionId: string | null = null;
         const versionIdMap = new Map<string, string>();
@@ -479,7 +479,7 @@ export class SqliteNotebookRepository implements NotebookRepositoryPort {
     return newNotebook;
   }
 
-  public async getMetrics(userId: string): Promise<DashboardMetrics> {
+  public getMetrics(userId: string): Promise<DashboardMetrics> {
     const notebookCountRow = this.sqlite
       .prepare(`
         SELECT COUNT(*) as count 
@@ -506,12 +506,12 @@ export class SqliteNotebookRepository implements NotebookRepositoryPort {
       `)
       .get(userId) as { count: number };
 
-    return {
-      notebookCount: Number(notebookCountRow.count || 0),
-      sourceCount: Number(sourceMetricsRow.count || 0),
-      artifactCount: Number(artifactCountRow.count || 0),
-      storageUsedBytes: Number(sourceMetricsRow.total_bytes || 0),
+    return Promise.resolve({
+      notebookCount: notebookCountRow.count || 0,
+      sourceCount: sourceMetricsRow.count || 0,
+      artifactCount: artifactCountRow.count || 0,
+      storageUsedBytes: sourceMetricsRow.total_bytes || 0,
       storageSafeCapBytes: 5 * 1024 * 1024 * 1024,
-    };
+    });
   }
 }

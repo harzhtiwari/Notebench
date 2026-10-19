@@ -3,16 +3,16 @@ import { OrchestratorError } from "./types.js";
 import type { OrchestratorOptions, WarmupMode } from "./types.js";
 
 /**
- * Namespace allowlist: starts with a letter or digit, then letters, digits,
- * `-`, `_`, max 32 chars. Rejects traversal-like values by construction
- * (no `.`, `/`, `\`, separators, or whitespace allowed).
- *
- * Names are lowercased before use (not rejected): `Dev` and `dev` are the
- * same directory on case-insensitive filesystems (Windows/macOS), so
- * accepting both spellings would alias one run's ports, PIDs, logs, and
- * identity to the other namespace (P25). Normalizing keeps every
- * pattern-conformant name working instead of failing names with uppercase.
- */
+Namespace allowlist: starts with a letter or digit, then letters, digits,
+`-`, `_`, max 32 chars. Rejects traversal-like values by construction
+(no `.`, `/`, `\`, separators, or whitespace allowed).
+
+Names are lowercased before use (not rejected): `Dev` and `dev` are the
+same directory on case-insensitive filesystems (Windows/macOS), so
+accepting both spellings would alias one run's ports, PIDs, logs, and
+identity to the other namespace (P25). Normalizing keeps every
+pattern-conformant name working instead of failing names with uppercase.
+*/
 const NAMESPACE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$/;
 
 export function parseNamespace(value: unknown): string {
@@ -20,7 +20,7 @@ export function parseNamespace(value: unknown): string {
     const normalized = value.toLowerCase();
     if (NAMESPACE_PATTERN.test(normalized)) return normalized;
   }
-  const shown = typeof value === "string" ? value : JSON.stringify(value) ?? String(value);
+  const shown = typeof value === "string" ? value : String(value);
   throw new OrchestratorError(
     `Invalid namespace "${shown}": must start with a letter or digit, ` +
       `contain only letters, digits, "-" and "_", max 32 characters.`,
@@ -38,8 +38,6 @@ function firstDefined(env: Env, keys: readonly string[]): string | undefined {
   return undefined;
 }
 
-const FLAGS_WITH_VALUE = new Set(["--namespace", "--server-port", "--web-port", "--warmup"]);
-
 interface RawFlags {
   namespace?: string | undefined;
   serverPort?: string | undefined;
@@ -47,19 +45,32 @@ interface RawFlags {
   warmup?: string | undefined;
 }
 
-/** Parse `pnpm dev` flags. Supports `--flag value` and `--flag=value`. */
+/**
+Map each accepted flag to the `RawFlags` field it populates. Doubles as the
+allowlist: anything not present here is an unknown flag.
+*/
+const FLAG_TARGETS: Record<string, keyof RawFlags> = {
+  "--namespace": "namespace",
+  "--server-port": "serverPort",
+  "--web-port": "webPort",
+  "--warmup": "warmup",
+};
+
+/**
+Parse `pnpm dev` flags. Supports `--flag value` and `--flag=value`.
+*/
 function parseFlags(argv: string[]): RawFlags {
   const raw: RawFlags = {};
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i] ?? "";
-    const [head, ...rest] = arg.split("=");
-    const name = head ?? "";
+    const [name = "", ...rest] = arg.split("=");
     if (!name.startsWith("--")) {
       throw new OrchestratorError(`Unexpected argument "${arg}": only documented --flags are accepted.`, 1);
     }
-    if (!FLAGS_WITH_VALUE.has(name)) {
+    const target = FLAG_TARGETS[name];
+    if (target === undefined) {
       throw new OrchestratorError(
-        `Unknown flag "${name}": expected one of ${[...FLAGS_WITH_VALUE].join(", ")}.`,
+        `Unknown flag "${name}": expected one of ${Object.keys(FLAG_TARGETS).join(", ")}.`,
         1
       );
     }
@@ -74,10 +85,7 @@ function parseFlags(argv: string[]): RawFlags {
       value = next;
       i += 1;
     }
-    if (name === "--namespace") raw.namespace = value;
-    else if (name === "--server-port") raw.serverPort = value;
-    else if (name === "--web-port") raw.webPort = value;
-    else raw.warmup = value;
+    raw[target] = value;
   }
   return raw;
 }
@@ -89,11 +97,11 @@ function parseWarmup(value: string | undefined): WarmupMode {
 }
 
 /**
- * Resolve the orchestrator options with documented precedence:
- * explicit flag, then canonical `NOTEBENCH_*` env, then `NB_*` alias
- * short fallback, then default. Upstream (OpenDesign `OD_*`-family) env
- * names are never read here.
- */
+Resolve the orchestrator options with documented precedence:
+explicit flag, then canonical `NOTEBENCH_*` env, then `NB_*` alias
+short fallback, then default. Upstream (OpenDesign `OD_*`-family) env
+names are never read here.
+*/
 export function parseOrchestratorArgs(argv: string[], env: Env = process.env): OrchestratorOptions {
   const raw = parseFlags(argv);
 

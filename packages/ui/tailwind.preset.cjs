@@ -5,7 +5,7 @@
 // Note: opacity modifiers like bg-ink/50 do not work with var() colors. Use a token.
 module.exports = {
   theme: {
-    colors: { transparent: "transparent", current: "currentColor", ...{
+    colors: { transparent: "transparent", current: "currentColor", 
       "ground": "var(--nb-ground)",
       "sheet": "var(--nb-sheet)",
       "well": "var(--nb-well)",
@@ -50,8 +50,8 @@ module.exports = {
       "tool-cyan": "var(--nb-tool-cyan)",
       "tool-purple": "var(--nb-tool-purple)",
       "tool-indigo": "var(--nb-tool-indigo)",
-      "tool-teal": "var(--nb-tool-teal)",
-    } },
+      "tool-teal": "var(--nb-tool-teal)"
+     },
     spacing: {
       "0": "var(--nb-space-0)",
       "0.5": "var(--nb-space-0-5)",
@@ -67,7 +67,7 @@ module.exports = {
       "16": "var(--nb-space-16)",
       "24": "var(--nb-space-24)",
     },
-    borderRadius: { none: "0", ...{
+    borderRadius: { none: "0", 
       "xs": "var(--nb-radius-xs)",
       "sm": "var(--nb-radius-sm)",
       "md": "var(--nb-radius-md)",
@@ -84,8 +84,8 @@ module.exports = {
       "control": "var(--nb-radius-control)",
       "chip": "var(--nb-radius-chip)",
       "tag": "var(--nb-radius-tag)",
-      "rail": "var(--nb-radius-rail)",
-    } },
+      "rail": "var(--nb-radius-rail)"
+     },
     fontSize: {
       "2xs": "var(--nb-text-2xs)",
       "xs": "var(--nb-text-xs)",
@@ -117,10 +117,10 @@ module.exports = {
       "tight": "var(--nb-tracking-tight)",
       "normal": "var(--nb-tracking-normal)",
     },
-    boxShadow: { none: "none", ...{
+    boxShadow: { none: "none", 
       "float": "var(--nb-shadow-float)",
-      "modal": "var(--nb-shadow-modal)",
-    } },
+      "modal": "var(--nb-shadow-modal)"
+     },
     zIndex: {
       "base": "var(--nb-z-base)",
       "raised": "var(--nb-z-raised)",

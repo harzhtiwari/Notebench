@@ -6,7 +6,7 @@ import { InvarianceViolationError } from "@notebench/contracts";
 function createMemoryDestination() {
   const chunks: string[] = [];
   const stream = new Writable({
-    write(chunk, _encoding, callback) {
+    write(chunk: Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void) {
       chunks.push(chunk.toString());
       callback();
     },

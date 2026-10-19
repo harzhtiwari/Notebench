@@ -24,18 +24,18 @@ import {
 afterEach(cleanup);
 
 /**
- * Consolidated overlays seams (dialog-popover upgrade plan, section 5).
- *
- * Seam 1: Dialog token invariants
- * Seam 2: Dialog sizing scale
- * Seam 3: Dialog anatomy composition
- * Seam 4: Dialog dismissal & accessibility
- * Seam 5: Popover & tooltip stacking
- * Seam 6: CitationPopover integration
- * Seam 7 (consumer regression gate) runs the existing consumer suites:
- * deletion-reauth, export-import-dialog, timeline-patterns, storage-patterns,
- * and ui.test - not part of this file.
- */
+Consolidated overlays seams (dialog-popover upgrade plan, section 5).
+
+Seam 1: Dialog token invariants
+Seam 2: Dialog sizing scale
+Seam 3: Dialog anatomy composition
+Seam 4: Dialog dismissal & accessibility
+Seam 5: Popover & tooltip stacking
+Seam 6: CitationPopover integration
+Seam 7 (consumer regression gate) runs the existing consumer suites:
+deletion-reauth, export-import-dialog, timeline-patterns, storage-patterns,
+and ui.test - not part of this file.
+*/
 
 describe("Seam 1: Dialog token invariants", () => {
   it("renders DialogContent with the board modal surface tokens", () => {
@@ -64,7 +64,7 @@ describe("Seam 1: Dialog token invariants", () => {
       </Dialog>
     );
 
-    const overlay = Array.from(document.body.querySelectorAll("div")).find(
+    const overlay = [...document.body.querySelectorAll("div")].find(
       (element) => element.className.includes("bg-[var(--nb-scrim)]")
     );
     expect(overlay).toBeDefined();
@@ -73,7 +73,7 @@ describe("Seam 1: Dialog token invariants", () => {
 });
 
 describe("Seam 2: Dialog sizing scale", () => {
-  const sizes: Array<[DialogSize, string]> = [
+  const sizes: [DialogSize, string][] = [
     ["sm", "w-[min(var(--nb-layout-modal-sm),calc(100%-var(--nb-space-8)))]"],
     ["md", "w-[min(var(--nb-layout-modal-md),calc(100%-var(--nb-space-8)))]"],
     ["lg", "w-[min(var(--nb-layout-modal-lg),calc(100%-var(--nb-space-8)))]"],
@@ -160,14 +160,16 @@ describe("Seam 3: Dialog anatomy composition", () => {
     expect(footer?.className).toContain("pt-[var(--nb-space-3)]");
     expect(footer?.className).toContain("pb-[var(--nb-space-5)]");
 
-    const children = Array.from(dialog.children);
+    const children = [...dialog.children];
     expect(header).not.toBeNull();
     expect(body).not.toBeNull();
     expect(footer).not.toBeNull();
-    if (header && body && footer) {
-      expect(children.indexOf(header)).toBeLessThan(children.indexOf(body));
-      expect(children.indexOf(body)).toBeLessThan(children.indexOf(footer));
+    if (!(header && body && footer)) {
+      return;
     }
+
+    expect(children.indexOf(header)).toBeLessThan(children.indexOf(body));
+    expect(children.indexOf(body)).toBeLessThan(children.indexOf(footer));
   });
 });
 

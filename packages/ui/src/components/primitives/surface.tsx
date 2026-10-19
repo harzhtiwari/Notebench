@@ -22,8 +22,7 @@ export function getNestedRadius(parent: RadiusRole, paddingPx: number): "xs" | "
   const targetPx = Math.max(parentPx - paddingPx, 4);
   if (targetPx <= 4) return "xs";
   if (targetPx <= 8) return "sm";
-  if (targetPx <= 12) return "md";
-  return "lg";
+  return targetPx <= 12 ? "md" : "lg";
 }
 
 export function concentricRadiusClass(parent: RadiusRole, paddingPx: number): string {
@@ -114,9 +113,13 @@ PanelFooter.displayName = "PanelFooter";
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   as?: React.ElementType;
-  /** When true, enables interactive hover boundary (hover:border-[var(--nb-edge)]) and cursor-pointer */
+  /**
+  When true, enables interactive hover boundary (hover:border-[var(--nb-edge)]) and cursor-pointer
+  */
   interactive?: boolean;
-  /** When selected (e.g. selected source or card), renders active select styling */
+  /**
+  When selected (e.g. selected source or card), renders active select styling
+  */
   selected?: boolean;
 }
 
@@ -197,9 +200,13 @@ CardFooter.displayName = "CardFooter";
 
 export interface WellProps extends React.HTMLAttributes<HTMLDivElement> {
   as?: React.ElementType;
-  /** When true, adds hairline border. Default is false (recessed cut with no border). */
+  /**
+  When true, adds hairline border. Default is false (recessed cut with no border).
+  */
   bordered?: boolean;
-  /** When true, adds hover effect: bg-[var(--nb-well-hover)] and cursor-pointer */
+  /**
+  When true, adds hover effect: bg-[var(--nb-well-hover)] and cursor-pointer
+  */
   interactive?: boolean;
 }
 

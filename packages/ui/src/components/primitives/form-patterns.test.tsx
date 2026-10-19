@@ -22,12 +22,12 @@ describe("setup passcode form patterns (ticket 04)", () => {
     const describedBy = input.getAttribute("aria-describedby") ?? "";
     const error = screen.getByText("Too short");
     expect(error.getAttribute("id")).not.toBeNull();
-    expect(describedBy).toContain(error.getAttribute("id") as string);
+    expect(describedBy).toContain(error.id);
   });
 
   it("PasswordInput masks by default and toggles visibility", () => {
     render(<PasswordInput aria-label="Session Passcode (Optional)" />);
-    const input = screen.getByLabelText("Session Passcode (Optional)") as HTMLInputElement;
+    const input = screen.getByLabelText<HTMLInputElement>("Session Passcode (Optional)");
     expect(input.type).toBe("password");
     const toggle = screen.getByRole("button", { name: "Show passcode" });
     fireEvent.click(toggle);

@@ -6,8 +6,8 @@ import {
 } from "@notebench/contracts";
 
 /**
- * Computes deterministic RFC 8785 (JCS) SHA-256 digest of any JSON-serializable node.
- */
+Computes deterministic RFC 8785 (JCS) SHA-256 digest of any JSON-serializable node.
+*/
 export function computeNodeDigest(node: unknown): string {
   if (node === undefined) {
     throw new InvarianceViolationError("Cannot compute digest of undefined value");
@@ -19,35 +19,35 @@ export function computeNodeDigest(node: unknown): string {
 }
 
 /**
- * Extracts addressable item nodes from any living artifact content type (Decision 4.1, 4.6, C.3.2).
- */
+Extracts addressable item nodes from any living artifact content type (Decision 4.1, 4.6, C.3.2).
+*/
 export function getContentItems(
   content: ArtifactContent | Record<string, unknown>
-): Array<{ id: string }> {
+): { id: string }[] {
   if ("blocks" in content && Array.isArray(content.blocks)) {
-    return content.blocks as Array<{ id: string }>;
+    return content.blocks as { id: string }[];
   }
   if ("cards" in content && Array.isArray(content.cards)) {
-    return content.cards as Array<{ id: string }>;
+    return content.cards as { id: string }[];
   }
   if ("questions" in content && Array.isArray(content.questions)) {
-    return content.questions as Array<{ id: string }>;
+    return content.questions as { id: string }[];
   }
   if ("events" in content && Array.isArray(content.events)) {
-    return content.events as Array<{ id: string }>;
+    return content.events as { id: string }[];
   }
   if ("slides" in content && Array.isArray(content.slides)) {
-    return content.slides as Array<{ id: string }>;
+    return content.slides as { id: string }[];
   }
   throw new InvarianceViolationError("Unrecognized artifact content shape: cannot locate addressable items");
 }
 
 /**
- * Asserts bit-for-bit sibling invariance between pre-patch and post-patch content trees (Decision 4.2, 4.6).
- * Untouched sibling nodes must remain bit-for-bit identical via RFC 8785 SHA-256 digests.
- *
- * Throws InvarianceViolationError on ANY mismatch.
- */
+Asserts bit-for-bit sibling invariance between pre-patch and post-patch content trees (Decision 4.2, 4.6).
+Untouched sibling nodes must remain bit-for-bit identical via RFC 8785 SHA-256 digests.
+
+Throws InvarianceViolationError on ANY mismatch.
+*/
 export function verifySiblingInvariance<T extends ArtifactContent>(
   currentContent: T,
   proposedContent: T,
@@ -56,16 +56,16 @@ export function verifySiblingInvariance<T extends ArtifactContent>(
   const currentItems = getContentItems(currentContent);
   const proposedItems = getContentItems(proposedContent);
 
-  const targetInCurrent = currentItems.find((item) => item.id === targetId);
-  if (!targetInCurrent) {
+  const hasTargetInCurrent = currentItems.some((item) => item.id === targetId);
+  if (!hasTargetInCurrent) {
     throw new InvarianceViolationError(
       `Invariance check failed: target node '${targetId}' does not exist in current content`,
       { targetId }
     );
   }
 
-  const targetInProposed = proposedItems.find((item) => item.id === targetId);
-  if (!targetInProposed) {
+  const hasTargetInProposed = proposedItems.some((item) => item.id === targetId);
+  if (!hasTargetInProposed) {
     throw new InvarianceViolationError(
       `Invariance check failed: target node '${targetId}' missing from proposed content`,
       { targetId }
@@ -86,11 +86,10 @@ export function verifySiblingInvariance<T extends ArtifactContent>(
     );
   }
 
-  for (let i = 0; i < currentSiblings.length; i++) {
-    const currentSib = currentSiblings[i];
+  for (const [i, currentSib] of currentSiblings.entries()) {
     const proposedSib = proposedSiblings[i];
 
-    if (!currentSib || !proposedSib) {
+    if (!proposedSib) {
       throw new InvarianceViolationError("Invariance check failed: sibling index out of bounds", {
         targetId,
         index: i,
@@ -122,8 +121,8 @@ export function verifySiblingInvariance<T extends ArtifactContent>(
 }
 
 /**
- * Patch description for surgical block editing.
- */
+Patch description for surgical block editing.
+*/
 export interface SurgicalPatch {
   targetId: string;
   replacement: { id: string } & Record<string, unknown>;
@@ -132,9 +131,9 @@ export interface SurgicalPatch {
 }
 
 /**
- * Applies a surgical update to an artifact tree while cryptographically enforcing sibling invariance (Decisions 4.2, 4.6).
- * Reusable across all artifact types (Document, Flashcards, Quiz, Timeline, Deck).
- */
+Applies a surgical update to an artifact tree while cryptographically enforcing sibling invariance (Decisions 4.2, 4.6).
+Reusable across all artifact types (Document, Flashcards, Quiz, Timeline, Deck).
+*/
 export function applySurgicalPatch<T extends ArtifactContent>(
   currentContent: T,
   patch: SurgicalPatch
@@ -162,17 +161,21 @@ export function applySurgicalPatch<T extends ArtifactContent>(
 
   if (patch.expectedSiblingHashes) {
     for (const sib of currentItems) {
-      if (sib.id !== patch.targetId) {
-        const expected = patch.expectedSiblingHashes[sib.id];
-        if (expected) {
-          const actual = computeNodeDigest(sib);
-          if (actual !== expected) {
-            throw new InvarianceViolationError(
-              `Expected sibling hash mismatch for '${sib.id}' (expected ${expected}, actual ${actual})`,
-              { siblingId: sib.id, expectedHash: expected, actualHash: actual }
-            );
-          }
-        }
+      if (sib.id === patch.targetId) {
+        continue;
+      }
+
+      const expected = patch.expectedSiblingHashes[sib.id];
+      if (!expected) {
+        continue;
+      }
+
+      const actual = computeNodeDigest(sib);
+      if (actual !== expected) {
+        throw new InvarianceViolationError(
+          `Expected sibling hash mismatch for '${sib.id}' (expected ${expected}, actual ${actual})`,
+          { siblingId: sib.id, expectedHash: expected, actualHash: actual }
+        );
       }
     }
   }

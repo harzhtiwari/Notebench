@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
-import { EncryptedVault, scrubSecretFromText } from "@notebench/infra-vault";
+import { type EncryptedVault, scrubSecretFromText } from "@notebench/infra-vault";
 import {
   getAdapter,
   ProviderError,
@@ -13,7 +13,7 @@ import type { NotebookErrorCode } from "@notebench/contracts";
 const DEFAULT_KEY_ID = "default";
 
 function isProviderId(value: unknown): value is ProviderId {
-  return typeof value === "string" && value in providerRegistry;
+  return typeof value === "string" && Object.hasOwn(providerRegistry, value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -25,7 +25,9 @@ function optionalString(record: Record<string, unknown>, field: string): string 
   return typeof value === "string" ? value : undefined;
 }
 
-/** Persistence port for chat/embedding selections (Ticket 04 D6). */
+/**
+Persistence port for chat/embedding selections (Ticket 04 D6).
+*/
 export interface ModelSelectionStore {
   save(selection: {
     userId: string;
@@ -67,7 +69,9 @@ function failureCode(category: ProviderFailureCategory): NotebookErrorCode {
   return FAILURE_WIRE[category].code;
 }
 
-/** Rejects non-http(s) base URLs before any outbound call. */
+/**
+Rejects non-http(s) base URLs before any outbound call.
+*/
 function resolveBaseUrl(
   adapter: ProviderAdapter,
   override: string | undefined
@@ -82,26 +86,20 @@ function resolveBaseUrl(
   } catch {
     return { error: "baseUrl must be a valid absolute URL." };
   }
-  if (protocol !== "http:" && protocol !== "https:") {
-    return { error: "baseUrl must use http or https." };
-  }
-  return { baseUrl };
+  return protocol !== "http:" && protocol !== "https:" ? { error: "baseUrl must use http or https." } : { baseUrl };
 }
 
 function headerValue(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) {
-    return value[0];
-  }
-  return value;
+  return Array.isArray(value) ? value[0] : value;
 }
 
 /**
- * Fastify route plugin for provider key test, model discovery, key storage
- * and model selection (Ticket 04). Provider calls never come from the
- * browser — the daemon holds every key. Failure messages are scrubbed with
- * the presented key before responding; full keys never leave the vault.
- */
-export const providersRoutes: FastifyPluginAsync<ProvidersRouteOptions> = async (app, options) => {
+Fastify route plugin for provider key test, model discovery, key storage
+and model selection (Ticket 04). Provider calls never come from the
+browser — the daemon holds every key. Failure messages are scrubbed with
+the presented key before responding; full keys never leave the vault.
+*/
+export const providersRoutes: FastifyPluginAsync<ProvidersRouteOptions> = (app, options) => {
   const { vault, selections } = options;
   const explicitDefaultUserId = options.defaultUserId;
 
@@ -112,10 +110,7 @@ export const providersRoutes: FastifyPluginAsync<ProvidersRouteOptions> = async 
     if (explicitDefaultUserId) {
       return explicitDefaultUserId;
     }
-    if (options.resolveOwnerId) {
-      return options.resolveOwnerId();
-    }
-    return null;
+    return options.resolveOwnerId ? options.resolveOwnerId() : null;
   };
 
   const requireUserId = async (request: FastifyRequest, reply: FastifyReply): Promise<string | null> => {
@@ -223,29 +218,29 @@ export const providersRoutes: FastifyPluginAsync<ProvidersRouteOptions> = async 
           }
           try {
             return await adapter.listModels({ baseUrl: resolved.baseUrl, apiKey });
-          } catch (err: unknown) {
-            if (err instanceof ProviderError) {
+          } catch (error: unknown) {
+            if (error instanceof ProviderError) {
               throw new ProviderError(
-                err.category,
-                scrubSecretFromText(err.message, [apiKey]),
-                err.status
+                error.category,
+                scrubSecretFromText(error.message, [apiKey]),
+                error.status
               );
             }
-            throw err;
+            throw error;
           }
         });
-        return reply.status(200).send({ models });
-      } catch (err: unknown) {
-        if (err instanceof ProviderError) {
-          return reply.status(failureStatus(err.category)).send({
+        return await reply.status(200).send({ models });
+      } catch (error: unknown) {
+        if (error instanceof ProviderError) {
+          return reply.status(failureStatus(error.category)).send({
             error: {
-              code: failureCode(err.category),
-              message: err.message,
-              details: { category: err.category },
+              code: failureCode(error.category),
+              message: error.message,
+              details: { category: error.category },
             },
           });
         }
-        throw err;
+        throw error;
       }
     }
 
@@ -268,18 +263,18 @@ export const providersRoutes: FastifyPluginAsync<ProvidersRouteOptions> = async 
     }
     try {
       const models = await adapter.listModels({ baseUrl: resolved.baseUrl, apiKey: headerKey });
-      return reply.status(200).send({ models });
-    } catch (err: unknown) {
-      if (err instanceof ProviderError) {
-        return reply.status(failureStatus(err.category)).send({
+      return await reply.status(200).send({ models });
+    } catch (error: unknown) {
+      if (error instanceof ProviderError) {
+        return reply.status(failureStatus(error.category)).send({
           error: {
-            code: failureCode(err.category),
-            message: scrubSecretFromText(err.message, [headerKey]),
-            details: { category: err.category },
+            code: failureCode(error.category),
+            message: scrubSecretFromText(error.message, [headerKey]),
+            details: { category: error.category },
           },
         });
       }
-      throw err;
+      throw error;
     }
   });
 
@@ -316,7 +311,7 @@ export const providersRoutes: FastifyPluginAsync<ProvidersRouteOptions> = async 
     const kind = optionalString(body, "kind");
     const provider = optionalString(body, "provider");
     const modelId = optionalString(body, "modelId");
-    if ((kind !== "chat" && kind !== "embedding") || !provider || !modelId) {
+    if (!provider || !modelId || (kind !== "chat" && kind !== "embedding")) {
       return reply.status(400).send({
         error: {
           code: "VALIDATION_ERROR" satisfies NotebookErrorCode,
@@ -348,4 +343,6 @@ export const providersRoutes: FastifyPluginAsync<ProvidersRouteOptions> = async 
       embedding: embedding ? { provider: embedding.provider, modelId: embedding.modelId } : null,
     });
   });
+
+  return Promise.resolve();
 };

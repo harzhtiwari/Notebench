@@ -45,9 +45,9 @@ describe("DocxParserService (Seam 1)", () => {
     ],
   };
 
-  const mockExtractor: DocxExtractorPort = {
+  const mockExtractor = {
     extractDocx: vi.fn().mockResolvedValue(mockResult),
-  };
+  } satisfies DocxExtractorPort;
 
   it("extracts semantic hierarchy with character offsets and heading hierarchy", async () => {
     const service = new DocxParserService(mockExtractor);

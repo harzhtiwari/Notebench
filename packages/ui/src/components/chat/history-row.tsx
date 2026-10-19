@@ -1,34 +1,48 @@
 import * as React from "react";
 import { IconButton } from "../primitives/button.js";
-import { ClockCounterClockwise, ArrowUUpLeft } from "../primitives/icons.js";
+import { ClockCounterClockwiseIcon, ArrowUUpLeftIcon } from "../primitives/icons.js";
 import { formatRelativeTime } from "../../lib/formatters.js";
 import { cn } from "../../lib/utils.js";
 
 export interface HistoryRowProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "onSelect"> {
-  /** The question / prompt text */
+  /**
+  The question / prompt text
+  */
   question: string;
-  /** Timestamp as ISO string, Date, or epoch milliseconds */
+  /**
+  Timestamp as ISO string, Date, or epoch milliseconds
+  */
   timestamp?: string | Date | number | undefined;
-  /** Optional pre-formatted time override (e.g. "5m ago") */
+  /**
+  Optional pre-formatted time override (e.g. "5m ago")
+  */
   time?: React.ReactNode | undefined;
-  /** Callback when the question or row is selected */
+  /**
+  Callback when the question or row is selected
+  */
   onSelect?: ((question: string) => void) | undefined;
-  /** Callback specifically for the action affordance button */
+  /**
+  Callback specifically for the action affordance button
+  */
   onAction?: ((question: string) => void) | undefined;
-  /** Accessible label for the action button */
+  /**
+  Accessible label for the action button
+  */
   actionLabel?: string | undefined;
-  /** Custom action affordance override */
+  /**
+  Custom action affordance override
+  */
   action?: React.ReactNode | undefined;
 }
 
 /**
- * HistoryRow (ticket 11): chat history row with question text, timestamp /
- * relative time, and action affordance.
- *
- * The row and the action are sibling controls (never nested), so keyboard
- * activation of the action can never also select the row.
- */
+HistoryRow (ticket 11): chat history row with question text, timestamp /
+relative time, and action affordance.
+
+The row and the action are sibling controls (never nested), so keyboard
+activation of the action can never also select the row.
+*/
 const HistoryRow = React.forwardRef<HTMLDivElement, HistoryRowProps>(
   (
     {
@@ -82,7 +96,7 @@ const HistoryRow = React.forwardRef<HTMLDivElement, HistoryRowProps>(
           }}
           className="flex min-w-0 flex-1 items-center gap-[var(--nb-space-2)] rounded-[var(--nb-radius-control)] text-left focus-visible:outline-[length:var(--nb-ring-width)] focus-visible:outline-solid focus-visible:outline-[var(--nb-focus)] focus-visible:outline-offset-[var(--nb-ring-offset)]"
         >
-          <ClockCounterClockwise
+          <ClockCounterClockwiseIcon
             size={16}
             aria-hidden="true"
             className="shrink-0 text-[var(--nb-ink-3)]"
@@ -95,17 +109,17 @@ const HistoryRow = React.forwardRef<HTMLDivElement, HistoryRowProps>(
             <span className="text-[length:var(--nb-text-xs)] text-[var(--nb-ink-3)]">{displayTime}</span>
           ) : null}
 
-          {action !== undefined ? (
-            action
-          ) : onAction || onSelect ? (
+          {action === undefined ? (onAction || onSelect ? (
             <IconButton
               type="button"
               size="nb_btn_icon_sm"
               aria-label={actionLabel}
               onClick={handleActionClick}
-              icon={ArrowUUpLeft}
+              icon={ArrowUUpLeftIcon}
             />
-          ) : null}
+          ) : null) : (
+            action
+          )}
         </div>
       </div>
     );

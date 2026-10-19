@@ -9,7 +9,7 @@ import { useWorkspaceLayout } from "../../hooks/use-workspace-layout.js";
 
 afterEach(() => {
   cleanup();
-  window.localStorage.clear();
+  globalThis.localStorage.clear();
 });
 
 describe("workspace shell reusables (ticket 12, tokens win over ticket)", () => {

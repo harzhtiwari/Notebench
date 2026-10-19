@@ -2,8 +2,8 @@ import { z } from "zod";
 import { BoundingBoxSchema } from "../streaming/sse.js";
 
 /**
- * Normalized 4-tuple [x, y, w, h] in relative [0, 1] page coordinates.
- */
+Normalized 4-tuple [x, y, w, h] in relative [0, 1] page coordinates.
+*/
 export const BoundingRectSchema = z.tuple([
   z.number().min(0).max(1),
   z.number().min(0).max(1),
@@ -13,8 +13,8 @@ export const BoundingRectSchema = z.tuple([
 export type BoundingRect = z.infer<typeof BoundingRectSchema>;
 
 /**
- * Extracted word with exact coordinates in both [x0, y0, x1, y1] and [x, y, w, h] geometries.
- */
+Extracted word with exact coordinates in both [x0, y0, x1, y1] and [x, y, w, h] geometries.
+*/
 export const PdfWordSchema = z.object({
   text: z.string(),
   box: BoundingBoxSchema,
@@ -23,8 +23,8 @@ export const PdfWordSchema = z.object({
 export type PdfWord = z.infer<typeof PdfWordSchema>;
 
 /**
- * Extracted text block / paragraph grouped by line and vertical proximity.
- */
+Extracted text block / paragraph grouped by line and vertical proximity.
+*/
 export const PdfBlockSchema = z.object({
   pageNumber: z.number().int().positive(),
   text: z.string(),
@@ -35,8 +35,8 @@ export const PdfBlockSchema = z.object({
 export type PdfBlock = z.infer<typeof PdfBlockSchema>;
 
 /**
- * Extracted tabular cell geometry.
- */
+Extracted tabular cell geometry.
+*/
 export const PdfTableCellSchema = z.object({
   box: BoundingBoxSchema,
   rect: BoundingRectSchema,
@@ -44,20 +44,22 @@ export const PdfTableCellSchema = z.object({
 export type PdfTableCell = z.infer<typeof PdfTableCellSchema>;
 
 /**
- * Extracted tabular structure with bounding geometry, cells, and string matrix rows.
- */
+Extracted tabular structure with bounding geometry, cells, and string matrix rows.
+*/
+const PdfRowGridSchema = z.array(z.array(z.string()));
+
 export const PdfTableSchema = z.object({
   box: BoundingBoxSchema,
   rect: BoundingRectSchema,
   cells: z.array(PdfTableCellSchema).default([]),
-  rows: z.array(z.array(z.string())),
+  rows: PdfRowGridSchema,
 });
 export type PdfTable = z.infer<typeof PdfTableSchema>;
 
 
 /**
- * Extracted single PDF page layout representation.
- */
+Extracted single PDF page layout representation.
+*/
 export const PdfPageSchema = z.object({
   pageNumber: z.number().int().positive(),
   width: z.number().positive(),
@@ -70,8 +72,8 @@ export const PdfPageSchema = z.object({
 export type PdfPage = z.infer<typeof PdfPageSchema>;
 
 /**
- * Fast preflight scan check result (<5ms) from pypdf.
- */
+Fast preflight scan check result (under 5ms) from pypdf.
+*/
 export const PdfPreflightResultSchema = z.object({
   isScanned: z.boolean(),
   scannedMessage: z.string().nullable(),
@@ -81,8 +83,8 @@ export const PdfPreflightResultSchema = z.object({
 export type PdfPreflightResult = z.infer<typeof PdfPreflightResultSchema>;
 
 /**
- * Complete document extraction payload from pdfplumber + pypdf.
- */
+Complete document extraction payload from pdfplumber + pypdf.
+*/
 export const PdfExtractResultSchema = z.object({
   pageCount: z.number().int().nonnegative(),
   isScanned: z.boolean(),
@@ -94,8 +96,8 @@ export const PdfExtractResultSchema = z.object({
 export type PdfExtractResult = z.infer<typeof PdfExtractResultSchema>;
 
 /**
- * Port contract for querying Python doc-worker PDF extraction capabilities.
- */
+Port contract for querying Python doc-worker PDF extraction capabilities.
+*/
 export interface PdfExtractorPort {
   preflightPdf(filePath: string): Promise<PdfPreflightResult>;
   extractPdf(

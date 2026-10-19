@@ -9,7 +9,7 @@ import {
 } from "../primitives/overlays.js";
 import type { DialogContentProps } from "../primitives/overlays.js";
 import { FormField, PasswordInput } from "../primitives/fields.js";
-import { Lock, resolveIconProps } from "../primitives/icons.js";
+import { LockIcon, resolveIconProps } from "../primitives/icons.js";
 
 export interface LockscreenModalProps
   extends Omit<
@@ -22,14 +22,20 @@ export interface LockscreenModalProps
     | "onEscapeKeyDown"
   > {
   open: boolean;
-  /** Whole seconds left on the server-driven lockout. Submit is blocked above 0. */
+  /**
+  Whole seconds left on the server-driven lockout. Submit is blocked above 0.
+  */
   lockedSecondsRemaining?: number | undefined;
-  /** Server rejection text (wrong passcode, breached list). Shown on the field. */
+  /**
+  Server rejection text (wrong passcode, breached list). Shown on the field.
+  */
   error?: string | undefined;
-  /** Remaining attempts before lockout, when the server reports it. */
+  /**
+  Remaining attempts before lockout, when the server reports it.
+  */
   attemptsRemaining?: number | undefined;
   onUnlock?: ((passcode: string) => void) | undefined;
-  onOpenChange?: ((open: boolean) => void) | undefined;
+  onOpenChange?: ((isOpen: boolean) => void) | undefined;
 }
 
 function formatCountdown(totalSeconds: number): string {
@@ -39,13 +45,13 @@ function formatCountdown(totalSeconds: number): string {
 }
 
 /**
- * Reusable lockscreen: centred non-dismissable modal with a passcode field
- * and a lockout countdown. Composes ticket-04 `FormField`/`PasswordInput`
- * (owns no inputs itself). Presentational only — the lockout policy and the
- * authoritative remaining time come from the server via props.
- */
+Reusable lockscreen: centred non-dismissable modal with a passcode field
+and a lockout countdown. Composes ticket-04 `FormField`/`PasswordInput`
+(owns no inputs itself). Presentational only — the lockout policy and the
+authoritative remaining time come from the server via props.
+*/
 const LockscreenModal = React.forwardRef<
-  React.ElementRef<typeof DialogContent>,
+  React.ComponentRef<typeof DialogContent>,
   LockscreenModalProps
 >(
   (
@@ -61,7 +67,7 @@ const LockscreenModal = React.forwardRef<
     ref
   ) => {
     const [passcode, setPasscode] = React.useState("");
-    const locked = lockedSecondsRemaining > 0;
+    const isLocked = lockedSecondsRemaining > 0;
 
     // Drop any typed passcode as soon as the lockscreen closes, so a reopened
     // lockscreen never prefills the previous attempt.
@@ -89,7 +95,7 @@ const LockscreenModal = React.forwardRef<
         >
           <DialogHeader className="grid justify-center justify-items-center gap-[var(--nb-space-2)] text-center">
             <span className="grid h-[var(--nb-size-tile-icon)] w-[var(--nb-size-tile-icon)] place-items-center rounded-[var(--nb-radius-menu)] bg-[var(--nb-well)] text-[var(--nb-ink-2)]">
-              <Lock {...resolveIconProps({ size: "md" })} />
+              <LockIcon {...resolveIconProps({ size: "md" })} />
             </span>
             <DialogTitle>Unlock Notebench</DialogTitle>
             <p className="text-xs text-[var(--nb-ink-2)]">
@@ -101,7 +107,7 @@ const LockscreenModal = React.forwardRef<
               className="grid gap-[var(--nb-space-4)]"
               onSubmit={(event) => {
                 event.preventDefault();
-                if (!locked) {
+                if (!isLocked) {
                   onUnlock?.(passcode);
                 }
               }}
@@ -121,11 +127,11 @@ const LockscreenModal = React.forwardRef<
                   onChange={(event) => {
                     setPasscode(event.target.value);
                   }}
-                  disabled={locked}
+                  disabled={isLocked}
                   autoComplete="current-password"
                 />
               </FormField>
-              {locked ? (
+              {isLocked ? (
                 <p
                   role="status"
                   className="text-center text-xs font-semibold text-[var(--nb-warn)]"
@@ -137,7 +143,7 @@ const LockscreenModal = React.forwardRef<
               <Button
                 type="submit"
                 variant="nb_btn_primary"
-                disabled={locked}
+                disabled={isLocked}
                 className="w-full"
               >
                 Unlock

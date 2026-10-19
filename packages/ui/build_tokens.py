@@ -1,8 +1,9 @@
 """Generate every token output from tokens.json, the single source of truth.
 
 Usage:  python3 -I build_tokens.py
-Writes: tokens.css, tokens.media.css, tokens.ts, tailwind.preset.cjs
-Never edit those four files by hand. Edit tokens.json and run this again.
+Writes: tokens.css, tokens.theme.css, tokens.media.css, src/tokens.ts,
+        tailwind.preset.cjs (next to this script, in packages/ui/).
+Never edit those five files by hand. Edit tokens.json and run this again.
 """
 import json
 import re
@@ -172,7 +173,7 @@ ts = [f"// GENERATED from tokens.json by build_tokens.py. Do not edit.\n",
       "// Icons: Phosphor. regular by default, fill when active, bold at the small size.\n",
       "export const icon = " + json.dumps(T["icon"], indent=2) + " as const;\n",
       "export type ColorToken = keyof typeof color;\n"]
-(HERE / "tokens.ts").write_text("\n".join(ts), encoding="utf-8")
+(HERE / "src" / "tokens.ts").write_text("\n".join(ts), encoding="utf-8")
 
 # ------------------------------------------------------- tailwind.preset.cjs
 def tw_map(mapping, group=None):
@@ -276,5 +277,5 @@ theme_lines.append("}\n")
 n_color = len(T["color"]["light"])
 assert set(T["color"]["light"]) == set(T["color"]["dark"]), "light and dark must define the same names"
 assert set(T["shadow"]["light"]) == set(T["shadow"]["dark"])
-print(f"tokens.css, tokens.theme.css, tokens.media.css, tokens.ts, tailwind.preset.cjs written. {n_color} colors x 2 themes.")
+print(f"tokens.css, tokens.theme.css, tokens.media.css, src/tokens.ts, tailwind.preset.cjs written. {n_color} colors x 2 themes.")
 

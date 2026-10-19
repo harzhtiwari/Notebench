@@ -28,8 +28,8 @@ describe("Deduplication & Stratified Sampling (Seam 4 - RED phase)", () => {
     it("normalizes Unicode to NFC so canonical decompositions match", async () => {
       const service = new DeduplicationService();
       // "é" in precomposed NFC vs decomposed NFD ("e" + combining acute accent)
-      const nfc = "Caf\u00E9";
-      const nfd = "Cafe\u0301";
+      const nfc = "Caf\u{E9}";
+      const nfd = "Cafe\u{301}";
 
       const hashNfc = await service.computeHash(nfc);
       const hashNfd = await service.computeHash(nfd);
@@ -48,7 +48,7 @@ describe("Deduplication & Stratified Sampling (Seam 4 - RED phase)", () => {
     it("computes binary hash directly on Buffer without UTF-8 corruption", async () => {
       const service = new DeduplicationService();
       // Binary sequence that would be corrupted by naive .toString("utf-8")
-      const binaryData = Buffer.from([0xff, 0xfe, 0x80, 0x90, 0xc0, 0xaf]);
+      const binaryData = Buffer.from([0xFF, 0xFE, 0x80, 0x90, 0xC0, 0xAF]);
       const hash1 = await service.computeHash(binaryData);
       const hash2 = await service.computeHash(binaryData);
 
@@ -83,12 +83,10 @@ describe("Deduplication & Stratified Sampling (Seam 4 - RED phase)", () => {
 
       const mockRepo = {
         findByContentHash: vi.fn().mockImplementation(async (nbId: string, hash: string) => {
-          if (nbId === "12345678-1234-1234-1234-123456789def" && hash === "hash-abc") return existingSource;
-          return null;
+          return nbId === "12345678-1234-1234-1234-123456789def" && hash === "hash-abc" ? existingSource : null;
         }),
         findByRawFileHash: vi.fn().mockImplementation(async (nbId: string, hash: string) => {
-          if (nbId === "12345678-1234-1234-1234-123456789def" && hash === "raw-xyz") return existingSource;
-          return null;
+          return nbId === "12345678-1234-1234-1234-123456789def" && hash === "raw-xyz" ? existingSource : null;
         }),
       };
 

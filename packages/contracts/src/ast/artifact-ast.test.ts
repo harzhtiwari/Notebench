@@ -16,7 +16,7 @@ import {
   TimelineContentSchema,
   DeckSlideSchema,
   DeckContentSchema,
-  CitationRefSchema,
+  CitationRefSchema as CitationReferenceSchema,
   ArtifactSchema,
 } from "../index.js";
 
@@ -213,7 +213,7 @@ describe("Artifact AST Schemas & Invariants (Contracts Suite)", () => {
 
   describe("Requirement 4.2: schemaVersion: 1 enforcement", () => {
     it("defaults schemaVersion to 1 when omitted", () => {
-      const doc = DocumentContentSchema.parse({
+      const document = DocumentContentSchema.parse({
         blocks: [
           {
             id: VALID_UUID_1,
@@ -223,7 +223,7 @@ describe("Artifact AST Schemas & Invariants (Contracts Suite)", () => {
           },
         ],
       });
-      expect(doc.schemaVersion).toBe(1);
+      expect(document.schemaVersion).toBe(1);
 
       const fc = FlashcardsContentSchema.parse({
         cards: [
@@ -287,34 +287,34 @@ describe("Artifact AST Schemas & Invariants (Contracts Suite)", () => {
 
   describe("Requirement C.3.1: CitationRef normalized bounding box", () => {
     it("accepts valid normalized bounding box [0, 1]", () => {
-      const ref = CitationRefSchema.parse({
+      const reference = CitationReferenceSchema.parse({
         sourceId: VALID_UUID_1,
         chunkId: VALID_UUID_2,
         locator: {
           page: 1,
-          box: [0.0, 0.1, 0.9, 1.0],
+          box: [0, 0.1, 0.9, 1],
         },
       });
-      expect(ref.locator.box).toEqual([0.0, 0.1, 0.9, 1.0]);
+      expect(reference.locator.box).toEqual([0, 0.1, 0.9, 1]);
     });
 
     it("rejects out of bounds bounding box", () => {
       expect(() =>
-        CitationRefSchema.parse({
+        CitationReferenceSchema.parse({
           sourceId: VALID_UUID_1,
           chunkId: VALID_UUID_2,
           locator: {
-            box: [-0.1, 0.0, 1.0, 1.0],
+            box: [-0.1, 0, 1, 1],
           },
         })
       ).toThrow();
 
       expect(() =>
-        CitationRefSchema.parse({
+        CitationReferenceSchema.parse({
           sourceId: VALID_UUID_1,
           chunkId: VALID_UUID_2,
           locator: {
-            box: [0.0, 0.0, 1.5, 1.0],
+            box: [0, 0, 1.5, 1],
           },
         })
       ).toThrow();
@@ -324,7 +324,7 @@ describe("Artifact AST Schemas & Invariants (Contracts Suite)", () => {
   describe("Requirement C.3.1: CitationRef chunkId is required", () => {
     it("rejects a CitationRef without chunkId (PRD C.3.1 requires it)", () => {
       expect(() =>
-        CitationRefSchema.parse({
+        CitationReferenceSchema.parse({
           sourceId: VALID_UUID_1,
           locator: { page: 1 },
         })
@@ -332,12 +332,12 @@ describe("Artifact AST Schemas & Invariants (Contracts Suite)", () => {
     });
 
     it("accepts a CitationRef with chunkId and keeps it intact", () => {
-      const ref = CitationRefSchema.parse({
+      const reference = CitationReferenceSchema.parse({
         sourceId: VALID_UUID_1,
         chunkId: VALID_UUID_2,
         locator: { page: 1 },
       });
-      expect(ref.chunkId).toBe(VALID_UUID_2);
+      expect(reference.chunkId).toBe(VALID_UUID_2);
     });
   });
 

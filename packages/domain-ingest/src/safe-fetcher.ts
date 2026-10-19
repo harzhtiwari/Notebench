@@ -7,15 +7,15 @@ import {
   InvalidContentTypeError,
 } from "@notebench/contracts";
 
-export { SsrfBlockedError, PayloadTooLargeError, InvalidContentTypeError };
+
 
 /**
- * Checks if an IPv4 address is in private, loopback, link-local, or cloud metadata ranges.
- * Implements RFC 6890, RFC 1918, RFC 1122, RFC 3927, RFC 6598, RFC 5737.
- */
+Checks if an IPv4 address is in private, loopback, link-local, or cloud metadata ranges.
+Implements RFC 6890, RFC 1918, RFC 1122, RFC 3927, RFC 6598, RFC 5737.
+*/
 function isPrivateIpv4(ip: string): boolean {
   const parts = ip.split(".").map(Number);
-  if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255)) {
+  if (parts.length !== 4 || parts.some((p) => Number.isNaN(p) || p < 0 || p > 255)) {
     return true; // Malformed IPv4 is unsafe
   }
 
@@ -23,51 +23,51 @@ function isPrivateIpv4(ip: string): boolean {
   const num = ((p0 << 24) | (p1 << 16) | (p2 << 8) | p3) >>> 0;
 
   // 0.0.0.0/8 (Current network / localhost bypass)
-  if (((num & 0xff000000) >>> 0) === 0x00000000) return true;
+  if (((num & 0xFF_00_00_00) >>> 0) === 0x00_00_00_00) return true;
   // 10.0.0.0/8 (RFC 1918)
-  if (((num & 0xff000000) >>> 0) === 0x0a000000) return true;
+  if (((num & 0xFF_00_00_00) >>> 0) === 0x0A_00_00_00) return true;
   // 100.64.0.0/10 (RFC 6598 CGNAT / Shared Address Space)
-  if (((num & 0xffc00000) >>> 0) === 0x64400000) return true;
+  if (((num & 0xFF_C0_00_00) >>> 0) === 0x64_40_00_00) return true;
   // 127.0.0.0/8 (RFC 1122 Loopback)
-  if (((num & 0xff000000) >>> 0) === 0x7f000000) return true;
+  if (((num & 0xFF_00_00_00) >>> 0) === 0x7F_00_00_00) return true;
   // 169.254.0.0/16 (RFC 3927 Link-local / Cloud Metadata AWS, GCP, etc.)
-  if (((num & 0xffff0000) >>> 0) === 0xa9fe0000) return true;
+  if (((num & 0xFF_FF_00_00) >>> 0) === 0xA9_FE_00_00) return true;
   // 172.16.0.0/12 (RFC 1918)
-  if (((num & 0xfff00000) >>> 0) === 0xac100000) return true;
+  if (((num & 0xFF_F0_00_00) >>> 0) === 0xAC_10_00_00) return true;
   // 192.0.0.0/24 (RFC 6890 IETF Protocol Assignments)
-  if (((num & 0xffffff00) >>> 0) === 0xc0000000) return true;
+  if (((num & 0xFF_FF_FF_00) >>> 0) === 0xC0_00_00_00) return true;
   // 192.0.2.0/24 (RFC 5737 TEST-NET-1)
-  if (((num & 0xffffff00) >>> 0) === 0xc0000200) return true;
+  if (((num & 0xFF_FF_FF_00) >>> 0) === 0xC0_00_02_00) return true;
   // 192.88.99.0/24 (RFC 7526 6to4 Relay)
-  if (((num & 0xffffff00) >>> 0) === 0xc0586300) return true;
+  if (((num & 0xFF_FF_FF_00) >>> 0) === 0xC0_58_63_00) return true;
   // 192.168.0.0/16 (RFC 1918)
-  if (((num & 0xffff0000) >>> 0) === 0xc0a80000) return true;
+  if (((num & 0xFF_FF_00_00) >>> 0) === 0xC0_A8_00_00) return true;
   // 198.18.0.0/15 (RFC 2544 Benchmarking)
-  if (((num & 0xfffe0000) >>> 0) === 0xc6120000) return true;
+  if (((num & 0xFF_FE_00_00) >>> 0) === 0xC6_12_00_00) return true;
   // 198.51.100.0/24 (RFC 5737 TEST-NET-2)
-  if (((num & 0xffffff00) >>> 0) === 0xc6336400) return true;
+  if (((num & 0xFF_FF_FF_00) >>> 0) === 0xC6_33_64_00) return true;
   // 203.0.113.0/24 (RFC 5737 TEST-NET-3)
-  if (((num & 0xffffff00) >>> 0) === 0xcb007100) return true;
+  if (((num & 0xFF_FF_FF_00) >>> 0) === 0xCB_00_71_00) return true;
   // 224.0.0.0/4 (RFC 1112 Multicast)
-  if (((num & 0xf0000000) >>> 0) === 0xe0000000) return true;
+  if (((num & 0xF0_00_00_00) >>> 0) === 0xE0_00_00_00) return true;
   // 240.0.0.0/4 (Reserved)
-  if (((num & 0xf0000000) >>> 0) === 0xf0000000) return true;
+  if (((num & 0xF0_00_00_00) >>> 0) === 0xF0_00_00_00) return true;
   // 255.255.255.255/32 (Limited broadcast)
-  if (num === 0xffffffff) return true;
+  if (num === 0xFF_FF_FF_FF) return true;
   // Azure WireServer 168.63.129.16
-  if (num === 0xa83f8110) return true;
+  if (num === 0xA8_3F_81_10) return true;
   // Alibaba Cloud metadata 100.100.100.200
-  if (num === 0x646464c8) return true;
+  if (num === 0x64_64_64_C8) return true;
 
   return false;
 }
 
 /**
- * Parses IPv6 address into eight 16-bit words.
- * Returns null if the address is malformed.
- */
+Parses IPv6 address into eight 16-bit words.
+Returns null if the address is malformed.
+*/
 function parseIpv6Words(ip: string): number[] | null {
-  const clean = ip.toLowerCase().trim().replace(/^\[|\]$/g, "");
+  let clean = ip.toLowerCase().trim().replaceAll(/^\[|\]$/g, "");
   if (!clean) return null;
 
   // Handle IPv4-mapped IPv6 embedded notation e.g. ::ffff:127.0.0.1
@@ -77,15 +77,14 @@ function parseIpv6Words(ip: string): number[] | null {
     const v6Prefix = clean.slice(0, lastColon);
     const v4Part = clean.slice(lastColon + 1);
     const v4Parts = v4Part.split(".").map(Number);
-    if (v4Parts.length !== 4 || v4Parts.some((p) => isNaN(p) || p < 0 || p > 255)) {
+    if (v4Parts.length !== 4 || v4Parts.some((p) => Number.isNaN(p) || p < 0 || p > 255)) {
       return null;
     }
     const [p0 = 0, p1 = 0, p2 = 0, p3 = 0] = v4Parts;
     const word6 = ((p0 << 8) | p1) >>> 0;
     const word7 = ((p2 << 8) | p3) >>> 0;
     const hexV4 = `${word6.toString(16)}:${word7.toString(16)}`;
-    const expanded = v6Prefix ? `${v6Prefix}:${hexV4}` : hexV4;
-    return parseIpv6Words(expanded);
+    clean = v6Prefix ? `${v6Prefix}:${hexV4}` : hexV4;
   }
 
   const parts = clean.split("::");
@@ -95,29 +94,29 @@ function parseIpv6Words(ip: string): number[] | null {
   let rightWords: number[] = [];
 
   if (parts[0]) {
-    leftWords = parts[0].split(":").map((h) => parseInt(h, 16));
-    if (leftWords.some((n) => isNaN(n) || n < 0 || n > 0xffff)) return null;
+    leftWords = parts[0].split(":").map((h) => Number.parseInt(h, 16));
+    if (leftWords.some((n) => Number.isNaN(n) || n < 0 || n > 0xFF_FF)) return null;
   }
 
   if (parts.length === 2 && parts[1]) {
-    rightWords = parts[1].split(":").map((h) => parseInt(h, 16));
-    if (rightWords.some((n) => isNaN(n) || n < 0 || n > 0xffff)) return null;
+    rightWords = parts[1].split(":").map((h) => Number.parseInt(h, 16));
+    if (rightWords.some((n) => Number.isNaN(n) || n < 0 || n > 0xFF_FF)) return null;
   }
 
   const totalDefined = leftWords.length + rightWords.length;
-  if (parts.length === 1 && totalDefined !== 8) return null;
+  if (totalDefined !== 8 && parts.length === 1) return null;
   if (totalDefined > 8) return null;
 
   const zerosCount = 8 - totalDefined;
-  const zeroWords = new Array(zerosCount).fill(0);
+  const zeroWords = Array.from({ length: zerosCount }, () => 0);
 
   return [...leftWords, ...zeroWords, ...rightWords];
 }
 
 /**
- * Checks if an IPv6 address is in loopback, link-local, ULA, or multicast ranges.
- * Implements RFC 4291, RFC 4193, RFC 6052, RFC 3056, RFC 3849, RFC 6666.
- */
+Checks if an IPv6 address is in loopback, link-local, ULA, or multicast ranges.
+Implements RFC 4291, RFC 4193, RFC 6052, RFC 3056, RFC 3849, RFC 6666.
+*/
 function isPrivateIpv6(ip: string): boolean {
   const words = parseIpv6Words(ip);
   if (!words) {
@@ -135,49 +134,45 @@ function isPrivateIpv6(ip: string): boolean {
   }
 
   // IPv4-mapped IPv6 ::ffff:0:0/96
-  if (w0 === 0 && w1 === 0 && w2 === 0 && w3 === 0 && w4 === 0 && w5 === 0xffff) {
-    const p0 = (w6 >> 8) & 0xff;
-    const p1 = w6 & 0xff;
-    const p2 = (w7 >> 8) & 0xff;
-    const p3 = w7 & 0xff;
+  if (w0 === 0 && w1 === 0 && w2 === 0 && w3 === 0 && w4 === 0 && w5 === 0xFF_FF) {
+    const p0 = (w6 >> 8) & 0xFF;
+    const p1 = w6 & 0xFF;
+    const p2 = (w7 >> 8) & 0xFF;
+    const p3 = w7 & 0xFF;
     return isPrivateIpv4(`${p0}.${p1}.${p2}.${p3}`);
   }
 
   // Link-local: fe80::/10 (fe80 to febf)
-  if ((w0 & 0xffc0) === 0xfe80) return true;
+  if ((w0 & 0xFF_C0) === 0xFE_80) return true;
 
   // Unique Local Address (ULA): fc00::/7 (fc00:: and fd00::)
-  if ((w0 & 0xfe00) === 0xfc00) return true;
+  if ((w0 & 0xFE_00) === 0xFC_00) return true;
 
   // Multicast: ff00::/8
-  if ((w0 & 0xff00) === 0xff00) return true;
+  if ((w0 & 0xFF_00) === 0xFF_00) return true;
 
   // Documentation prefix: 2001:db8::/32
-  if (w0 === 0x2001 && w1 === 0x0db8) return true;
+  if (w0 === 0x20_01 && w1 === 0x0D_B8) return true;
 
   // Discard prefix: 100::/64
-  if (w0 === 0x0100 && w1 === 0 && w2 === 0 && w3 === 0) return true;
+  if (w0 === 0x01_00 && w1 === 0 && w2 === 0 && w3 === 0) return true;
 
   // 6to4 encapsulation: 2002::/16
-  if (w0 === 0x2002) {
-    const p0 = (w1 >> 8) & 0xff;
-    const p1 = w1 & 0xff;
-    const p2 = (w2 >> 8) & 0xff;
-    const p3 = w2 & 0xff;
+  if (w0 === 0x20_02) {
+    const p0 = (w1 >> 8) & 0xFF;
+    const p1 = w1 & 0xFF;
+    const p2 = (w2 >> 8) & 0xFF;
+    const p3 = w2 & 0xFF;
     return isPrivateIpv4(`${p0}.${p1}.${p2}.${p3}`);
   }
 
   // NAT64 well-known prefix: 64:ff9b::/96
-  if (w0 === 0x0064 && w1 === 0xff9b && w2 === 0 && w3 === 0 && w4 === 0 && w5 === 0) {
-    return true;
-  }
-
-  return false;
+  return w0 === 0x00_64 && w1 === 0xFF_9B && w2 === 0 && w3 === 0 && w4 === 0 && w5 === 0;
 }
 
 /**
- * Public predicate verifying whether an IP address is private, link-local, or cloud metadata.
- */
+Public predicate verifying whether an IP address is private, link-local, or cloud metadata.
+*/
 export function isPrivateIp(ip: string): boolean {
   if (net.isIPv4(ip)) {
     return isPrivateIpv4(ip);
@@ -213,7 +208,7 @@ export interface SafeUrlFetcherOptions {
 
 const DEFAULT_MAX_REDIRECTS = 3;
 const DEFAULT_MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
-const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 export class SafeUrlFetcher {
   private readonly dnsLookup: DnsLookupFn;
@@ -250,19 +245,19 @@ export class SafeUrlFetcher {
               callback: (err: NodeJS.ErrnoException | null, address: string | dns.LookupAddress[], family?: number) => void
             ) => {
               dns.lookup(hostname, { all: true }, (err, addresses) => {
-                if (err) return callback(err, "");
-                if (!addresses || addresses.length === 0) {
-                  return callback(new SsrfBlockedError(`DNS resolution returned zero records for ${hostname}`), "");
+                if (err) { callback(err, ""); return; }
+                if (addresses.length === 0) {
+                  callback(new SsrfBlockedError(`DNS resolution returned zero records for ${hostname}`), ""); return;
                 }
                 for (const record of addresses) {
                   if (isPrivateIp(record.address)) {
-                    return callback(
+                    callback(
                       new SsrfBlockedError(`SSRF Blocked: Host ${hostname} resolved to private IP ${record.address}`),
                       ""
-                    );
+                    ); return;
                   }
                 }
-                const isAll = typeof opts === "object" && opts !== null && (opts as { all?: boolean }).all;
+                const isAll = typeof opts === "object" && (opts as { all?: boolean }).all;
                 if (isAll) {
                   callback(null, addresses);
                 } else {
@@ -284,9 +279,9 @@ export class SafeUrlFetcher {
         // Stage 1: Pre-flight content-length check
         const contentLength = res.headers["content-length"];
         if (contentLength) {
-          const parsedLen = parseInt(Array.isArray(contentLength) ? contentLength[0] ?? "0" : contentLength, 10);
+          const parsedLen = Number(Array.isArray(contentLength) ? contentLength[0] ?? "0" : contentLength);
           if (parsedLen > maxBytes) {
-            await res.body.destroy();
+            res.body.destroy();
             throw new PayloadTooLargeError(`Payload size ${parsedLen} bytes exceeds ${maxBytes} bytes limit.`);
           }
         }
@@ -298,7 +293,7 @@ export class SafeUrlFetcher {
           const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as ArrayBuffer);
           accumulatedBytes += buf.length;
           if (accumulatedBytes > maxBytes) {
-            await res.body.destroy();
+            res.body.destroy();
             throw new PayloadTooLargeError(`Payload size exceeded limit of ${maxBytes} bytes.`);
           }
           chunks.push(buf);
@@ -306,8 +301,8 @@ export class SafeUrlFetcher {
 
         return {
           status: res.statusCode,
-          headers: res.headers as Record<string, string | string[] | undefined>,
-          body: Buffer.concat(chunks).toString("utf-8"),
+          headers: res.headers,
+          body: Buffer.concat(chunks).toString("utf8"),
         };
       });
   }
@@ -317,7 +312,7 @@ export class SafeUrlFetcher {
     let redirectCount = 0;
     const visitedUrls = new Set<string>();
 
-    const ALLOWED_CONTENT_TYPES = [
+    const ALLOWED_CONTENT_TYPES = new Set([
       "text/html",
       "text/plain",
       "text/markdown",
@@ -325,7 +320,7 @@ export class SafeUrlFetcher {
       "application/json",
       "text/xml",
       "application/xml",
-    ];
+    ]);
 
     while (redirectCount <= this.maxRedirects) {
       if (visitedUrls.has(currentUrl)) {
@@ -350,7 +345,7 @@ export class SafeUrlFetcher {
       }
 
       const rawHost = parsedUrl.hostname.toLowerCase();
-      const hostname = rawHost.replace(/^\[|\]$/g, "");
+      const hostname = rawHost.replaceAll(/^\[|\]$/g, "");
 
       // Block cloud metadata hostnames directly
       if (hostname === "metadata.google.internal" || hostname.endsWith(".metadata.google.internal")) {
@@ -367,8 +362,8 @@ export class SafeUrlFetcher {
         let addresses: DnsLookupResult[];
         try {
           addresses = await this.dnsLookup(hostname);
-        } catch (err) {
-          throw new SsrfBlockedError(`DNS resolution failed for ${hostname}: ${String(err)}`);
+        } catch (error) {
+          throw new SsrfBlockedError(`DNS resolution failed for ${hostname}: ${String(error)}`);
         }
 
         if (addresses.length === 0) {
@@ -385,7 +380,7 @@ export class SafeUrlFetcher {
       }
 
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+      const timer = setTimeout(() => { controller.abort(); }, this.timeoutMs);
 
       try {
         const response = await this.httpDispatch(currentUrl, { signal: controller.signal });
@@ -393,8 +388,8 @@ export class SafeUrlFetcher {
         // Handle redirects manually
         const locationHeaderRaw = response.headers["location"];
         if (
-          [301, 302, 303, 307, 308].includes(response.status) &&
-          locationHeaderRaw
+          locationHeaderRaw &&
+          [301, 302, 303, 307, 308].includes(response.status)
         ) {
           redirectCount++;
           if (redirectCount > this.maxRedirects) {
@@ -403,7 +398,7 @@ export class SafeUrlFetcher {
           const locationHeader = Array.isArray(locationHeaderRaw)
             ? locationHeaderRaw[0]
             : locationHeaderRaw;
-          currentUrl = new URL(locationHeader ?? "", currentUrl).toString();
+          currentUrl = new URL(locationHeader ?? "", currentUrl).href;
           continue;
         }
 
@@ -411,8 +406,8 @@ export class SafeUrlFetcher {
         const contentTypeHeader = response.headers["content-type"];
         if (contentTypeHeader) {
           const rawCt = Array.isArray(contentTypeHeader) ? contentTypeHeader[0] ?? "" : contentTypeHeader;
-          const mediaType = rawCt.split(";")[0]?.trim().toLowerCase() ?? "";
-          if (mediaType && !ALLOWED_CONTENT_TYPES.includes(mediaType)) {
+          const mediaType = rawCt.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+          if (mediaType && !ALLOWED_CONTENT_TYPES.has(mediaType)) {
             throw new InvalidContentTypeError(
               `Forbidden Content-Type: '${mediaType}'. Only text, HTML, and markdown documents are allowed.`
             );
@@ -422,7 +417,7 @@ export class SafeUrlFetcher {
         // Check response size on received headers as well
         const contentLength = response.headers["content-length"];
         if (contentLength) {
-          const size = parseInt(Array.isArray(contentLength) ? contentLength[0] ?? "0" : contentLength, 10);
+          const size = Number(Array.isArray(contentLength) ? contentLength[0] ?? "0" : contentLength);
           if (size > this.maxSizeBytes) {
             throw new PayloadTooLargeError(`Payload size ${size} bytes exceeds ${this.maxSizeBytes} bytes limit.`);
           }
@@ -437,3 +432,5 @@ export class SafeUrlFetcher {
     throw new SsrfBlockedError(`Too many redirects: exceeded ${this.maxRedirects} hops limit.`);
   }
 }
+
+export {SsrfBlockedError, PayloadTooLargeError, InvalidContentTypeError} from "@notebench/contracts";

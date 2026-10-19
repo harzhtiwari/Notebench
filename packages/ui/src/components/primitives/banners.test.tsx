@@ -3,7 +3,7 @@ import * as React from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
-import { WarningCircle, Warning, Info, CheckCircle } from "./icons.js";
+import { WarningCircleIcon, WarningIcon, InfoIcon, CheckCircleIcon } from "./icons.js";
 import {
   Banner,
   BannerIcon,
@@ -26,7 +26,9 @@ type PhosphorIconComponent = React.ComponentType<{
   "aria-hidden"?: boolean;
 }>;
 
-/** Compares the rendered lead glyph against a bare reference render of the icon. */
+/**
+Compares the rendered lead glyph against a bare reference render of the icon.
+*/
 function expectLeadGlyph(container: HTMLElement, Icon: PhosphorIconComponent) {
   const lead = container.querySelector("svg");
   expect(lead, "banner lead icon renders").not.toBeNull();
@@ -58,7 +60,7 @@ describe("Banner Primitive", () => {
     expect(root.className).toContain("rounded-[var(--nb-radius-card)]");
     expect(root.className).toContain("grid-cols-[auto_minmax(0,1fr)]");
     expect(root.className).toContain("max-w-[var(--nb-layout-chat-max)]");
-    expectLeadGlyph(container, Info);
+    expectLeadGlyph(container, InfoIcon);
   });
 
   it("renders error tone with role='alert' and WarningCircle icon", () => {
@@ -76,7 +78,7 @@ describe("Banner Primitive", () => {
     const heading = screen.getByRole("heading", { level: 4 });
     expect(heading.textContent).toBe("Something broke");
     expect(heading.className).toContain("text-[var(--nb-danger)]");
-    expectLeadGlyph(container, WarningCircle);
+    expectLeadGlyph(container, WarningCircleIcon);
   });
 
   it("renders warn tone with Warning icon and proper wash tokens", () => {
@@ -89,7 +91,7 @@ describe("Banner Primitive", () => {
     expect(root.className).toContain("bg-[var(--nb-warn-wash)]");
     expect(root.className).toContain("border-[var(--nb-warn)]");
     expect(root.className).toContain("banner--warn");
-    expectLeadGlyph(container, Warning);
+    expectLeadGlyph(container, WarningIcon);
   });
 
   it("renders ok tone with CheckCircle icon and ok-wash tokens", () => {
@@ -102,7 +104,7 @@ describe("Banner Primitive", () => {
     expect(root.className).toContain("bg-[var(--nb-ok-wash)]");
     expect(root.className).toContain("border-[var(--nb-ok)]");
     expect(root.className).toContain("banner--ok");
-    expectLeadGlyph(container, CheckCircle);
+    expectLeadGlyph(container, CheckCircleIcon);
   });
 
   it("renders neutral tone on the well background with a hairline border", () => {
@@ -114,7 +116,7 @@ describe("Banner Primitive", () => {
     expect(root.getAttribute("role")).toBe("status");
     expect(root.className).toContain("bg-[var(--nb-well)]");
     expect(root.className).toContain("border-[var(--nb-hairline)]");
-    expectLeadGlyph(container, Info);
+    expectLeadGlyph(container, InfoIcon);
   });
 
   it("renders action buttons and handles click callbacks", () => {
@@ -197,7 +199,7 @@ describe("Banner Primitive", () => {
     expect(root.className).toContain("var(--nb-danger)");
     expect(root.className).toContain("p-[var(--nb-space-3)]");
     expect(screen.getByText("Passcode must be longer.")).toBeDefined();
-    expectLeadGlyph(container, WarningCircle);
+    expectLeadGlyph(container, WarningCircleIcon);
   });
 
   it("renders FormSuccess adapter with ok tone, status role, and CheckCircle icon", () => {
@@ -207,7 +209,7 @@ describe("Banner Primitive", () => {
     expect(root.getAttribute("role")).toBe("status");
     expect(root.className).toContain("var(--nb-ok)");
     expect(screen.getByText("Setup completed.")).toBeDefined();
-    expectLeadGlyph(container, CheckCircle);
+    expectLeadGlyph(container, CheckCircleIcon);
   });
 
   it("keeps the AlertBanner alias contract (warn default, Exposure alert title)", () => {
@@ -261,7 +263,7 @@ describe("Banner Primitive", () => {
       fireEvent.click(screen.getByRole("button", { name: "Open model settings" }));
       expect(handleOpenSettings).toHaveBeenCalledTimes(1);
 
-      expectLeadGlyph(container, WarningCircle);
+      expectLeadGlyph(container, WarningCircleIcon);
     });
 
     it("renders Canonical Example 2: 'Not enough disk space for the speech model' (Warning Banner)", () => {
@@ -286,7 +288,7 @@ describe("Banner Primitive", () => {
           "It needs 1.5 GB and 0.9 GB is free. Free some space or pick a smaller model."
         )
       ).toBeDefined();
-      expectLeadGlyph(container, Warning);
+      expectLeadGlyph(container, WarningIcon);
     });
 
     it("renders Canonical Example 3: 'No chat model is set up yet' (Info Banner)", () => {
@@ -306,7 +308,7 @@ describe("Banner Primitive", () => {
       expect(screen.getByRole("heading", { level: 4 }).textContent).toBe(
         "No chat model is set up yet"
       );
-      expectLeadGlyph(container, Info);
+      expectLeadGlyph(container, InfoIcon);
     });
 
     it("renders the compound pieces in the canonical grid shape", () => {

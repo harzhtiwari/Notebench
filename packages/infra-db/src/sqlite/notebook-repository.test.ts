@@ -98,7 +98,7 @@ describe("SqliteNotebookRepository (Ticket 05 CRUD & Duplicate)", () => {
       expect(summary?.title).toBe("ML Studies");
       expect(summary?.sourcesCount).toBe(2);
       expect(summary?.artifactsCount).toBe(1);
-      expect(summary?.storageBytes).toBe(1048576 + 2048);
+      expect(summary?.storageBytes).toBe(1_048_576 + 2048);
       expect(summary?.sourceFileNames).toEqual(["AttentionIsAllYouNeed.pdf", "Notes.md"]);
     });
 
@@ -157,34 +157,34 @@ describe("SqliteNotebookRepository (Ticket 05 CRUD & Duplicate)", () => {
       // Verify sources of duplicated notebook: fresh row, same count/content
       const dupSources = dbInstance.sqlite
         .prepare("SELECT * FROM sources WHERE notebook_id = ?")
-        .all(duplicated.id) as Array<{
+        .all(duplicated.id) as {
           id: string;
           title: string;
           content_hash: string;
           byte_size: number;
-        }>;
+        }[];
       expect(dupSources).toHaveLength(1);
       expect(dupSources[0]?.id).not.toBe(sourceId);
       expect(dupSources[0]?.title).toBe("Mechanics.pdf");
       expect(dupSources[0]?.content_hash).toBe("hash-123");
-      expect(dupSources[0]?.byte_size).toBe(500000);
+      expect(dupSources[0]?.byte_size).toBe(500_000);
 
       // Verify artifacts and version DAG of duplicated notebook
       const dupArtifacts = dbInstance.sqlite
         .prepare("SELECT * FROM artifacts WHERE notebook_id = ?")
-        .all(duplicated.id) as Array<{ id: string; title: string; current_version_id: string }>;
+        .all(duplicated.id) as { id: string; title: string; current_version_id: string }[];
       expect(dupArtifacts).toHaveLength(1);
       expect(dupArtifacts[0]?.id).not.toBe(artifactId);
       expect(dupArtifacts[0]?.title).toBe("Kinematics Quiz");
 
       const dupVersions = dbInstance.sqlite
         .prepare("SELECT * FROM artifact_versions WHERE artifact_id = ? ORDER BY number ASC")
-        .all(dupArtifacts[0]?.id) as Array<{
+        .all(dupArtifacts[0]?.id) as {
           id: string;
           number: number;
           parent_version_id: string | null;
           content: string;
-        }>;
+        }[];
       expect(dupVersions).toHaveLength(2);
       expect(dupVersions[0]?.id).not.toBe(versionIdV1);
       expect(dupVersions[0]?.parent_version_id).toBeNull();
@@ -219,7 +219,7 @@ describe("SqliteNotebookRepository (Ticket 05 CRUD & Duplicate)", () => {
 
       const foreignKeys = dbInstance.sqlite.pragma(
         "foreign_key_list(artifact_versions)"
-      ) as Array<{ table: string; from: string; to: string }>;
+      ) as { table: string; from: string; to: string }[];
 
       expect(foreignKeys).toContainEqual(
         expect.objectContaining({
@@ -268,7 +268,7 @@ describe("SqliteNotebookRepository (Ticket 05 CRUD & Duplicate)", () => {
       expect(metrics.notebookCount).toBe(2);
       expect(metrics.sourceCount).toBe(2);
       expect(metrics.artifactCount).toBe(1);
-      expect(metrics.storageUsedBytes).toBe(3500000);
+      expect(metrics.storageUsedBytes).toBe(3_500_000);
       expect(metrics.storageSafeCapBytes).toBe(5 * 1024 * 1024 * 1024);
     });
   });

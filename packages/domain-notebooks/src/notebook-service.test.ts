@@ -14,6 +14,96 @@ import type {
   DuplicateNotebookInput,
 } from "@notebench/contracts";
 
+function makeSummary(overrides: Partial<NotebookSummary> & { id: string }): NotebookSummary {
+  return {
+    userId: "user-1",
+    title: "Untitled",
+    trashedAt: null,
+    createdAt: "2026-10-01T10:00:00.000Z",
+    updatedAt: "2026-10-01T10:00:00.000Z",
+    sourcesCount: 0,
+    artifactsCount: 0,
+    storageBytes: 0,
+    sourceFileNames: [],
+    ...overrides,
+  };
+}
+
+function makeMemoryRepo(seed: NotebookSummary[] = []): NotebookRepositoryPort & {
+  store: Map<string, NotebookSummary>;
+} {
+  const store = new Map<string, NotebookSummary>(seed.map((s) => [s.id, s]));
+  return {
+    store,
+    listSummaries: async (userId: string) =>
+      store.values().filter((s) => s.userId === userId).toArray(),
+    findById: async (id: string, userId: string) => {
+      const found = store.get(id);
+      if (found?.userId !== userId) return null;
+      const { sourcesCount: _sc, artifactsCount: _ac, storageBytes: _sb, sourceFileNames: _sfn, ...rest } = found;
+      return rest;
+    },
+    create: async (userId: string, input: { title: string }) => {
+      const now = new Date().toISOString();
+      const notebook: Notebook = {
+        id: `nb-${store.size + 1}`,
+        userId,
+        title: input.title,
+        trashedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      store.set(notebook.id, makeSummary({ ...notebook }));
+      return notebook;
+    },
+    update: async (id: string, userId: string, input: { title?: string }) => {
+      const found = store.get(id);
+      if (found?.userId !== userId) {
+        throw new Error(`Notebook '${id}' not found`);
+      }
+      const updated: NotebookSummary = {
+        ...found,
+        title: input.title ?? found.title,
+        updatedAt: new Date().toISOString(),
+      };
+      store.set(id, updated);
+      const { sourcesCount: _sc, artifactsCount: _ac, storageBytes: _sb, sourceFileNames: _sfn, ...rest } = updated;
+      return rest;
+    },
+    delete: async (id: string) => {
+      store.delete(id);
+    },
+    duplicate: async (sourceNotebookId: string, userId: string, input?: DuplicateNotebookInput) => {
+      const original = store.get(sourceNotebookId);
+      if (original?.userId !== userId) {
+        throw new Error(`Notebook '${sourceNotebookId}' not found`);
+      }
+      const now = new Date().toISOString();
+      const copy: NotebookSummary = {
+        ...original,
+        id: `nb-copy-${store.size + 1}`,
+        title: input?.title ?? `Copy of ${original.title}`,
+        createdAt: now,
+        updatedAt: now,
+        sourceFileNames: [...original.sourceFileNames],
+      };
+      store.set(copy.id, copy);
+      const { sourcesCount: _sc, artifactsCount: _ac, storageBytes: _sb, sourceFileNames: _sfn, ...rest } = copy;
+      return rest;
+    },
+    getMetrics: async (userId: string) => {
+      const mine = store.values().filter((s) => s.userId === userId).toArray();
+      return {
+        storageUsedBytes: mine.reduce((sum, s) => sum + s.storageBytes, 0),
+        storageSafeCapBytes: 5 * 1024 * 1024 * 1024,
+        notebookCount: mine.length,
+        sourceCount: mine.reduce((sum, s) => sum + s.sourcesCount, 0),
+        artifactCount: mine.reduce((sum, s) => sum + s.artifactsCount, 0),
+      };
+    },
+  };
+}
+
 describe("Notebook Domain Service & Configs (Ticket 05)", () => {
   const sampleNotebooks: NotebookSummary[] = [
     {
@@ -25,7 +115,7 @@ describe("Notebook Domain Service & Configs (Ticket 05)", () => {
       updatedAt: "2026-10-10T15:00:00.000Z",
       sourcesCount: 2,
       artifactsCount: 1,
-      storageBytes: 2048000,
+      storageBytes: 2_048_000,
       sourceFileNames: ["Shor_Algorithm.pdf", "Notes.txt"],
     },
     {
@@ -37,7 +127,7 @@ describe("Notebook Domain Service & Configs (Ticket 05)", () => {
       updatedAt: "2026-10-11T12:00:00.000Z",
       sourcesCount: 4,
       artifactsCount: 3,
-      storageBytes: 8192000,
+      storageBytes: 8_192_000,
       sourceFileNames: ["EnzymeKinetics.pdf", "Proteins.docx"],
     },
     {
@@ -49,7 +139,7 @@ describe("Notebook Domain Service & Configs (Ticket 05)", () => {
       updatedAt: "2026-10-08T09:00:00.000Z",
       sourcesCount: 1,
       artifactsCount: 0,
-      storageBytes: 512000,
+      storageBytes: 512_000,
       sourceFileNames: ["Backpropagation.pdf"],
     },
   ];
@@ -88,7 +178,7 @@ describe("Notebook Domain Service & Configs (Ticket 05)", () => {
   describe("filterNotebookSummaries (Decision 1.35)", () => {
     it("returns all notebooks when filter query is empty or blank", () => {
       expect(filterNotebookSummaries(sampleNotebooks, "")).toHaveLength(3);
-      expect(filterNotebookSummaries(sampleNotebooks, "   ")).toHaveLength(3);
+      expect(filterNotebookSummaries(sampleNotebooks, ' '.repeat(3))).toHaveLength(3);
     });
 
     it("filters notebooks by title match (case-insensitive)", () => {
@@ -157,7 +247,7 @@ describe("Notebook Domain Service & Configs (Ticket 05)", () => {
   });
 
   describe("NotebookService", () => {
-    const mockRepo: NotebookRepositoryPort = {
+    const mockRepo = {
       listSummaries: vi.fn(),
       findById: vi.fn(),
       create: vi.fn(),
@@ -165,7 +255,7 @@ describe("Notebook Domain Service & Configs (Ticket 05)", () => {
       delete: vi.fn(),
       duplicate: vi.fn(),
       getMetrics: vi.fn(),
-    };
+    } satisfies NotebookRepositoryPort;
 
     it("creates a notebook with sanitized trimmed title", async () => {
       const service = new NotebookService(mockRepo);
@@ -186,7 +276,7 @@ describe("Notebook Domain Service & Configs (Ticket 05)", () => {
 
     it("rejects empty notebook title on creation and rename", async () => {
       const service = new NotebookService(mockRepo);
-      await expect(service.createNotebook("user-1", "   ")).rejects.toThrow();
+      await expect(service.createNotebook("user-1", ' '.repeat(3))).rejects.toThrow();
       await expect(service.renameNotebook("some-id", "user-1", "")).rejects.toThrow();
     });
 
@@ -213,96 +303,6 @@ describe("Notebook Domain Service & Configs (Ticket 05)", () => {
   });
 
   describe("NotebookService end-to-end over an in-memory repository (Ticket 05 §4)", () => {
-    function makeSummary(overrides: Partial<NotebookSummary> & { id: string }): NotebookSummary {
-      return {
-        userId: "user-1",
-        title: "Untitled",
-        trashedAt: null,
-        createdAt: "2026-10-01T10:00:00.000Z",
-        updatedAt: "2026-10-01T10:00:00.000Z",
-        sourcesCount: 0,
-        artifactsCount: 0,
-        storageBytes: 0,
-        sourceFileNames: [],
-        ...overrides,
-      };
-    }
-
-    function makeMemoryRepo(seed: NotebookSummary[] = []): NotebookRepositoryPort & {
-      store: Map<string, NotebookSummary>;
-    } {
-      const store = new Map<string, NotebookSummary>(seed.map((s) => [s.id, s]));
-      return {
-        store,
-        listSummaries: async (userId: string) =>
-          [...store.values()].filter((s) => s.userId === userId),
-        findById: async (id: string, userId: string) => {
-          const found = store.get(id);
-          if (!found || found.userId !== userId) return null;
-          const { sourcesCount: _sc, artifactsCount: _ac, storageBytes: _sb, sourceFileNames: _sfn, ...rest } = found;
-          return rest as Notebook;
-        },
-        create: async (userId: string, input: { title: string }) => {
-          const now = new Date().toISOString();
-          const notebook: Notebook = {
-            id: `nb-${store.size + 1}`,
-            userId,
-            title: input.title,
-            trashedAt: null,
-            createdAt: now,
-            updatedAt: now,
-          };
-          store.set(notebook.id, makeSummary({ ...notebook }));
-          return notebook;
-        },
-        update: async (id: string, userId: string, input: { title?: string }) => {
-          const found = store.get(id);
-          if (!found || found.userId !== userId) {
-            throw new Error(`Notebook '${id}' not found`);
-          }
-          const updated: NotebookSummary = {
-            ...found,
-            title: input.title ?? found.title,
-            updatedAt: new Date().toISOString(),
-          };
-          store.set(id, updated);
-          const { sourcesCount: _sc, artifactsCount: _ac, storageBytes: _sb, sourceFileNames: _sfn, ...rest } = updated;
-          return rest as Notebook;
-        },
-        delete: async (id: string) => {
-          store.delete(id);
-        },
-        duplicate: async (sourceNotebookId: string, userId: string, input?: DuplicateNotebookInput) => {
-          const original = store.get(sourceNotebookId);
-          if (!original || original.userId !== userId) {
-            throw new Error(`Notebook '${sourceNotebookId}' not found`);
-          }
-          const now = new Date().toISOString();
-          const copy: NotebookSummary = {
-            ...original,
-            id: `nb-copy-${store.size + 1}`,
-            title: input?.title ?? `Copy of ${original.title}`,
-            createdAt: now,
-            updatedAt: now,
-            sourceFileNames: [...original.sourceFileNames],
-          };
-          store.set(copy.id, copy);
-          const { sourcesCount: _sc, artifactsCount: _ac, storageBytes: _sb, sourceFileNames: _sfn, ...rest } = copy;
-          return rest as Notebook;
-        },
-        getMetrics: async (userId: string) => {
-          const mine = [...store.values()].filter((s) => s.userId === userId);
-          return {
-            storageUsedBytes: mine.reduce((sum, s) => sum + s.storageBytes, 0),
-            storageSafeCapBytes: 5 * 1024 * 1024 * 1024,
-            notebookCount: mine.length,
-            sourceCount: mine.reduce((sum, s) => sum + s.sourcesCount, 0),
-            artifactCount: mine.reduce((sum, s) => sum + s.artifactsCount, 0),
-          };
-        },
-      };
-    }
-
     it("create returns an ID and the notebook appears in the list", async () => {
       const service = new NotebookService(makeMemoryRepo());
       const created = await service.createNotebook("user-1", "Field Notes");
@@ -314,28 +314,29 @@ describe("Notebook Domain Service & Configs (Ticket 05)", () => {
 
     it("listNotebooks filters by title and source filename end to end", async () => {
       const service = new NotebookService(makeMemoryRepo(sampleNotebooks));
-      expect((await service.listNotebooks("user-1", "quantum")).map((n) => n.title)).toEqual([
-        "Quantum Computing Basics",
-      ]);
-      expect((await service.listNotebooks("user-1", "enzymekinetics")).map((n) => n.title)).toEqual([
-        "Biochemistry Digest",
-      ]);
+      const quantumResults = await service.listNotebooks("user-1", "quantum");
+      expect(quantumResults.map((n) => n.title)).toEqual(["Quantum Computing Basics"]);
+      const enzymeResults = await service.listNotebooks("user-1", "enzymekinetics");
+      expect(enzymeResults.map((n) => n.title)).toEqual(["Biochemistry Digest"]);
       expect(await service.listNotebooks("user-1", "no-such-thing")).toEqual([]);
     });
 
     it("listNotebooks sorts by each key end to end", async () => {
       const service = new NotebookService(makeMemoryRepo(sampleNotebooks));
-      expect((await service.listNotebooks("user-1", undefined, "title", "asc")).map((n) => n.title)).toEqual([
+      const byTitleAsc = await service.listNotebooks("user-1", undefined, "title", "asc");
+      expect(byTitleAsc.map((n) => n.title)).toEqual([
         "Biochemistry Digest",
         "Machine Learning Foundations",
         "Quantum Computing Basics",
       ]);
-      expect((await service.listNotebooks("user-1", undefined, "size", "desc")).map((n) => n.title)).toEqual([
+      const bySizeDesc = await service.listNotebooks("user-1", undefined, "size", "desc");
+      expect(bySizeDesc.map((n) => n.title)).toEqual([
         "Biochemistry Digest",
         "Quantum Computing Basics",
         "Machine Learning Foundations",
       ]);
-      expect((await service.listNotebooks("user-1", undefined, "created", "asc")).map((n) => n.title)).toEqual([
+      const byCreatedAsc = await service.listNotebooks("user-1", undefined, "created", "asc");
+      expect(byCreatedAsc.map((n) => n.title)).toEqual([
         "Quantum Computing Basics",
         "Machine Learning Foundations",
         "Biochemistry Digest",

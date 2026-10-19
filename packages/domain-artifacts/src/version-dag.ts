@@ -54,15 +54,15 @@ export interface ApplyProposedContentCommand {
 }
 
 /**
- * Domain Service managing Living Artifact Version DAGs and Sibling Invariance (Decisions 4.2, 4.3, 4.6).
- * Enforces append-only immutable history and bit-for-bit sibling invariance via RFC 8785 digests.
- */
+Domain Service managing Living Artifact Version DAGs and Sibling Invariance (Decisions 4.2, 4.3, 4.6).
+Enforces append-only immutable history and bit-for-bit sibling invariance via RFC 8785 digests.
+*/
 export class ArtifactVersionDagService {
   constructor(private readonly repository: ArtifactVersionRepositoryPort) {}
 
   /**
-   * Commits a new version to the append-only history DAG.
-   */
+  Commits a new version to the append-only history DAG.
+  */
   public async createVersion(command: CreateVersionCommand): Promise<ArtifactVersion> {
     const validatedContent = ArtifactContentSchema.parse(command.content);
     const contentDigest = computeNodeDigest(validatedContent);
@@ -75,41 +75,41 @@ export class ArtifactVersionDagService {
       userId: command.userId,
       number: nextNumber,
       createdBy: command.createdBy,
-      ...(command.model ? { model: command.model } : {}),
-      ...(command.instruction ? { instruction: command.instruction } : {}),
-      ...(command.parentVersionId ? { parentVersionId: command.parentVersionId } : {}),
+      ...(command.model && { model: command.model }),
+      ...(command.instruction && { instruction: command.instruction }),
+      ...(command.parentVersionId && { parentVersionId: command.parentVersionId }),
       content: validatedContent,
       contentDigest,
     });
   }
 
   /**
-   * Retrieves a single version by its unique ID.
-   */
+  Retrieves a single version by its unique ID.
+  */
   public async getVersion(versionId: string): Promise<ArtifactVersion | null> {
     return this.repository.getVersionById(versionId);
   }
 
   /**
-   * Lists all versions in the lineage DAG for an artifact, ordered by version number.
-   */
+  Lists all versions in the lineage DAG for an artifact, ordered by version number.
+  */
   public async listVersions(artifactId: string): Promise<ArtifactVersion[]> {
     return this.repository.listVersions(artifactId);
   }
 
   /**
-   * Non-destructive restore mechanic (Decision 4.3, git-style).
-   * Restores an earlier version by creating a new version cloning the target
-   * version's content, with the parent staying on latest so history remains
-   * linear (V5 → V4 → …), like `git revert`. The old rows are unchanged.
-   */
+  Non-destructive restore mechanic (Decision 4.3, git-style).
+  Restores an earlier version by creating a new version cloning the target
+  version's content, with the parent staying on latest so history remains
+  linear (V5 → V4 → …), like `git revert`. The old rows are unchanged.
+  */
   public async restoreVersion(
     artifactId: string,
     targetVersionId: string,
     options?: RestoreVersionOptions
   ): Promise<ArtifactVersion> {
     const targetVersion = await this.repository.getVersionById(targetVersionId);
-    if (!targetVersion || targetVersion.artifactId !== artifactId) {
+    if (targetVersion?.artifactId !== artifactId) {
       throw new NotFoundError(
         `Target version '${targetVersionId}' does not exist for artifact '${artifactId}'`,
         { artifactId, targetVersionId }
@@ -139,14 +139,14 @@ export class ArtifactVersionDagService {
   }
 
   /**
-   * Surgically mutates a targeted block/item while asserting cryptographic sibling invariance (Decision 4.2).
-   * On ANY sibling divergence, throws InvarianceViolationError and aborts without writing to the database.
-   */
+  Surgically mutates a targeted block/item while asserting cryptographic sibling invariance (Decision 4.2).
+  On ANY sibling divergence, throws InvarianceViolationError and aborts without writing to the database.
+  */
   public async applySurgicalPatch(
     command: ApplySurgicalPatchCommand
   ): Promise<ArtifactVersion> {
     const baseVersion = await this.repository.getVersionById(command.baseVersionId);
-    if (!baseVersion || baseVersion.artifactId !== command.artifactId) {
+    if (baseVersion?.artifactId !== command.artifactId) {
       throw new NotFoundError(
         `Base version '${command.baseVersionId}' not found for artifact '${command.artifactId}'`,
         { artifactId: command.artifactId, baseVersionId: command.baseVersionId }
@@ -158,10 +158,8 @@ export class ArtifactVersionDagService {
     const patchPayload: SurgicalPatch = {
       targetId: command.targetId,
       replacement: command.replacement,
-      ...(command.expectedPreHash ? { expectedPreHash: command.expectedPreHash } : {}),
-      ...(command.expectedSiblingHashes
-        ? { expectedSiblingHashes: command.expectedSiblingHashes }
-        : {}),
+      ...(command.expectedPreHash && { expectedPreHash: command.expectedPreHash }),
+      ...(command.expectedSiblingHashes && { expectedSiblingHashes: command.expectedSiblingHashes }),
     };
 
     // applySurgicalPatch asserts sibling invariance via RFC 8785 SHA-256 before returning
@@ -180,7 +178,7 @@ export class ArtifactVersionDagService {
       userId: command.userId,
       number: nextNumber,
       createdBy: command.createdBy ?? "user",
-      ...(command.model ? { model: command.model } : {}),
+      ...(command.model && { model: command.model }),
       instruction:
         command.instruction ?? `Surgical update targeting node '${command.targetId}'`,
       parentVersionId: command.baseVersionId,
@@ -190,14 +188,14 @@ export class ArtifactVersionDagService {
   }
 
   /**
-   * Verifies that a full proposed content tree maintains sibling invariance relative to base version.
-   * If valid, appends a new version pointing to base version.
-   */
+  Verifies that a full proposed content tree maintains sibling invariance relative to base version.
+  If valid, appends a new version pointing to base version.
+  */
   public async applyProposedContent(
     command: ApplyProposedContentCommand
   ): Promise<ArtifactVersion> {
     const baseVersion = await this.repository.getVersionById(command.baseVersionId);
-    if (!baseVersion || baseVersion.artifactId !== command.artifactId) {
+    if (baseVersion?.artifactId !== command.artifactId) {
       throw new NotFoundError(
         `Base version '${command.baseVersionId}' not found for artifact '${command.artifactId}'`,
         { artifactId: command.artifactId, baseVersionId: command.baseVersionId }
@@ -219,7 +217,7 @@ export class ArtifactVersionDagService {
       userId: command.userId,
       number: nextNumber,
       createdBy: command.createdBy ?? "user",
-      ...(command.model ? { model: command.model } : {}),
+      ...(command.model && { model: command.model }),
       instruction:
         command.instruction ?? `Proposed content update targeting node '${command.targetId}'`,
       parentVersionId: command.baseVersionId,

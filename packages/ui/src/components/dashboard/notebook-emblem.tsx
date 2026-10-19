@@ -1,12 +1,12 @@
 import * as React from "react";
-import { Notebook, resolveIconProps } from "../primitives/icons.js";
+import { NotebookIcon, resolveIconProps } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
 /**
- * Shared notebook emblem. Replaces the old emoji glyph with the catalog
- * `Notebook` icon (a literal emoji icon is a bug): used by `NotebookCard`, `NotebookRow`, and
- * any future notebook surface.
- */
+Shared notebook emblem. Replaces the old emoji glyph with the catalog
+`Notebook` icon (a literal emoji icon is a bug): used by `NotebookCard`, `NotebookRow`, and
+any future notebook surface.
+*/
 const NotebookEmblem = React.forwardRef<
   HTMLSpanElement,
   React.HTMLAttributes<HTMLSpanElement>
@@ -16,7 +16,7 @@ const NotebookEmblem = React.forwardRef<
     className={cn("inline-flex text-[var(--nb-ink-2)]", className)}
     {...props}
   >
-    <Notebook {...resolveIconProps({ size: "md" })} />
+    <NotebookIcon {...resolveIconProps({ size: "md" })} />
   </span>
 ));
 NotebookEmblem.displayName = "NotebookEmblem";

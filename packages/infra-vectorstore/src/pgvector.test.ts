@@ -3,11 +3,11 @@ import { PgVectorStore, toPgVectorLiteral } from "./pgvector.js";
 import type { PgQueryable } from "./pgvector.js";
 
 /**
- * Unit tests for the Postgres vector store. These run without a database:
- * the store talks to a structural `PgQueryable`, and this suite records the
- * SQL and parameters it emits (the real end-to-end proof lives in
- * `packages/infra-db/test/pgvector-parity.test.ts`, which needs Docker).
- */
+Unit tests for the Postgres vector store. These run without a database:
+the store talks to a structural `PgQueryable`, and this suite records the
+SQL and parameters it emits (the real end-to-end proof lives in
+`packages/infra-db/test/pgvector-parity.test.ts`, which needs Docker).
+*/
 
 interface RecordedQuery {
   text: string;
@@ -15,7 +15,7 @@ interface RecordedQuery {
 }
 
 function recordingQueryable(
-  rowsByCall: Array<Array<Record<string, unknown>>> = []
+  rowsByCall: Record<string, unknown>[][] = []
 ): { queryable: PgQueryable; calls: RecordedQuery[] } {
   const calls: RecordedQuery[] = [];
   const queryable: PgQueryable = {
@@ -35,7 +35,7 @@ describe("toPgVectorLiteral", () => {
 
   it("formats a Float32Array with single-precision values, matching sqlite-vec f32 storage", () => {
     const literal = toPgVectorLiteral(new Float32Array([0.1, 0.2]));
-    expect(literal).toBe(`[${Array.from(new Float32Array([0.1, 0.2])).join(",")}]`);
+    expect(literal).toBe(`[${[...new Float32Array([0.1, 0.2])].join(",")}]`);
     expect(literal).not.toBe("[0.1,0.2]");
   });
 });

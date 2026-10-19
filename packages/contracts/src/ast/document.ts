@@ -30,13 +30,13 @@ export const TextNodeSchema = z.object({
 });
 export type TextNode = z.infer<typeof TextNodeSchema>;
 
-export type ProseMirrorNode = {
+export interface ProseMirrorNode {
   type: string;
   attrs?: Record<string, unknown> | undefined;
   content?: ProseMirrorNode[] | undefined;
   text?: string | undefined;
   marks?: Mark[] | undefined;
-};
+}
 
 export const ProseMirrorNodeSchema: z.ZodType<ProseMirrorNode> = z.lazy(() =>
   z.object({

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, rmSync, mkdirSync, readdirSync, utimesSync } from "node:fs";
-import { resolve, join } from "node:path";
+import path from "node:path";
 import Database from "better-sqlite3";
 import {
   createPreMigrationBackup,
@@ -8,20 +8,20 @@ import {
   runSqliteMigrations,
 } from "./index.js";
 
-const TEST_DIR = resolve(`.tmp/test/test-db-migrator-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
+const TEST_DIR = path.resolve(`.tmp/test/test-db-migrator-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
 
 /**
- * Windows holds file locks briefly after sqlite handles close, longer under
- * parallel suites: retry transient lock errors with a generous budget.
- */
-async function removeDirWithRetry(dir: string): Promise<void> {
+Windows holds file locks briefly after sqlite handles close, longer under
+parallel suites: retry transient lock errors with a generous budget.
+*/
+async function removeDirWithRetry(): Promise<void> {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     try {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(TEST_DIR, { recursive: true, force: true });
       return;
     } catch (error: unknown) {
-      const code = (error as { code?: string }).code;
-      if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
+      const code = (error as { code?: string }).code ?? "";
+      if (["EPERM", "EBUSY", "ENOTEMPTY"].includes(code) && attempt < 59) {
         await new Promise((resolve) => setTimeout(resolve, 250));
         continue;
       }
@@ -33,7 +33,7 @@ async function removeDirWithRetry(dir: string): Promise<void> {
 describe("Pre-Migration Backup & Rollback Engine", () => {
   beforeEach(async () => {
     if (existsSync(TEST_DIR)) {
-      await removeDirWithRetry(TEST_DIR);
+      await removeDirWithRetry();
     }
     mkdirSync(TEST_DIR, { recursive: true });
   }, 120_000);
@@ -41,7 +41,7 @@ describe("Pre-Migration Backup & Rollback Engine", () => {
   afterEach(async () => {
     if (existsSync(TEST_DIR)) {
       try {
-        await removeDirWithRetry(TEST_DIR);
+        await removeDirWithRetry();
       } catch {
         // Non-fatal if OS locks are briefly transitioning
       }
@@ -49,10 +49,10 @@ describe("Pre-Migration Backup & Rollback Engine", () => {
   }, 120_000);
 
   it("creates an atomic pre-migration backup with metadata manifest and SHA-256", async () => {
-    const caseDir = join(TEST_DIR, "case-1");
+    const caseDir = path.join(TEST_DIR, "case-1");
     mkdirSync(caseDir, { recursive: true });
-    const backupDir = join(caseDir, "backups");
-    const dbPath = join(caseDir, "app.sqlite");
+    const backupDir = path.join(caseDir, "backups");
+    const dbPath = path.join(caseDir, "app.sqlite");
 
     const activeDb = new Database(dbPath);
     try {
@@ -87,10 +87,10 @@ describe("Pre-Migration Backup & Rollback Engine", () => {
   });
 
   it("keeps every pre-migration backup inside the 14-day retention window, even beyond maxRetainedBackups", async () => {
-    const caseDir = join(TEST_DIR, "case-2");
+    const caseDir = path.join(TEST_DIR, "case-2");
     mkdirSync(caseDir, { recursive: true });
-    const backupDir = join(caseDir, "backups");
-    const dbPath = join(caseDir, "app.sqlite");
+    const backupDir = path.join(caseDir, "backups");
+    const dbPath = path.join(caseDir, "app.sqlite");
 
     const activeDb = new Database(dbPath);
     try {
@@ -121,10 +121,10 @@ describe("Pre-Migration Backup & Rollback Engine", () => {
   });
 
   it("never prunes the newest pre-migration backup, even when mtime order disagrees with name order", async () => {
-    const caseDir = join(TEST_DIR, "case-2-never-newest");
+    const caseDir = path.join(TEST_DIR, "case-2-never-newest");
     mkdirSync(caseDir, { recursive: true });
-    const backupDir = join(caseDir, "backups");
-    const dbPath = join(caseDir, "app.sqlite");
+    const backupDir = path.join(caseDir, "backups");
+    const dbPath = path.join(caseDir, "app.sqlite");
 
     const activeDb = new Database(dbPath);
     try {
@@ -146,15 +146,18 @@ describe("Pre-Migration Backup & Rollback Engine", () => {
       // by mtime and the last-created one is the oldest; all four are outside
       // the 14-day window, so only the count cap governs their fate.
       const dayMs = 86_400_000;
-      for (let i = 0; i < created.length; i++) {
+      for (const [i, element] of created.entries()) {
         const when = new Date(Date.now() - (i + 1) * 20 * dayMs);
-        const file = created[i] as string;
+        const file = element;
         utimesSync(file, when, when);
         utimesSync(`${file}.meta.json`, when, when);
       }
 
-      const newest = created[0] as string;
-      const oldest = created[3] as string;
+      const newest = created[0];
+      const oldest = created[3];
+      if (newest === undefined || oldest === undefined) {
+        throw new Error("expected four created snapshots");
+      }
 
       const fresh = await createPreMigrationBackup({
         activeDb,
@@ -177,12 +180,12 @@ describe("Pre-Migration Backup & Rollback Engine", () => {
   });
 
   it("unlinks orphaned WAL and SHM files during automated rollback", () => {
-    const caseDir = join(TEST_DIR, "case-3");
+    const caseDir = path.join(TEST_DIR, "case-3");
     mkdirSync(caseDir, { recursive: true });
-    const dbPath = join(caseDir, "app.sqlite");
+    const dbPath = path.join(caseDir, "app.sqlite");
     const walPath = `${dbPath}-wal`;
     const shmPath = `${dbPath}-shm`;
-    const backupPath = join(caseDir, "snapshot.sqlite");
+    const backupPath = path.join(caseDir, "snapshot.sqlite");
 
     // 1. Create a snapshot database with known state
     const snapshotDb = new Database(backupPath);
@@ -220,10 +223,10 @@ describe("Pre-Migration Backup & Rollback Engine", () => {
   });
 
   it("runSqliteMigrations executes migration and succeeds", async () => {
-    const caseDir = join(TEST_DIR, "case-4");
+    const caseDir = path.join(TEST_DIR, "case-4");
     mkdirSync(caseDir, { recursive: true });
-    const backupDir = join(caseDir, "backups");
-    const dbPath = join(caseDir, "app.sqlite");
+    const backupDir = path.join(caseDir, "backups");
+    const dbPath = path.join(caseDir, "app.sqlite");
 
     const activeDb = new Database(dbPath);
     try {
@@ -251,10 +254,10 @@ describe("Pre-Migration Backup & Rollback Engine", () => {
   });
 
   it("runSqliteMigrations rolls back if migration throws", async () => {
-    const caseDir = join(TEST_DIR, "case-5");
+    const caseDir = path.join(TEST_DIR, "case-5");
     mkdirSync(caseDir, { recursive: true });
-    const backupDir = join(caseDir, "backups");
-    const dbPath = join(caseDir, "app.sqlite");
+    const backupDir = path.join(caseDir, "backups");
+    const dbPath = path.join(caseDir, "app.sqlite");
 
     const activeDb = new Database(dbPath);
     try {

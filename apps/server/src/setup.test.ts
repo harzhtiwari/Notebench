@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, rmSync, mkdirSync, readFileSync } from "node:fs";
 import { Writable } from "node:stream";
-import { resolve, join } from "node:path";
+import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { createLogger } from "@notebench/logger";
 import { createSqliteDatabase, SqliteAccountRepository } from "@notebench/infra-db";
@@ -14,21 +14,21 @@ import {
 } from "@notebench/domain-account";
 import { buildServer } from "./app.js";
 
-const TEST_DIR = resolve(`.tmp/test/test-server-setup-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
+const TEST_DIR = path.resolve(`.tmp/test/test-server-setup-${process.env["VITEST_WORKER_ID"] ?? "0"}`);
 
 /**
- * Windows holds file locks briefly after sqlite handles close, longer under
- * parallel suites: retry transient lock errors with a generous budget.
- */
-async function removeDirWithRetry(dir: string): Promise<void> {
+Windows holds file locks briefly after sqlite handles close, longer under
+parallel suites: retry transient lock errors with a generous budget.
+*/
+async function removeDirWithRetry(): Promise<void> {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     try {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(TEST_DIR, { recursive: true, force: true });
       return;
     } catch (error: unknown) {
-      const code = (error as { code?: string }).code;
-      if ((code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY") && attempt < 59) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
+      const code = (error as { code?: string }).code ?? "";
+      if (["EPERM", "EBUSY", "ENOTEMPTY"].includes(code) && attempt < 59) {
+        await new Promise((r) => setTimeout(r, 250));
         continue;
       }
       throw error;
@@ -37,11 +37,11 @@ async function removeDirWithRetry(dir: string): Promise<void> {
 }
 
 /**
- * Test-only hasher that holds every racing setup call at the hashing step
- * until two calls have arrived. This forces both calls to pass the
- * findOwner() pre-check before either reaches createOwner(), making the
- * single-owner race deterministic (Ticket 01 review D1).
- */
+Test-only hasher that holds every racing setup call at the hashing step
+until two calls have arrived. This forces both calls to pass the
+findOwner() pre-check before either reaches createOwner(), making the
+single-owner race deterministic (Ticket 01 review D1).
+*/
 class BarrierGatePasscodeHasher implements PasscodeHasher {
   private arrivals = 0;
   private releaseGate: (() => void) | undefined;
@@ -64,16 +64,16 @@ class BarrierGatePasscodeHasher implements PasscodeHasher {
 }
 
 describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
-  let app: FastifyInstance;
+  let app: FastifyInstance | undefined;
   let testDbPath: string;
 
   beforeEach(async () => {
     if (existsSync(TEST_DIR)) {
-      await removeDirWithRetry(TEST_DIR);
+      await removeDirWithRetry();
     }
     mkdirSync(TEST_DIR, { recursive: true });
 
-    testDbPath = join(TEST_DIR, `setup-test-${Date.now()}.sqlite`);
+    testDbPath = path.join(TEST_DIR, `setup-test-${Date.now()}.sqlite`);
   }, 120_000);
 
   afterEach(async () => {
@@ -82,7 +82,7 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
     }
     if (existsSync(TEST_DIR)) {
       try {
-        await removeDirWithRetry(TEST_DIR);
+        await removeDirWithRetry();
       } catch {
         // Non-fatal if OS locks transitioning
       }
@@ -113,7 +113,10 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
     });
 
     expect(firstRes.statusCode).toBe(201);
-    const firstBody = JSON.parse(firstRes.body);
+    const firstBody = JSON.parse(firstRes.body) as {
+      success: boolean;
+      owner: { displayName: string; email: string; role: string; hasPasscode: boolean };
+    };
     expect(firstBody.success).toBe(true);
     expect(firstBody.owner.displayName).toBe("Sovereign Administrator");
     expect(firstBody.owner.email).toBe("admin@notebench.local");
@@ -134,7 +137,7 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
     });
 
     expect(secondRes.statusCode).toBe(409);
-    const secondBody = JSON.parse(secondRes.body);
+    const secondBody = JSON.parse(secondRes.body) as { error: { code: string; message: string } };
     expect(secondBody.error.code).toBe("SETUP_ALREADY_COMPLETED");
     expect(secondBody.error.message).toContain("already been completed");
 
@@ -145,7 +148,7 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
       payload: { displayName: "Third Attempt" },
     });
     expect(thirdRes.statusCode).toBe(409);
-    const thirdBody = JSON.parse(thirdRes.body);
+    const thirdBody = JSON.parse(thirdRes.body) as { error: { code: string } };
     expect(thirdBody.error.code).toBe("SETUP_ALREADY_COMPLETED");
 
     sqliteInstance.close();
@@ -178,7 +181,7 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
       expect(rejected).toHaveLength(1);
 
       const loser = rejected[0];
-      if (loser === undefined || loser.status !== "rejected") {
+      if (loser === undefined) {
         throw new Error("expected exactly one rejected concurrent setup call");
       }
       expect(loser.reason).toBeInstanceOf(SetupAlreadyCompletedError);
@@ -228,11 +231,11 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
     expect(ownerRecord?.passcodeHash).toMatch(/^\$argon2id\$v=19\$m=\d+,t=\d+,p=\d+\$/);
 
     // Verify authentication succeeds with right passcode and fails with wrong passcode
-    const verifiedRight = await ownerSetupService.verifyPasscode(secretPasscode);
-    expect(verifiedRight).toBe(true);
+    const isVerifiedRight = await ownerSetupService.verifyPasscode(secretPasscode);
+    expect(isVerifiedRight).toBe(true);
 
-    const verifiedWrong = await ownerSetupService.verifyPasscode("incorrect-guessed-secret");
-    expect(verifiedWrong).toBe(false);
+    const isVerifiedWrong = await ownerSetupService.verifyPasscode("incorrect-guessed-secret");
+    expect(isVerifiedWrong).toBe(false);
 
     sqliteInstance.close();
   });
@@ -244,8 +247,8 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
     // write into this stream, so the scan below has live log output to scan.
     const capturedLines: string[] = [];
     const captureStream = new Writable({
-      write(chunk, _encoding, callback) {
-        capturedLines.push(chunk.toString());
+      write(chunk: unknown, _encoding, callback) {
+        capturedLines.push(typeof chunk === "string" ? chunk : String(chunk));
         callback();
       },
     });
@@ -321,7 +324,7 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
       url: "/api/app-state",
     });
     expect(preSetupRes.statusCode).toBe(200);
-    const preSetupBody = JSON.parse(preSetupRes.body);
+    const preSetupBody = JSON.parse(preSetupRes.body) as { setupComplete: boolean; signInRequired: boolean };
     expect(preSetupBody.setupComplete).toBe(false);
     expect(preSetupBody.signInRequired).toBe(false);
 
@@ -341,21 +344,26 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
       url: "/api/app-state",
     });
     expect(postSetupRes.statusCode).toBe(200);
-    const postSetupBody = JSON.parse(postSetupRes.body);
+    const postSetupBody = JSON.parse(postSetupRes.body) as {
+      setupComplete: boolean;
+      requiresPasscode: boolean;
+      signInRequired: boolean;
+      message?: string;
+    };
     expect(postSetupBody.setupComplete).toBe(true);
     expect(postSetupBody.requiresPasscode).toBe(false);
     expect(postSetupBody.signInRequired).toBe(false);
     expect(postSetupBody.message?.toLowerCase()).toContain("no sign-in required");
 
     // Also check GET /setup endpoint returns app state
-    const getSetupRes = await app.inject({
+    const setupStateRes = await app.inject({
       method: "GET",
       url: "/setup",
     });
-    expect(getSetupRes.statusCode).toBe(200);
-    const getSetupBody = JSON.parse(getSetupRes.body);
-    expect(getSetupBody.setupComplete).toBe(true);
-    expect(getSetupBody.signInRequired).toBe(false);
+    expect(setupStateRes.statusCode).toBe(200);
+    const setupStateBody = JSON.parse(setupStateRes.body) as { setupComplete: boolean; signInRequired: boolean };
+    expect(setupStateBody.setupComplete).toBe(true);
+    expect(setupStateBody.signInRequired).toBe(false);
 
     sqliteInstance.close();
   });
@@ -370,10 +378,10 @@ describe("Fastify Setup Routes & Security Invariants (Ticket 01)", () => {
     const hashDurationMs = performance.now() - hashStart;
 
     const verifyStart = performance.now();
-    const verified = await prodHasher.verify(phcHash, testSecret);
+    const isVerified = await prodHasher.verify(phcHash, testSecret);
     const verifyDurationMs = performance.now() - verifyStart;
 
-    expect(verified).toBe(true);
+    expect(isVerified).toBe(true);
     console.log(
       `[Benchmark] Argon2id (m=65536 KiB, t=3, p=1): hash=${hashDurationMs.toFixed(1)}ms, verify=${verifyDurationMs.toFixed(1)}ms`
     );

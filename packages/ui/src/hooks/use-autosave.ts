@@ -22,14 +22,14 @@ export interface UseAutosaveResult {
   error: Error | null;
 }
 
-const defaultIsEqual = <T>(a: T, b: T): boolean => a === b;
+const isSameValue = <T>(a: T, b: T): boolean => a === b;
 
 export function useAutosave<T>({
   value,
   onSaveDraft,
   onCommit,
   policy = autosavePolicy,
-  isEqual = defaultIsEqual,
+  isEqual = isSameValue,
 }: UseAutosaveOptions<T>): UseAutosaveResult {
   const [status, setStatus] = React.useState<AutosaveStatus>("idle");
   const [error, setError] = React.useState<Error | null>(null);
@@ -63,10 +63,12 @@ export function useAutosave<T>({
       clearTimeout(quietTimerRef.current);
       quietTimerRef.current = null;
     }
-    if (ceilingTimerRef.current !== null) {
-      clearTimeout(ceilingTimerRef.current);
-      ceilingTimerRef.current = null;
+    if (ceilingTimerRef.current === null) {
+      return;
     }
+
+    clearTimeout(ceilingTimerRef.current);
+    ceilingTimerRef.current = null;
   }, []);
 
   const doCommit = React.useCallback(async (targetValue: T) => {
@@ -78,8 +80,8 @@ export function useAutosave<T>({
       lastCommittedRef.current = targetValue;
       isDirtyRef.current = false;
       setStatus("saved");
-    } catch (err) {
-      const parsedError = err instanceof Error ? err : new Error(String(err));
+    } catch (error_) {
+      const parsedError = error_ instanceof Error ? error_ : new Error(String(error_));
       setError(parsedError);
       setStatus("error");
     }
@@ -144,12 +146,10 @@ export function useAutosave<T>({
     }, policy.commitQuietMs);
 
     // Tier 2b: Hard ceiling timer (30,000ms unbroken)
-    if (ceilingTimerRef.current === null) {
-      ceilingTimerRef.current = setTimeout(() => {
-        ceilingTimerRef.current = null;
-        void doCommit(valueRef.current);
-      }, policy.commitCeilingMs);
-    }
+    ceilingTimerRef.current ??= setTimeout(() => {
+      ceilingTimerRef.current = null;
+      void doCommit(valueRef.current);
+    }, policy.commitCeilingMs);
   }, [value, policy.draftDebounceMs, policy.commitQuietMs, policy.commitCeilingMs, clearTimers, doCommit]);
 
   // Cleanup on unmount

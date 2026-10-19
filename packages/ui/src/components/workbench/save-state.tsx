@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Button } from "../primitives/index.js";
-import { Check, CircleNotch, WarningCircle } from "../primitives/icons.js";
+import { CheckIcon, CircleNotchIcon, WarningCircleIcon } from "../primitives/icons.js";
 import { autosavePolicy } from "../../lib/autosave-policy.js";
 import { useAutosave } from "../../hooks/use-autosave.js";
 import { cn } from "../../lib/utils.js";
@@ -19,14 +19,14 @@ export interface SaveStateProps extends Omit<React.HTMLAttributes<HTMLDivElement
   status?: SaveStatus | undefined;
   errorMessage?: string | undefined;
   onRetry?: (() => void) | undefined;
-  autoSave?: AutoSaveConfig<unknown> | undefined;
+  autoSave?: AutoSaveConfig | undefined;
 }
 
 /**
- * SaveState: save state indicator and optional autosave orchestrator (ticket 16).
- * Reuses useAutosave for quiet debounce, ceiling, and retry guarantees.
- * Never color-alone: icon + textual label always.
- */
+SaveState: save state indicator and optional autosave orchestrator (ticket 16).
+Reuses useAutosave for quiet debounce, ceiling, and retry guarantees.
+Never color-alone: icon + textual label always.
+*/
 const SaveState = React.forwardRef<HTMLDivElement, SaveStateProps>(
   (
     {
@@ -46,9 +46,9 @@ const SaveState = React.forwardRef<HTMLDivElement, SaveStateProps>(
           if (autoSave?.onSave) {
             await autoSave.onSave(val);
           }
-        } catch (err) {
-          autoSave?.onError?.(err);
-          throw err;
+        } catch (error) {
+          autoSave?.onError?.(error);
+          throw error;
         }
       },
       policy: React.useMemo(
@@ -66,9 +66,12 @@ const SaveState = React.forwardRef<HTMLDivElement, SaveStateProps>(
       if (!autoSave) return "idle";
       if (autosave.status === "saving") return "saving";
       if (autosave.status === "saved") return "saved";
-      if (autosave.status === "error") return "error";
-      return "idle";
+      return autosave.status === "error" ? "error" : "idle";
     }, [explicitStatus, autoSave, autosave.status]);
+
+    if (status === "idle") {
+      return null;
+    }
 
     const handleRetry = () => {
       if (onRetry) {
@@ -77,10 +80,6 @@ const SaveState = React.forwardRef<HTMLDivElement, SaveStateProps>(
         void autosave.retry();
       }
     };
-
-    if (status === "idle") {
-      return null;
-    }
 
     return (
       <div
@@ -95,7 +94,7 @@ const SaveState = React.forwardRef<HTMLDivElement, SaveStateProps>(
       >
         {status === "saving" && (
           <>
-            <CircleNotch
+            <CircleNotchIcon
               size={16}
               weight="bold"
               aria-hidden="true"
@@ -107,14 +106,14 @@ const SaveState = React.forwardRef<HTMLDivElement, SaveStateProps>(
 
         {status === "saved" && (
           <>
-            <Check size={16} weight="bold" aria-hidden="true" className="text-[var(--nb-ok)]" />
+            <CheckIcon size={16} weight="bold" aria-hidden="true" className="text-[var(--nb-ok)]" />
             <span className="text-[var(--nb-ok)]">Saved</span>
           </>
         )}
 
         {status === "error" && (
           <div className="flex items-center gap-[var(--nb-space-2)] text-[var(--nb-danger)]">
-            <WarningCircle size={16} weight="fill" aria-hidden="true" />
+            <WarningCircleIcon size={16} weight="fill" aria-hidden="true" />
             <span>{errorMessage}</span>
             <Button
               variant="nb_btn_ghost"

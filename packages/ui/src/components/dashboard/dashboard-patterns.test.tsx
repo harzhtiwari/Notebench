@@ -49,7 +49,7 @@ describe("notebook dashboard patterns (ticket 07)", () => {
     render(
       <SortSelect aria-label="Sort notebooks" value="updated" onChange={onChange} />
     );
-    const select = screen.getByLabelText("Sort notebooks") as HTMLSelectElement;
+    const select = screen.getByLabelText<HTMLSelectElement>("Sort notebooks");
     expect(select.value).toBe("updated");
     expect(screen.getByRole("option", { name: "Title" })).toBeDefined();
     fireEvent.change(select, { target: { value: "title" } });
@@ -129,7 +129,7 @@ describe("notebook dashboard patterns (ticket 07)", () => {
     );
     expect(screen.getByText("Storage Used")).toBeDefined();
     expect(screen.getByText("1.5 KB of 5.0 GB")).toBeDefined();
-    const bar = container.querySelector('[role="img"]') as HTMLElement | null;
+    const bar = container.querySelector<HTMLElement>('[role="img"]');
     expect(bar?.getAttribute("aria-label")).toContain("50%");
   });
 });

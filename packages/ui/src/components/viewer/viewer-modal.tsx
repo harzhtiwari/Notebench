@@ -9,32 +9,42 @@ import {
 } from "../primitives/overlays.js";
 import { IconButton } from "../primitives/button.js";
 import { CitationHighlight, CitationPassage } from "../primitives/citations.js";
-import { CaretRight, resolveIconProps } from "../primitives/icons.js";
+import { CaretRightIcon, resolveIconProps } from "../primitives/icons.js";
 
 export interface ViewerModalProps {
   open: boolean;
-  onOpenChange?: ((open: boolean) => void) | undefined;
-  /** Source title shown in the dialog header. */
+  onOpenChange?: ((isOpen: boolean) => void) | undefined;
+  /**
+  Source title shown in the dialog header.
+  */
   title: string;
-  /** 1-based current page. */
+  /**
+  1-based current page.
+  */
   page: number;
-  /** Total pages. */
+  /**
+  Total pages.
+  */
   pageCount: number;
   onPageChange?: ((page: number) => void) | undefined;
-  /** Cited passage rendered with the board `.hl` highlight. */
+  /**
+  Cited passage rendered with the board `.hl` highlight.
+  */
   citedPassage?: string | undefined;
-  /** Page content slot (the parent renders pages; the modal owns chrome). */
+  /**
+  Page content slot (the parent renders pages; the modal owns chrome).
+  */
   children?: React.ReactNode;
 }
 
 /**
- * Source viewer modal (ticket 09): 1020 px Radix dialog with page navigation
- * and cited-passage highlight. Board defines no 1020 px token (max
- * `modal-lg` 896 px), so the width is a recorded deviation. Presentational
- * only — page rendering, locators and downloads land with the parent ticket.
- */
+Source viewer modal (ticket 09): 1020 px Radix dialog with page navigation
+and cited-passage highlight. Board defines no 1020 px token (max
+`modal-lg` 896 px), so the width is a recorded deviation. Presentational
+only — page rendering, locators and downloads land with the parent ticket.
+*/
 const ViewerModal = React.forwardRef<
-  React.ElementRef<typeof DialogContent>,
+  React.ComponentRef<typeof DialogContent>,
   ViewerModalProps
 >(
   (
@@ -50,8 +60,8 @@ const ViewerModal = React.forwardRef<
     },
     ref
   ) => {
-    const atFirst = page <= 1;
-    const atLast = page >= pageCount;
+    const isAtFirst = page <= 1;
+    const isAtLast = page >= pageCount;
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
@@ -74,12 +84,12 @@ const ViewerModal = React.forwardRef<
                 variant="nb_btn_ghost"
                 size="nb_btn_icon_sm"
                 aria-label="Previous page"
-                disabled={atFirst}
+                disabled={isAtFirst}
                 onClick={() => {
                   onPageChange?.(page - 1);
                 }}
               >
-                <CaretRight
+                <CaretRightIcon
                   {...resolveIconProps({ size: "sm" })}
                   className="rotate-180"
                 />
@@ -89,23 +99,23 @@ const ViewerModal = React.forwardRef<
                 variant="nb_btn_ghost"
                 size="nb_btn_icon_sm"
                 aria-label="Next page"
-                disabled={atLast}
+                disabled={isAtLast}
                 onClick={() => {
                   onPageChange?.(page + 1);
                 }}
               >
-                <CaretRight {...resolveIconProps({ size: "sm" })} />
+                <CaretRightIcon {...resolveIconProps({ size: "sm" })} />
               </IconButton>
               <DialogCloseButton />
             </div>
           </DialogHeader>
           <DialogBody className="pb-[var(--nb-space-5)]">
             {children}
-            {citedPassage !== undefined ? (
+            {citedPassage === undefined ? null : (
               <CitationPassage>
                 <CitationHighlight>{citedPassage}</CitationHighlight>
               </CitationPassage>
-            ) : null}
+            )}
           </DialogBody>
         </DialogContent>
       </Dialog>

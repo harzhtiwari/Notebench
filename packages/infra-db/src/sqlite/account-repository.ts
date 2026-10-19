@@ -12,11 +12,11 @@ import {
 import { sessions, users } from "../schema/sqlite.js";
 
 /**
- * Migration DDL creating canonical users table if it does not already exist.
- * The partial unique index enforces the single-owner invariant at the schema
- * level (PRD A1): even a raw insert bypassing the repository cannot create a
- * second owner row.
- */
+Migration DDL creating canonical users table if it does not already exist.
+The partial unique index enforces the single-owner invariant at the schema
+level (PRD A1): even a raw insert bypassing the repository cannot create a
+second owner row.
+*/
 export const INIT_USERS_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
@@ -32,15 +32,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_users_single_owner
 `;
 
 /**
- * Executes users table migration on a SQLite database.
- */
+Executes users table migration on a SQLite database.
+*/
 export function migrateUsersTable(sqlite: Database.Database): void {
   sqlite.exec(INIT_USERS_TABLE_SQL);
 }
 
 /**
- * Maps a users row to the canonical UserRecord.
- */
+Maps a users row to the canonical UserRecord.
+*/
 function toUserRecord(row: typeof users.$inferSelect): UserRecord {
   return {
     id: row.id,
@@ -54,8 +54,8 @@ function toUserRecord(row: typeof users.$inferSelect): UserRecord {
 }
 
 /**
- * SQLite implementation of AccountRepositoryPort using Drizzle ORM.
- */
+SQLite implementation of AccountRepositoryPort using Drizzle ORM.
+*/
 export class SqliteAccountRepository implements AccountRepositoryPort {
   constructor(
     private readonly db: BetterSQLite3Database<{ users: typeof users }>,
@@ -66,15 +66,12 @@ export class SqliteAccountRepository implements AccountRepositoryPort {
     }
   }
 
-  async findOwner(): Promise<UserRecord | null> {
+  findOwner(): Promise<UserRecord | null> {
     const row = this.db.select().from(users).where(eq(users.role, "owner")).limit(1).get();
-    if (!row) {
-      return null;
-    }
-    return toUserRecord(row);
+    return Promise.resolve(row ? toUserRecord(row) : null);
   }
 
-  async createOwner(input: CreateOwnerInput): Promise<UserRecord> {
+  createOwner(input: CreateOwnerInput): Promise<UserRecord> {
     const id = randomUUID();
     const now = new Date().toISOString();
     const newRecord = {
@@ -97,12 +94,15 @@ export class SqliteAccountRepository implements AccountRepositoryPort {
     `);
 
     if (result.changes === 0) {
-      throw new SetupAlreadyCompletedError(
-        "Owner setup has already been completed. Setup route is permanently disabled."
+      // Reject (not a sync throw) so `.rejects` callers observe the failure.
+      return Promise.reject(
+        new SetupAlreadyCompletedError(
+          "Owner setup has already been completed. Setup route is permanently disabled."
+        )
       );
     }
 
-    return {
+    return Promise.resolve({
       id: newRecord.id,
       email: newRecord.email,
       displayName: newRecord.displayName,
@@ -110,10 +110,10 @@ export class SqliteAccountRepository implements AccountRepositoryPort {
       role: "owner",
       createdAt: newRecord.createdAt,
       updatedAt: newRecord.updatedAt,
-    };
+    });
   }
 
-  async updatePasscodeAndRevokeOtherSessions(
+  updatePasscodeAndRevokeOtherSessions(
     userId: string,
     passcodeHash: string,
     keepSessionId: string
@@ -121,21 +121,30 @@ export class SqliteAccountRepository implements AccountRepositoryPort {
     const now = new Date().toISOString();
     // One transaction (NOTEBENCH 6.6): a failure in either statement rolls
     // back both, so the passcode and the session set never drift apart.
-    return this.db.transaction((tx) => {
-      const updated = tx
-        .update(users)
-        .set({ passcodeHash, updatedAt: now })
-        .where(eq(users.id, userId))
-        .returning()
-        .get();
-      if (!updated) {
-        return null;
-      }
-      const revoked = tx
-        .delete(sessions)
-        .where(and(eq(sessions.userId, userId), ne(sessions.id, keepSessionId)))
-        .run();
-      return { user: toUserRecord(updated), revokedSessions: Number(revoked.changes) };
-    });
+    try {
+      const result = this.db.transaction((tx) => {
+        // Indexing (not `.get()`) keeps the honest `| undefined` type: the
+        // driver yields no row when the UPDATE matches nothing.
+        const updated = tx
+          .update(users)
+          .set({ passcodeHash, updatedAt: now })
+          .where(eq(users.id, userId))
+          .returning()
+          .all()[0];
+        if (!updated) {
+          return null;
+        }
+        const revoked = tx
+          .delete(sessions)
+          .where(and(eq(sessions.userId, userId), ne(sessions.id, keepSessionId)))
+          .run();
+        return { user: toUserRecord(updated), revokedSessions: revoked.changes };
+      });
+      return Promise.resolve(result);
+    } catch (error) {
+      // Mid-transaction failure: reject rather than throw synchronously,
+      // preserving the Promise-returning contract for `.rejects` callers.
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    }
   }
 }

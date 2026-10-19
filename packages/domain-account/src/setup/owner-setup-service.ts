@@ -16,9 +16,9 @@ export interface OwnerSetupServiceDependencies {
 }
 
 /**
- * Domain Service orchestrating single-user owner onboarding, optional Argon2id passcode setup,
- * and application access state evaluation.
- */
+Domain Service orchestrating single-user owner onboarding, optional Argon2id passcode setup,
+and application access state evaluation.
+*/
 export class OwnerSetupService {
   private readonly repository: AccountRepositoryPort;
   private readonly hasher: PasscodeHasher;
@@ -29,9 +29,9 @@ export class OwnerSetupService {
   }
 
   /**
-   * Initializes the sovereign owner identity once.
-   * Subsequent invocations strictly throw SetupAlreadyCompletedError.
-   */
+  Initializes the sovereign owner identity once.
+  Subsequent invocations strictly throw SetupAlreadyCompletedError.
+  */
   async setupOwner(input: SetupOwnerInput): Promise<SetupOwnerResult> {
     const existingOwner = await this.repository.findOwner();
     if (existingOwner) {
@@ -40,7 +40,7 @@ export class OwnerSetupService {
       );
     }
 
-    let passcodeHash: string | undefined = undefined;
+    let passcodeHash: string | undefined;
     if (input.passcode !== undefined && input.passcode.length > 0) {
       const validated = validatePasscode(input.passcode);
       passcodeHash = await this.hasher.hash(validated);
@@ -65,9 +65,9 @@ export class OwnerSetupService {
   }
 
   /**
-   * Evaluates application setup and session sign-in requirements.
-   * If no passcode is configured, explicitly reports 'no sign-in required'.
-   */
+  Evaluates application setup and session sign-in requirements.
+  If no passcode is configured, explicitly reports 'no sign-in required'.
+  */
   async getAppState(): Promise<AppStateResult> {
     const owner = await this.repository.findOwner();
 
@@ -100,20 +100,16 @@ export class OwnerSetupService {
   }
 
   /**
-   * Verifies a provided passcode against the stored owner Argon2id hash.
-   */
+  Verifies a provided passcode against the stored owner Argon2id hash.
+  */
   async verifyPasscode(passcode: string): Promise<boolean> {
     const owner = await this.repository.findOwner();
-    if (!owner || !owner.passcodeHash) {
-      return false;
-    }
-
-    return this.hasher.verify(owner.passcodeHash, passcode);
+    return owner?.passcodeHash ? this.hasher.verify(owner.passcodeHash, passcode) : false;
   }
 
   /**
-   * Returns the owner record if configured.
-   */
+  Returns the owner record if configured.
+  */
   async getOwner(): Promise<UserRecord | null> {
     return this.repository.findOwner();
   }

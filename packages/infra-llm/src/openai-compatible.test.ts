@@ -8,22 +8,26 @@ function randomKey(): string {
   return randomBytes(32).toString("hex");
 }
 
+function compareCodeUnits(a: string, b: string): number {
+  return a < b ? -1 : (a > b ? 1 : 0);
+}
+
 const openServers: Server[] = [];
 afterEach(async () => {
   await Promise.all(
     openServers.splice(0).map(
       (s) =>
         new Promise<void>((resolve) => {
-          s.close(() => resolve());
+          s.close(() => { resolve(); });
         })
     )
   );
 });
 
-async function startFakeCompat(): Promise<{ baseUrl: string; seenAuth: Array<string | undefined> }> {
-  const seenAuth: Array<string | undefined> = [];
+async function startFakeCompat(): Promise<{ baseUrl: string; seenAuth: (string | undefined)[] }> {
+  const seenAuth: (string | undefined)[] = [];
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    seenAuth.push(req.headers["authorization"] as string | undefined);
+    seenAuth.push(req.headers.authorization);
     res.statusCode = 200;
     res.setHeader("content-type", "application/json");
     res.end(
@@ -34,7 +38,7 @@ async function startFakeCompat(): Promise<{ baseUrl: string; seenAuth: Array<str
     );
   });
   await new Promise<void>((resolve) => {
-    server.listen(0, "127.0.0.1", () => resolve());
+    server.listen(0, "127.0.0.1", () => { resolve(); });
   });
   openServers.push(server);
   const address = server.address();
@@ -69,7 +73,7 @@ describe("OpenAiCompatibleAdapter + registry (Ticket 04 RED, Seam A)", () => {
       res.end(JSON.stringify({}));
     });
     await new Promise<void>((resolve) => {
-      server.listen(0, "127.0.0.1", () => resolve());
+      server.listen(0, "127.0.0.1", () => { resolve(); });
     });
     openServers.push(server);
     const address = server.address();
@@ -88,7 +92,7 @@ describe("OpenAiCompatibleAdapter + registry (Ticket 04 RED, Seam A)", () => {
   });
 
   it("the registry holds all five v0.1 providers with Ollama local-only", () => {
-    expect(Object.keys(providerRegistry).sort()).toEqual([
+    expect(Object.keys(providerRegistry).toSorted(compareCodeUnits)).toEqual([
       "anthropic",
       "gemini",
       "ollama",

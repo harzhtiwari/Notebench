@@ -2,10 +2,9 @@
 @source "..";
 @source "../../../../packages/ui/src";
 @source "../../../../packages/ui/dist";
-@source "../../packages/ui/src";
-@source "../../packages/ui/dist";
 @import "@notebench/ui/tokens.css";
 @import "@notebench/ui/tokens.theme.css";
+@import "@notebench/ui/tokens.media.css";
 
 @layer base {
   *, *::before, *::after {

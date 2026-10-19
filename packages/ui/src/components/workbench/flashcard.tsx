@@ -9,11 +9,11 @@ import {
   Textarea,
 } from "../primitives/index.js";
 import {
-  FlipHorizontal,
-  CheckCircle,
-  XCircle,
-  PencilSimple,
-  Trash,
+  FlipHorizontalIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  PencilSimpleIcon,
+  TrashIcon,
 } from "../primitives/icons.js";
 import { cn } from "../../lib/utils.js";
 
@@ -32,10 +32,10 @@ export interface FlashcardProps
 }
 
 /**
- * Interactive Flashcard Component (ticket 15, Decision 4.8).
- * Supports study runner with 3D-ready flip state, known / unknown ratings,
- * and inline structured front/back editing.
- */
+Interactive Flashcard Component (ticket 15, Decision 4.8).
+Supports study runner with 3D-ready flip state, known / unknown ratings,
+and inline structured front/back editing.
+*/
 export const Flashcard = React.forwardRef<HTMLDivElement, FlashcardProps>(
   (
     {
@@ -65,13 +65,13 @@ export const Flashcard = React.forwardRef<HTMLDivElement, FlashcardProps>(
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (isEditing) return;
-      if (e.key === " " || e.key === "Enter") {
-        // Prevent default space scroll when focused on card surface
-        if (e.target === e.currentTarget) {
-          e.preventDefault();
-          onFlip?.();
+      // Prevent default space scroll when focused on card surface
+        if (!((e.key === " " || e.key === "Enter") && e.target === e.currentTarget)) {
+          return;
         }
-      }
+
+        e.preventDefault();
+        onFlip?.();
     };
 
     const handleSave = () => {
@@ -91,25 +91,25 @@ export const Flashcard = React.forwardRef<HTMLDivElement, FlashcardProps>(
             <span className="text-xs font-semibold text-[var(--nb-ink-3)]">
               Edit Card
             </span>
-            {onDelete !== undefined ? (
+            {onDelete === undefined ? null : (
               <Button
                 variant="nb_btn_ghost"
                 size="nb_btn_sm"
                 onClick={onDelete}
                 aria-label="Delete card"
-                leadingIcon={Trash}
+                leadingIcon={TrashIcon}
                 className="text-[var(--nb-danger)] hover:bg-[var(--nb-danger-wash)]"
               >
                 Delete
               </Button>
-            ) : null}
+            )}
           </div>
 
           <FormField label="Front">
             <Textarea
               id={`flashcard-front-${card.id}`}
               value={editFront}
-              onChange={(e) => setEditFront(e.target.value)}
+              onChange={(e) => { setEditFront(e.target.value); }}
               rows={3}
             />
           </FormField>
@@ -118,17 +118,17 @@ export const Flashcard = React.forwardRef<HTMLDivElement, FlashcardProps>(
             <Textarea
               id={`flashcard-back-${card.id}`}
               value={editBack}
-              onChange={(e) => setEditBack(e.target.value)}
+              onChange={(e) => { setEditBack(e.target.value); }}
               rows={3}
             />
           </FormField>
 
           <div className="flex items-center justify-end gap-[var(--nb-space-2)] pt-[var(--nb-space-2)]">
-            {onEditToggle !== undefined ? (
+            {onEditToggle === undefined ? null : (
               <Button variant="nb_btn_ghost" size="nb_btn_sm" onClick={onEditToggle}>
                 Cancel
               </Button>
-            ) : null}
+            )}
             <Button variant="nb_btn_primary" size="nb_btn_sm" onClick={handleSave}>
               Save
             </Button>
@@ -155,31 +155,31 @@ export const Flashcard = React.forwardRef<HTMLDivElement, FlashcardProps>(
           <div className="flex items-center gap-[var(--nb-space-2)]">
             <Badge
               variant="default"
-              icon={<FlipHorizontal size={16} weight="bold" aria-hidden="true" />}
+              icon={<FlipHorizontalIcon size={16} weight="bold" aria-hidden="true" />}
             >
               {flipped ? "Back" : "Front"}
             </Badge>
             {isKnown === true ? (
-              <Badge variant="ok" icon={<CheckCircle size={16} weight="fill" aria-hidden="true" />}>
+              <Badge variant="ok" icon={<CheckCircleIcon size={16} weight="fill" aria-hidden="true" />}>
                 Known
               </Badge>
-            ) : isKnown === false ? (
-              <Badge variant="warn" icon={<XCircle size={16} weight="fill" aria-hidden="true" />}>
+            ) : (isKnown === false ? (
+              <Badge variant="warn" icon={<XCircleIcon size={16} weight="fill" aria-hidden="true" />}>
                 Still learning
               </Badge>
-            ) : null}
+            ) : null)}
           </div>
 
           <div className="flex items-center gap-[var(--nb-space-1)]">
-            {onEditToggle !== undefined ? (
+            {onEditToggle === undefined ? null : (
               <IconButton
                 variant="nb_btn_ghost"
                 size="nb_btn_icon_sm"
-                icon={PencilSimple}
+                icon={PencilSimpleIcon}
                 onClick={onEditToggle}
                 aria-label="Edit card"
               />
-            ) : null}
+            )}
           </div>
         </div>
 
@@ -196,43 +196,43 @@ export const Flashcard = React.forwardRef<HTMLDivElement, FlashcardProps>(
         {/* Bottom Actions: Known / Unknown + Flip trigger */}
         <div className="flex flex-wrap items-center justify-between gap-[var(--nb-space-2)] border-t border-[var(--nb-hairline)] pt-[var(--nb-space-2)]">
           <div className="flex items-center gap-[var(--nb-space-2)]">
-            {onMarkUnknown !== undefined ? (
+            {onMarkUnknown === undefined ? null : (
               <Button
                 variant="nb_btn_ghost"
                 size="nb_btn_sm"
                 onClick={onMarkUnknown}
                 aria-label="Mark as unknown"
-                leadingIcon={XCircle}
+                leadingIcon={XCircleIcon}
                 className="text-[var(--nb-warn)] hover:bg-[var(--nb-warn-wash)]"
               >
                 Still learning
               </Button>
-            ) : null}
-            {onMarkKnown !== undefined ? (
+            )}
+            {onMarkKnown === undefined ? null : (
               <Button
                 variant="nb_btn_ghost"
                 size="nb_btn_sm"
                 onClick={onMarkKnown}
                 aria-label="Mark as known"
-                leadingIcon={CheckCircle}
+                leadingIcon={CheckCircleIcon}
                 className="text-[var(--nb-ok)] hover:bg-[var(--nb-ok-wash)]"
               >
                 Mark as known
               </Button>
-            ) : null}
+            )}
           </div>
 
-          {onFlip !== undefined ? (
+          {onFlip === undefined ? null : (
             <Button
               variant="nb_btn_secondary"
               size="nb_btn_sm"
               onClick={onFlip}
               aria-label="Flip card"
-              leadingIcon={FlipHorizontal}
+              leadingIcon={FlipHorizontalIcon}
             >
               Flip
             </Button>
-          ) : null}
+          )}
         </div>
       </Card>
     );

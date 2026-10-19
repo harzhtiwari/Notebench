@@ -5,38 +5,40 @@ import type {
 } from "@notebench/contracts";
 
 /**
- * Ticket 28 — Postgres pgvector store implementing `VectorStorePort`
- * alongside `SqliteVectorStore`.
- *
- * Uses `vector(384)` (matching the production embedding dimension) and cosine
- * distance (`<=>`), exactly like the sqlite-vec store runs with
- * `distance_metric=cosine`. No ANN index is created: pgvector then performs
- * exact nearest-neighbour search, which is what makes the top-k order
- * comparable with sqlite-vec (the parity test documents the tie tolerance).
- *
- * The store talks to a structural `PgQueryable` rather than importing the
- * `pg` driver: driver ownership stays where the pool is created
- * (`@notebench/infra-db`, AGENTS §3 / ticket 28 §3.5) and this package needs no
- * new dependency. Pass a `pg.Pool` (it satisfies the shape) or a thin
- * adapter over one.
- */
+Ticket 28 — Postgres pgvector store implementing `VectorStorePort`
+alongside `SqliteVectorStore`.
 
-/** Minimal query surface a pg Pool/Client exposes; keeps this package pg-free. */
+Uses `vector(384)` (matching the production embedding dimension) and cosine
+distance (`<=>`), exactly like the sqlite-vec store runs with
+`distance_metric=cosine`. No ANN index is created: pgvector then performs
+exact nearest-neighbour search, which is what makes the top-k order
+comparable with sqlite-vec (the parity test documents the tie tolerance).
+
+The store talks to a structural `PgQueryable` rather than importing the
+`pg` driver: driver ownership stays where the pool is created
+(`@notebench/infra-db`, AGENTS §3 / ticket 28 §3.5) and this package needs no
+new dependency. Pass a `pg.Pool` (it satisfies the shape) or a thin
+adapter over one.
+*/
+
+/**
+Minimal query surface a pg Pool/Client exposes; keeps this package pg-free.
+*/
 export interface PgQueryable {
   query(
     text: string,
     values?: unknown[]
-  ): Promise<{ rows: Array<Record<string, unknown>> }>;
+  ): Promise<{ rows: Record<string, unknown>[] }>;
 }
 
 /**
- * Converts a vector to the pgvector text literal `[v1,v2,...]`.
- * `Float32Array` inputs are preserved bit-for-bit so pgvector stores the same
- * single-precision values sqlite-vec receives via `toVectorBlob`.
- */
+Converts a vector to the pgvector text literal `[v1,v2,...]`.
+`Float32Array` inputs are preserved bit-for-bit so pgvector stores the same
+single-precision values sqlite-vec receives via `toVectorBlob`.
+*/
 export function toPgVectorLiteral(vector: Float32Array | number[]): string {
   const f32 = vector instanceof Float32Array ? vector : new Float32Array(vector);
-  return `[${Array.from(f32).join(",")}]`;
+  return `[${[...f32].join(",")}]`;
 }
 
 export interface PgVectorStoreOptions {
@@ -45,9 +47,9 @@ export interface PgVectorStoreOptions {
 }
 
 /**
- * PostgreSQL pgvector adapter. Scoping mirrors `SqliteVectorStore`:
- * every read and delete is partitioned by notebookId and userId.
- */
+PostgreSQL pgvector adapter. Scoping mirrors `SqliteVectorStore`:
+every read and delete is partitioned by notebookId and userId.
+*/
 export class PgVectorStore implements VectorStorePort {
   private readonly db: PgQueryable;
   private readonly dimensions: number;

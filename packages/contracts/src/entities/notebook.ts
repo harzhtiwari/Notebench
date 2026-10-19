@@ -1,12 +1,12 @@
 import { z } from "zod";
 
 export const NotebookSchema = z.object({
-  id: z.string().uuid(),
-  userId: z.string().uuid(),
+  id: z.uuid(),
+  userId: z.uuid(),
   title: z.string().min(1),
-  trashedAt: z.string().datetime().nullable().optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  trashedAt: z.iso.datetime().nullable().optional(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 });
 export type Notebook = z.infer<typeof NotebookSchema>;
 
@@ -17,17 +17,17 @@ export type CreateNotebookInput = z.infer<typeof CreateNotebookInputSchema>;
 
 export const UpdateNotebookInputSchema = z.object({
   title: z.string().min(1).optional(),
-  trashedAt: z.string().datetime().nullable().optional(),
+  trashedAt: z.iso.datetime().nullable().optional(),
 });
 export type UpdateNotebookInput = z.infer<typeof UpdateNotebookInputSchema>;
 
 export const NotebookSummarySchema = z.object({
-  id: z.string().uuid(),
-  userId: z.string().uuid(),
+  id: z.uuid(),
+  userId: z.uuid(),
   title: z.string().min(1),
-  trashedAt: z.string().datetime().nullable().optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  trashedAt: z.iso.datetime().nullable().optional(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
   sourcesCount: z.number().int().nonnegative().default(0),
   artifactsCount: z.number().int().nonnegative().default(0),
   storageBytes: z.number().int().nonnegative().default(0),

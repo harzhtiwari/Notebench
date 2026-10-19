@@ -16,8 +16,8 @@ import {
 } from "./index.js";
 
 /**
- * In-memory AccountRepositoryPort implementation for domain unit tests.
- */
+In-memory AccountRepositoryPort implementation for domain unit tests.
+*/
 class InMemoryAccountRepository implements AccountRepositoryPort {
   private owner: UserRecord | null = null;
 
@@ -49,7 +49,7 @@ class InMemoryAccountRepository implements AccountRepositoryPort {
     passcodeHash: string,
     _keepSessionId: string
   ): Promise<PasscodeChangeResult | null> {
-    if (!this.owner || this.owner.id !== userId) {
+    if (this.owner?.id !== userId) {
       return null;
     }
     this.owner = {
@@ -134,9 +134,9 @@ describe("Owner Setup & Passcode (Ticket 01 - RED Phase)", () => {
 
       try {
         await service.setupOwner({ displayName: "Intruder" });
-      } catch (err: unknown) {
-        expect(err).toBeInstanceOf(SetupAlreadyCompletedError);
-        const setupError = err as SetupAlreadyCompletedError;
+      } catch (error: unknown) {
+        expect(error).toBeInstanceOf(SetupAlreadyCompletedError);
+        const setupError = error as SetupAlreadyCompletedError;
         expect(setupError.code).toBe("SETUP_ALREADY_COMPLETED");
         expect(setupError.statusCode).toBe(409);
       }
@@ -189,7 +189,7 @@ describe("Owner Setup & Passcode (Ticket 01 - RED Phase)", () => {
 
   describe("PasscodeHasher Port & Argon2id Specification", () => {
     it("uses default Argon2id parameters matching NOTEBENCH 6.3 (m=65536 KiB, t=3, p=1)", () => {
-      expect(DEFAULT_ARGON2_CONFIG.memoryCost).toBe(65536);
+      expect(DEFAULT_ARGON2_CONFIG.memoryCost).toBe(65_536);
       expect(DEFAULT_ARGON2_CONFIG.timeCost).toBe(3);
       expect(DEFAULT_ARGON2_CONFIG.parallelism).toBe(1);
     });
@@ -209,11 +209,11 @@ describe("Owner Setup & Passcode (Ticket 01 - RED Phase)", () => {
       expect(phcString).toMatch(/^\$argon2id\$v=19\$m=\d+,t=\d+,p=\d+\$/);
 
       // Verify right and wrong passcode
-      const valid = await realHasher.verify(phcString, secret);
-      expect(valid).toBe(true);
+      const isValid = await realHasher.verify(phcString, secret);
+      expect(isValid).toBe(true);
 
-      const invalid = await realHasher.verify(phcString, "wrong-passcode-for-verification");
-      expect(invalid).toBe(false);
+      const isInvalid = await realHasher.verify(phcString, "wrong-passcode-for-verification");
+      expect(isInvalid).toBe(false);
     });
   });
 });

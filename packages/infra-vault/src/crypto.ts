@@ -19,10 +19,10 @@ export interface VaultEnvelope {
 }
 
 /**
- * Derives a deterministic 32-byte encryption subkey from a master key using HKDF-SHA256.
- * Salt is empty buffer per RFC 5869.
- * Info is 'notebench:vault:v1' per PRD Decision 6.1.
- */
+Derives a deterministic 32-byte encryption subkey from a master key using HKDF-SHA256.
+Salt is empty buffer per RFC 5869.
+Info is 'notebench:vault:v1' per PRD Decision 6.1.
+*/
 export function deriveSubkey(masterKey: Buffer): Buffer {
   if (!Buffer.isBuffer(masterKey) || masterKey.length !== VAULT_CONSTANTS.KEY_BYTE_LENGTH) {
     throw new VaultError(
@@ -43,8 +43,8 @@ export function deriveSubkey(masterKey: Buffer): Buffer {
 }
 
 /**
- * Deterministically serializes Additional Authenticated Data (AAD) into bytes.
- */
+Deterministically serializes Additional Authenticated Data (AAD) into bytes.
+*/
 export function serializeAad(aad: AadPayload): Buffer {
   if (typeof aad.schemaVersion !== "number" || !aad.provider || !aad.keyId) {
     throw new VaultError(
@@ -63,9 +63,9 @@ export function serializeAad(aad: AadPayload): Buffer {
 }
 
 /**
- * Encrypts a secret using AES-256-GCM with a 96-bit random IV and 128-bit GHASH tag.
- * Cryptographically binds AAD { schemaVersion, provider, keyId } to prevent cut-and-paste attacks.
- */
+Encrypts a secret using AES-256-GCM with a 96-bit random IV and 128-bit GHASH tag.
+Cryptographically binds AAD { schemaVersion, provider, keyId } to prevent cut-and-paste attacks.
+*/
 export function encryptSecret(
   secret: string | Buffer,
   masterKey: Buffer,
@@ -86,11 +86,7 @@ export function encryptSecret(
 
     cipher.setAAD(serializedAad);
 
-    const ciphertextChunks: Buffer[] = [];
-    ciphertextChunks.push(cipher.update(plaintextBuf));
-    ciphertextChunks.push(cipher.final());
-
-    const ciphertext = Buffer.concat(ciphertextChunks);
+    const ciphertext = Buffer.concat([cipher.update(plaintextBuf), cipher.final()]);
     const tag = cipher.getAuthTag();
 
     return {
@@ -111,14 +107,14 @@ export function encryptSecret(
 }
 
 /**
- * Decrypts a vault envelope using AES-256-GCM with strict RUP (Release of Unverified Plaintext) defense.
- * Intermediate chunks are retained internally and verified against the GCM auth tag before exposure.
- */
+Decrypts a vault envelope using AES-256-GCM with strict RUP (Release of Unverified Plaintext) defense.
+Intermediate chunks are retained internally and verified against the GCM auth tag before exposure.
+*/
 export function decryptSecret(
   envelope: VaultEnvelope,
   masterKey: Buffer
 ): VaultSecret {
-  if (!envelope || !envelope.ciphertext || !envelope.iv || !envelope.tag) {
+  if (!envelope.ciphertext || !envelope.iv || !envelope.tag) {
     throw new VaultError("Malformed vault envelope: missing required fields", "VALIDATION_ERROR");
   }
 
@@ -157,6 +153,8 @@ export function decryptSecret(
     decipher.setAAD(serializedAad);
 
     intermediateChunks.push(decipher.update(ciphertext));
+    // Merging these pushes would skip wiping the update buffer when final() throws (tampered ciphertext).
+    // eslint-disable-next-line unicorn/prefer-single-call -- wipe-on-all-paths guarantee; see comment above
     intermediateChunks.push(decipher.final());
 
     const fullPlaintext = Buffer.concat(intermediateChunks);
@@ -166,9 +164,9 @@ export function decryptSecret(
       // VaultSecret owns its own copy; wipe the concat buffer immediately.
       fullPlaintext.fill(0);
     }
-  } catch (err: unknown) {
-    if (err instanceof VaultError) {
-      throw err;
+  } catch (error: unknown) {
+    if (error instanceof VaultError) {
+      throw error;
     }
 
     throw new VaultError(

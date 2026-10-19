@@ -5,9 +5,9 @@ export interface NoModelBannerProps {
 }
 
 /**
- * NoModelBanner: warns that no chat model is configured and routes the user to
- * Settings → Models & Keys. Composed on the unified Banner primitive.
- */
+NoModelBanner: warns that no chat model is configured and routes the user to
+Settings → Models & Keys. Composed on the unified Banner primitive.
+*/
 export function NoModelBanner({ onOpenSettings }: NoModelBannerProps) {
   return (
     <Banner
