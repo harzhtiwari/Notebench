@@ -27,6 +27,7 @@ jobs:
   quality-gate:
     name: Test & Build Matrix
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         node: [22]
@@ -110,5 +111,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile || pnpm install
+      - name: Build Workspace Packages
+        run: pnpm build
       - name: PostgreSQL Adapter Integration Tests
         run: pnpm test:postgres
