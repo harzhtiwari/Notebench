@@ -67,7 +67,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           bash scripts/backup.sh .tmp/backups
-          LATEST_BACKUP=$(ls -d .tmp/backups/* | tail -n 1)
+          # Tarball only — the .sha256 sidecar sits next to it and sorts after it.
+          LATEST_BACKUP=$(ls -d .tmp/backups/*.tar.gz | tail -n 1)
           bash scripts/restore.sh "$LATEST_BACKUP"
           rm -rf .tmp/backups .notebook
       - name: Changeset Check (Advisory in Alpha)
