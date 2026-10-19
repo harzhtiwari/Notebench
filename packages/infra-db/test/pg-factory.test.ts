@@ -95,7 +95,9 @@ describePg(
         `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'`
       );
       expect(liveTables.rows.map((row) => row.table_name).toSorted(compareCodeUnits)).toEqual(
-        Object.keys(pgSchema).toSorted(compareCodeUnits)
+        Object.values(pgSchema)
+          .map((table) => getPgTableConfig(table).name)
+          .toSorted(compareCodeUnits)
       );
 
       for (const tableName of Object.keys(pgSchema)) {

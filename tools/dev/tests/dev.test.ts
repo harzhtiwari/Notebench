@@ -1,7 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import net from "node:net";
 import { spawn as nodeSpawn } from "node:child_process";
-import { once } from "node:events";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import getPort from "get-port";
@@ -51,6 +50,7 @@ import {
 import type { RunIdentity } from "../src/identity.js";
 import { buildForceKillCommand, teardownOwnedRun } from "../src/cleanup.js";
 import { resolveGeneratedPathsForRun } from "../src/isolate.js";
+import { getProcessStartTimeMs } from "../src/process-start-time.js";
 import { makeTempRoot as createTempRoot, removeTempRoots } from "./temp-dir.js";
 
 const tempRoots: string[] = [];
@@ -1454,8 +1454,20 @@ console.log(kid.pid);
           if (grandPid === 0) await new Promise((resolve) => setTimeout(resolve, 50));
         }
         expect(grandPid).toBeGreaterThan(0);
-        await once(rootChild, "exit");
-        await teardownOwnedRun(p, [{ service: "server", pid: rootPid, startTimeMs: 1 }], {});
+        // The owned-root contract only signals a start-time-verified live
+        // root. The spawned kid keeps the root's event loop alive, so the
+        // root is still running here; teardown's SIGTERM is what ends it,
+        // while the kid (same process group) keeps running — the group kill
+        // is the behavior under test.
+        const startTimeMs = await getProcessStartTimeMs(rootPid);
+        if (startTimeMs === null) throw new Error("root child start time unreadable");
+        const result = await teardownOwnedRun(
+          p,
+          [{ service: "server", pid: rootPid, startTimeMs }],
+          {}
+        );
+        expect(result.stopped).toEqual(["server"]);
+        expect(result.forceKilled).toEqual(["server"]);
         let isGrandAlive = true;
         for (let i = 0; isGrandAlive && i < 50; i += 1) {
           await new Promise((resolve) => setTimeout(resolve, 100));
