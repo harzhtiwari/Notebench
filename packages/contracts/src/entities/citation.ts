@@ -10,17 +10,17 @@ export const CitationLocatorSchema = z.object({
 export type CitationLocator = z.infer<typeof CitationLocatorSchema>;
 
 export const CitationRefSchema = z.object({
-  sourceId: z.string().uuid(),
-  chunkId: z.string().uuid().optional(),
+  sourceId: z.uuid(),
+  chunkId: z.uuid(),
   snippet: z.string().optional(),
   locator: CitationLocatorSchema.default({}),
 });
 export type CitationRef = z.infer<typeof CitationRefSchema>;
 
 export const CitationSchema = z.object({
-  id: z.string().uuid().or(z.string().min(1)),
-  sourceId: z.string().uuid(),
-  chunkId: z.string().uuid().optional(),
+  id: z.uuid(),
+  sourceId: z.uuid(),
+  chunkId: z.uuid().optional(),
   snippet: z.string().optional(),
   locator: CitationLocatorSchema.default({}),
   citationIndex: z.number().int().positive().optional(),

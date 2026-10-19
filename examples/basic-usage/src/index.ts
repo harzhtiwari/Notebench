@@ -1,5 +1,5 @@
-import { createLogger } from "@notebook/logger";
-import { DeckASTSchema, type DeckAST } from "@notebook/contracts";
+import { createLogger } from "@notebench/logger";
+import { DocumentASTSchema, type DocumentAST } from "@notebench/contracts";
 
 // 1. Initialize structured logger
 const logger = createLogger({
@@ -9,45 +9,16 @@ const logger = createLogger({
 
 logger.info("Initializing Notebench Basic Usage Example...");
 
-// 2. Build a Slide Deck AST conforming to Notebench schema specifications
-const deckData: DeckAST = {
-  schemaVersion: 1,
-  id: "deck-example-01",
-  title: "Notebench Quickstart Synthesis",
-  theme: {
-    palette: "slate-minimal",
-    primaryColor: "#0f172a",
-    accentColor: "#3b82f6",
-    fontFamily: "Inter, sans-serif",
-  },
-  slides: [
+// 2. Build a Document AST conforming to Notebench schema specifications
+const docData: DocumentAST = {
+  type: "doc",
+  content: [
     {
-      id: "slide-1",
-      layout: "title",
-      speakerNotes: "Welcome and introduction to Notebench ASTs.",
-      blocks: [
+      type: "paragraph",
+      content: [
         {
-          id: "block-title",
-          type: "title",
+          type: "text",
           text: "Welcome to Notebench",
-        },
-        {
-          id: "block-subtitle",
-          type: "subtitle",
-          text: "Open-source living document synthesis engine",
-        },
-      ],
-    },
-    {
-      id: "slide-2",
-      layout: "metrics",
-      blocks: [
-        {
-          id: "block-metric",
-          type: "stat_metric",
-          value: "100%",
-          label: "Compile-Time Type Safety",
-          trend: "up",
         },
       ],
     },
@@ -56,17 +27,17 @@ const deckData: DeckAST = {
 
 // 3. Validate against contracts schema
 try {
-  const validated = DeckASTSchema.parse(deckData);
+  const validated = DocumentASTSchema.parse(docData);
   logger.info(
     {
-      deckId: validated.id,
-      slideCount: validated.slides.length,
-      theme: validated.theme.palette,
+      contentType: validated.type,
+      nodeCount: validated.content.length,
     },
-    "Successfully validated Slide Deck AST against @notebook/contracts"
+    "Successfully validated Document AST against @notebench/contracts"
   );
   console.log("Example completed successfully!");
 } catch (error) {
-  logger.error({ err: error }, "Failed to validate DeckAST");
+  logger.error({ err: error }, "Failed to validate DocumentAST");
   process.exit(1);
 }
+

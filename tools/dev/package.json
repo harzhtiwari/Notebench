@@ -1,0 +1,29 @@
+{
+  "name": "@notebench/tools-dev",
+  "version": "0.1.0",
+  "description": "Notebench dev-runtime tool: orchestrator and web sidecar lifecycle (tickets 05+ land here; tickets 01-04 stay in scripts/dev/)",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@playwright/test": "^1.64.0",
+    "get-port": "^7.2.0",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "@notebench/eslint-config": "workspace:*",
+    "@notebench/tsconfig": "workspace:*",
+    "@types/node": "^26.6.5",
+    "eslint": "^10.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  }
+}

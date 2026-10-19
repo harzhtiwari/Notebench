@@ -1,0 +1,41 @@
+{
+  "name": "@notebench/server",
+  "version": "0.1.0",
+  "description": "Fastify API server, composition root, and static SPA host for Notebench",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsdown",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.3",
+    "@fastify/cors": "^11.3.1",
+    "@fastify/rate-limit": "^10.3.0",
+    "@fastify/static": "^10.1.6",
+    "@notebench/contracts": "workspace:*",
+    "@notebench/domain-account": "workspace:*",
+    "@notebench/domain-notebooks": "workspace:*",
+    "@notebench/domain-ops": "workspace:*",
+    "@notebench/infra-db": "workspace:*",
+    "@notebench/infra-doc-worker": "workspace:*",
+    "@notebench/infra-llm": "workspace:*",
+    "@notebench/infra-vault": "workspace:*",
+    "@notebench/logger": "workspace:*",
+    "fastify": "^5.2.1"
+  },
+  "devDependencies": {
+    "@notebench/eslint-config": "workspace:*",
+    "@notebench/tsconfig": "workspace:*",
+    "@types/node": "^26.6.5",
+    "eslint": "^10.0.0",
+    "tsdown": "^0.23.1",
+    "tsx": "^4.19.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  }
+}

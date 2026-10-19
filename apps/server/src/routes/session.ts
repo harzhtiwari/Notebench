@@ -1,0 +1,190 @@
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
+import {
+  ChangePasscodeInputSchema,
+  LoginInputSchema,
+  NotebookError,
+  RateLimitedError,
+  ValidationError,
+  type NotebookErrorCode,
+} from "@notebench/contracts";
+import type { SessionService } from "@notebench/domain-account";
+import {
+  clearSessionCookies,
+  isRequestSecure,
+  renewSessionCookie,
+  resolveRequestSession,
+  setSessionCookie,
+} from "../plugins/session.js";
+
+export interface SessionRouteOptions {
+  sessionService: SessionService;
+}
+
+async function mapDomainError(reply: FastifyReply, err: unknown): Promise<void> {
+  if (err instanceof RateLimitedError) {
+    await reply.status(err.statusCode).send({
+      error: { code: err.code, message: err.message, details: err.details },
+    });
+    return;
+  }
+  if (err instanceof ValidationError) {
+    const isSetupRequired = err.details?.["reason"] === "setup_required";
+    await reply.status(isSetupRequired ? 400 : 401).send({
+      error: {
+        code: (isSetupRequired ? "VALIDATION_ERROR" : "UNAUTHORIZED") satisfies NotebookErrorCode,
+        message: err.message,
+        details: err.details,
+      },
+    });
+    return;
+  }
+  if (err instanceof NotebookError) {
+    await reply.status(err.statusCode).send({
+      error: { code: err.code, message: err.message },
+    });
+    return;
+  }
+  throw err;
+}
+
+function headerValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+/**
+Fastify route plugin for passcode login, logout, active sessions and
+passcode change (Ticket 02). The route layer only maps HTTP to the
+SessionService domain functions.
+*/
+export const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = (app, options) => {
+  const { sessionService } = options;
+
+  const requireSession = async (request: FastifyRequest, reply: FastifyReply) => {
+    const session = await resolveRequestSession(request, sessionService);
+    if (!session) {
+      await reply.status(401).send({
+        error: {
+          code: "UNAUTHORIZED" satisfies NotebookErrorCode,
+          message: "Valid session required. Sign in with the owner passcode.",
+        },
+      });
+      return null;
+    }
+    // Session-management routes are exempt from the global guard, so a valid
+    // request renews the sliding cookie here; on the logout routes the
+    // subsequent clear replaces the renewal in the same reply (Ticket 02 /
+    // NOTEBENCH 6.5).
+    renewSessionCookie(reply, request, session);
+    return session;
+  };
+
+  app.post(
+    "/api/session/login",
+    {
+      config: {
+        rateLimit: { max: 25, timeWindow: "1 minute" },
+      },
+    },
+    async (request, reply) => {
+    const parseResult = LoginInputSchema.safeParse(request.body ?? {});
+    if (!parseResult.success) {
+      return reply.status(400).send({
+        error: {
+          code: "VALIDATION_ERROR" satisfies NotebookErrorCode,
+          message: "Invalid login parameters",
+        },
+      });
+    }
+
+    try {
+      const outcome = await sessionService.login({
+        passcode: parseResult.data.passcode,
+        userAgent: headerValue(request.headers["user-agent"]),
+        ipAddress: request.ip,
+      });
+      if (!outcome.sessionRequired) {
+        return await reply.status(200).send({ success: true, sessionRequired: false });
+      }
+      setSessionCookie(
+        reply,
+        outcome.rawToken,
+        isRequestSecure(request.protocol, request.headers["x-forwarded-proto"])
+      );
+      return await reply.status(200).send({
+        success: true,
+        sessionRequired: true,
+        session: { id: outcome.sessionId, expiresAt: outcome.expiresAt },
+      });
+    } catch (error: unknown) {
+      await mapDomainError(reply, error);
+    }
+  });
+
+  app.post("/api/session/logout", async (request, reply) => {
+    const session = await requireSession(request, reply);
+    if (!session) {
+      return;
+    }
+    await sessionService.logout(session.record.id);
+    clearSessionCookies(reply);
+    return reply.status(200).send({ success: true });
+  });
+
+  app.post("/api/session/logout-everywhere", async (request, reply) => {
+    const session = await requireSession(request, reply);
+    if (!session) {
+      return;
+    }
+    const revokedSessions = await sessionService.logoutEverywhere(session.record.userId);
+    clearSessionCookies(reply);
+    return reply.status(200).send({ success: true, revokedSessions });
+  });
+
+  app.get("/api/session/list", async (request, reply) => {
+    const session = await requireSession(request, reply);
+    if (!session) {
+      return;
+    }
+    const sessions = await sessionService.listSessions(
+      session.record.userId,
+      session.record.id
+    );
+    return reply.status(200).send({ sessions });
+  });
+
+  app.post(
+    "/api/session/change-passcode",
+    {
+      config: {
+        rateLimit: { max: 20, timeWindow: "1 minute" },
+      },
+    },
+    async (request, reply) => {
+    const session = await requireSession(request, reply);
+    if (!session) {
+      return;
+    }
+    const parseResult = ChangePasscodeInputSchema.safeParse(request.body ?? {});
+    if (!parseResult.success) {
+      return reply.status(400).send({
+        error: {
+          code: "VALIDATION_ERROR" satisfies NotebookErrorCode,
+          message: "Invalid passcode change parameters",
+        },
+      });
+    }
+
+    try {
+      const outcome = await sessionService.changePasscode({
+        currentSessionId: session.record.id,
+        currentPasscode: parseResult.data.currentPasscode,
+        newPasscode: parseResult.data.newPasscode,
+      });
+      return await reply.status(200).send({ success: true, ...outcome });
+    } catch (error: unknown) {
+      await mapDomainError(reply, error);
+    }
+  });
+
+  return Promise.resolve();
+};

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-describe("@notebook/eslint-config package integrity", () => {
+describe("@notebench/eslint-config package integrity", () => {
   const eslintConfigDir = resolve(__dirname);
 
   it("exports package.json with flat config subpath exports", () => {
@@ -10,7 +10,7 @@ describe("@notebook/eslint-config package integrity", () => {
     expect(existsSync(pkgPath)).toBe(true);
 
     const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-    expect(pkg.name).toBe("@notebook/eslint-config");
+    expect(pkg.name).toBe("@notebench/eslint-config");
     expect(pkg.private).toBe(true);
     expect(pkg.type).toBe("module");
     expect(pkg.exports["."]).toBe("./src/index.js");

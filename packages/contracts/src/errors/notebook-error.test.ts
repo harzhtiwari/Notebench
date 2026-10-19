@@ -8,6 +8,9 @@ import {
   UnauthorizedError,
   NotFoundError,
   ValidationError,
+  PayloadTooLargeError,
+  InvalidContentTypeError,
+  DuplicateSourceError,
   NotebookErrorCodeSchema,
 } from "./index.js";
 
@@ -21,6 +24,9 @@ describe("NotebookError Hierarchy", () => {
       "UNAUTHORIZED",
       "NOT_FOUND",
       "VALIDATION_ERROR",
+      "PAYLOAD_TOO_LARGE",
+      "INVALID_CONTENT_TYPE",
+      "DUPLICATE_SOURCE",
     ];
 
     for (const code of validCodes) {
@@ -72,5 +78,8 @@ describe("NotebookError Hierarchy", () => {
     expect(new UnauthorizedError("auth").statusCode).toBe(401);
     expect(new NotFoundError("none").statusCode).toBe(404);
     expect(new ValidationError("bad").statusCode).toBe(400);
+    expect(new PayloadTooLargeError("too big").statusCode).toBe(413);
+    expect(new InvalidContentTypeError("bad type").statusCode).toBe(415);
+    expect(new DuplicateSourceError("duplicate").statusCode).toBe(409);
   });
 });

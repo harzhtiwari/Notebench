@@ -7,7 +7,7 @@ describe("SSE Realtime Streaming Event Union", () => {
       type: "start",
       runId: "run-001",
       threadId: "thread-001",
-      model: "gemini-2.5-pro",
+      model: "test-model-alpha",
       timestamp: Date.now(),
     };
     const res = SseEventSchema.safeParse(valid);

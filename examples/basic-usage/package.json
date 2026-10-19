@@ -9,13 +9,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@notebook/contracts": "workspace:*",
-    "@notebook/logger": "workspace:*"
+    "@notebench/contracts": "workspace:*",
+    "@notebench/logger": "workspace:*"
   },
   "devDependencies": {
-    "@notebook/tsconfig": "workspace:*",
-    "@types/node": "^22.13.1",
+    "@notebench/tsconfig": "workspace:*",
+    "@types/node": "^26.6.5",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^7.0.2"
   }
 }

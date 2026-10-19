@@ -9,9 +9,9 @@ export interface SerializedNotebookError {
 }
 
 /**
- * Universal System Error Base Class.
- * Guaranteed to preserve prototype chains and stack traces across Node and browser runtimes.
- */
+Universal System Error Base Class.
+Guaranteed to preserve prototype chains and stack traces across Node and browser runtimes.
+*/
 export abstract class NotebookError extends Error {
   abstract readonly code: NotebookErrorCode;
   abstract readonly statusCode: number;
@@ -28,16 +28,11 @@ export abstract class NotebookError extends Error {
 
     // 2. Set error name to concrete subclass name
     this.name = new.target.name;
-
-    // 3. V8 clean stack trace capture (Node.js environments)
-    if ("captureStackTrace" in Error && typeof Error.captureStackTrace === "function") {
-      Error.captureStackTrace(this, new.target);
-    }
   }
 
   /**
-   * Serializes the error for network transport and logging.
-   */
+  Serializes the error for network transport and logging.
+  */
   public toJSON(): SerializedNotebookError {
     return {
       name: this.name,
@@ -83,3 +78,24 @@ export class ValidationError extends NotebookError {
   readonly code = "VALIDATION_ERROR" as const;
   readonly statusCode = 400 as const;
 }
+
+export class PayloadTooLargeError extends NotebookError {
+  readonly code = "PAYLOAD_TOO_LARGE" as const;
+  readonly statusCode = 413 as const;
+}
+
+export class InvalidContentTypeError extends NotebookError {
+  readonly code = "INVALID_CONTENT_TYPE" as const;
+  readonly statusCode = 415 as const;
+}
+
+export class DuplicateSourceError extends NotebookError {
+  readonly code = "DUPLICATE_SOURCE" as const;
+  readonly statusCode = 409 as const;
+}
+
+export class SetupAlreadyCompletedError extends NotebookError {
+  readonly code = "SETUP_ALREADY_COMPLETED" as const;
+  readonly statusCode = 409 as const;
+}
+

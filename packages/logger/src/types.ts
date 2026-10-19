@@ -1,4 +1,4 @@
-import type { Logger, LevelWithSilent, DestinationStream } from "pino";
+import type {  LevelWithSilent, DestinationStream } from "pino";
 
 export type LogLevel = LevelWithSilent;
 
@@ -20,4 +20,6 @@ export interface LoggerConfig {
   pretty?: boolean | undefined;
 }
 
-export type { Logger };
+
+
+export {type Logger} from "pino";

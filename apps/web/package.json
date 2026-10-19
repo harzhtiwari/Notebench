@@ -1,0 +1,36 @@
+{
+  "name": "@notebench/web",
+  "version": "0.1.0",
+  "description": "Next.js Web UI for Notebench",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -H 127.0.0.1",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@notebench/contracts": "workspace:*",
+    "@notebench/ui": "workspace:*",
+    "next": "^16.4.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@notebench/eslint-config": "workspace:*",
+    "@notebench/tsconfig": "workspace:*",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^10.0.0",
+    "happy-dom": "^21.0.1",
+    "postcss": "^8.5.29",
+    "postcss-custom-media": "^12.0.3",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2"
+  }
+}

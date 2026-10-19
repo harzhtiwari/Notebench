@@ -8,6 +8,11 @@ export const NotebookErrorCodeSchema = z.enum([
   "UNAUTHORIZED",
   "NOT_FOUND",
   "VALIDATION_ERROR",
+  "PAYLOAD_TOO_LARGE",
+  "INVALID_CONTENT_TYPE",
+  "DUPLICATE_SOURCE",
+  "SETUP_ALREADY_COMPLETED",
+  "PROVIDER_ERROR",
 ]);
 
 export type NotebookErrorCode = z.infer<typeof NotebookErrorCodeSchema>;

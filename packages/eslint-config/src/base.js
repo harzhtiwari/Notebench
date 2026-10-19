@@ -33,6 +33,12 @@ export const baseConfig = tseslint.config(
     rules: {
       "turbo/no-undeclared-env-vars": "error",
       "unicorn/prevent-abbreviations": "off",
+      // Naming follows GLOSSARY.md and the package map (DocWorker, CitationRef, ...);
+      // the curated rename table would fight the project vocabulary.
+      "unicorn/name-replacements": "off",
+      // `getHTML()`/`setHTML()` are missing from happy-dom and not broadly supported
+      // in browsers; `innerHTML` is the supported API for this codebase.
+      "unicorn/prefer-dom-node-html-methods": "off",
       "unicorn/no-null": "off",
     },
   },
@@ -43,7 +49,9 @@ export const baseConfig = tseslint.config(
     },
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        projectService: {
+          allowDefaultProject: ["*.config.ts", "*.config.mts"],
+        },
       },
     },
     rules: {
@@ -76,6 +84,20 @@ export const baseConfig = tseslint.config(
         },
       ],
       "tsdoc/syntax": "warn",
+      // Numbers stringify safely in templates; keep the rule focused on
+      // objects/arrays that would render as `[object Object]`.
+      "@typescript-eslint/restrict-template-expressions": [
+        "error",
+        {
+          allowNumber: true,
+        },
+      ],
+      // `while (true)` is an explicit, intentional loop form; other constant
+      // conditions are still reported.
+      "@typescript-eslint/no-unnecessary-condition": [
+        "error",
+        { allowConstantLoopConditions: "only-allowed-literals" },
+      ],
       "@typescript-eslint/consistent-type-imports": [
         "error",
         {
@@ -89,6 +111,22 @@ export const baseConfig = tseslint.config(
   {
     files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
     ...tseslint.configs.disableTypeChecked,
+  },
+  {
+    // Test doubles implement Promise-returning ports without awaiting anything,
+    // and stub callbacks are intentionally empty.
+    files: ["**/*.test.ts", "**/*.test.tsx", "**/*.test-d.ts"],
+    rules: {
+      "@typescript-eslint/require-await": "off",
+      "@typescript-eslint/no-empty-function": "off",
+    },
+  },
+  {
+    // Config files (tsdown/next/vitest) execute at module load by design.
+    files: ["**/*.config.ts", "**/*.config.mts", "**/*.config.js", "**/*.config.mjs"],
+    rules: {
+      "unicorn/no-top-level-side-effects": "off",
+    },
   }
 );
 

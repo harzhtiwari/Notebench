@@ -1,0 +1,137 @@
+/*
+  GENERATED FILE. Do not edit. Source: tokens.json, build: build_tokens.py
+
+  Tailwind CSS v4 @theme configuration.
+  Maps canonical --nb-* design tokens directly into Tailwind utility classes.
+*/
+
+@theme {
+  /* Colors */
+  --color-ground: var(--nb-ground);
+  --color-sheet: var(--nb-sheet);
+  --color-well: var(--nb-well);
+  --color-well-hover: var(--nb-well-hover);
+  --color-edge: var(--nb-edge);
+  --color-hairline: var(--nb-hairline);
+  --color-ink: var(--nb-ink);
+  --color-ink-2: var(--nb-ink-2);
+  --color-ink-3: var(--nb-ink-3);
+  --color-ink-inv: var(--nb-ink-inv);
+  --color-link: var(--nb-link);
+  --color-link-wash: var(--nb-link-wash);
+  --color-you: var(--nb-you);
+  --color-you-wash: var(--nb-you-wash);
+  --color-ai: var(--nb-ai);
+  --color-ai-wash: var(--nb-ai-wash);
+  --color-marker: var(--nb-marker);
+  --color-marker-text: var(--nb-marker-text);
+  --color-marker-wash: var(--nb-marker-wash);
+  --color-marker-swipe: var(--nb-marker-swipe);
+  --color-on-marker: var(--nb-on-marker);
+  --color-ok: var(--nb-ok);
+  --color-ok-wash: var(--nb-ok-wash);
+  --color-warn: var(--nb-warn);
+  --color-warn-wash: var(--nb-warn-wash);
+  --color-danger: var(--nb-danger);
+  --color-danger-wash: var(--nb-danger-wash);
+  --color-scrim: var(--nb-scrim);
+  --color-select: var(--nb-select);
+  --color-hatch: var(--nb-hatch);
+  --color-focus: var(--nb-focus);
+  --color-disabled-fg: var(--nb-disabled-fg);
+  --color-disabled-bg: var(--nb-disabled-bg);
+  --color-chart-1: var(--nb-chart-1);
+  --color-chart-2: var(--nb-chart-2);
+  --color-chart-3: var(--nb-chart-3);
+  --color-chart-4: var(--nb-chart-4);
+  --color-tool-cobalt: var(--nb-tool-cobalt);
+  --color-tool-amber: var(--nb-tool-amber);
+  --color-tool-rose: var(--nb-tool-rose);
+  --color-tool-emerald: var(--nb-tool-emerald);
+  --color-tool-cyan: var(--nb-tool-cyan);
+  --color-tool-purple: var(--nb-tool-purple);
+  --color-tool-indigo: var(--nb-tool-indigo);
+  --color-tool-teal: var(--nb-tool-teal);
+
+  /* Spacing */
+  --spacing-0: var(--nb-space-0);
+  --spacing-0-5: var(--nb-space-0-5);
+  --spacing-1: var(--nb-space-1);
+  --spacing-2: var(--nb-space-2);
+  --spacing-3: var(--nb-space-3);
+  --spacing-4: var(--nb-space-4);
+  --spacing-5: var(--nb-space-5);
+  --spacing-6: var(--nb-space-6);
+  --spacing-8: var(--nb-space-8);
+  --spacing-10: var(--nb-space-10);
+  --spacing-12: var(--nb-space-12);
+  --spacing-16: var(--nb-space-16);
+  --spacing-24: var(--nb-space-24);
+
+  /* Border Radius */
+  --radius-none: 0;
+  --radius-xs: var(--nb-radius-xs);
+  --radius-sm: var(--nb-radius-sm);
+  --radius-md: var(--nb-radius-md);
+  --radius-lg: var(--nb-radius-lg);
+  --radius-xl: var(--nb-radius-xl);
+  --radius-full: var(--nb-radius-full);
+  --radius-panel: var(--nb-radius-panel);
+  --radius-modal: var(--nb-radius-modal);
+  --radius-composer: var(--nb-radius-composer);
+  --radius-card: var(--nb-radius-card);
+  --radius-well: var(--nb-radius-well);
+  --radius-input: var(--nb-radius-input);
+  --radius-menu: var(--nb-radius-menu);
+  --radius-control: var(--nb-radius-control);
+  --radius-chip: var(--nb-radius-chip);
+  --radius-tag: var(--nb-radius-tag);
+  --radius-rail: var(--nb-radius-rail);
+
+  /* Typography - Fonts */
+  --font-ui: var(--nb-font-ui);
+  --font-read: var(--nb-font-read);
+  --font-mono: var(--nb-font-mono);
+
+  /* Typography - Font Sizes */
+  --text-2xs: var(--nb-text-2xs);
+  --text-xs: var(--nb-text-xs);
+  --text-sm: var(--nb-text-sm);
+  --text-md: var(--nb-text-md);
+  --text-lg: var(--nb-text-lg);
+  --text-xl: var(--nb-text-xl);
+  --text-2xl: var(--nb-text-2xl);
+  --text-3xl: var(--nb-text-3xl);
+
+  /* Typography - Font Weights */
+  --font-weight-regular: var(--nb-weight-regular);
+  --font-weight-medium: var(--nb-weight-medium);
+  --font-weight-semibold: var(--nb-weight-semibold);
+  --font-weight-bold: var(--nb-weight-bold);
+
+  /* Typography - Line Heights */
+  --leading-tight: var(--nb-leading-tight);
+  --leading-ui: var(--nb-leading-ui);
+  --leading-read: var(--nb-leading-read);
+  --leading-none: var(--nb-leading-none);
+
+  /* Typography - Letter Spacing */
+  --tracking-tight: var(--nb-tracking-tight);
+  --tracking-normal: var(--nb-tracking-normal);
+
+  /* Shadows */
+  --shadow-none: none;
+  --shadow-float: var(--nb-shadow-float);
+  --shadow-modal: var(--nb-shadow-modal);
+
+  /* Transitions & Motion */
+  --ease-default: var(--nb-ease);
+  --duration-fast: var(--nb-dur-fast);
+  --duration-base: var(--nb-dur-base);
+  --duration-slow: var(--nb-dur-slow);
+
+  /* Breakpoints */
+  --breakpoint-sm: 30rem;
+  --breakpoint-md: 43.75rem;
+  --breakpoint-lg: 68.75rem;
+}

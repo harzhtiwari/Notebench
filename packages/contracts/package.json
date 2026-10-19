@@ -1,5 +1,5 @@
 {
-  "name": "@notebook/contracts",
+  "name": "@notebench/contracts",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -14,15 +14,18 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "test": "vitest run"
   },
   "dependencies": {
-    "zod": "^3.24.2"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
-    "@notebook/tsconfig": "workspace:*",
-    "@types/node": "^22.13.1",
-    "typescript": "^5.7.3",
-    "vitest": "^3.0.5"
+    "@notebench/eslint-config": "workspace:*",
+    "@notebench/tsconfig": "workspace:*",
+    "@types/node": "^26.6.5",
+    "eslint": "^10.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
   }
 }

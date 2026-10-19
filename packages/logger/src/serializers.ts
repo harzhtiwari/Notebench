@@ -1,5 +1,5 @@
 import { stdSerializers } from "pino";
-import { NotebookError } from "@notebook/contracts";
+import { NotebookError } from "@notebench/contracts";
 
 export interface SerializedError {
   name: string;
@@ -11,15 +11,15 @@ export interface SerializedError {
   cause?: unknown;
 }
 
-export function safeErrorSerializer(err: unknown): SerializedError | unknown {
+export function safeErrorSerializer(err: unknown): unknown {
   if (!(err instanceof Error)) {
     return err;
   }
 
   const baseSerialized = stdSerializers.err(err);
   const result: SerializedError = {
-    name: baseSerialized.type ?? err.name,
-    message: baseSerialized.message ?? err.message,
+    name: baseSerialized.type,
+    message: baseSerialized.message,
     stack: baseSerialized.stack,
   };
 
@@ -48,11 +48,8 @@ export function safeErrorSerializer(err: unknown): SerializedError | unknown {
   }
 
   if ("cause" in err && err.cause !== undefined) {
-    if (err.cause instanceof Error) {
-      result.cause = safeErrorSerializer(err.cause);
-    } else {
-      result.cause = String(err.cause);
-    }
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string -- defensive stringification of arbitrary cause values; must never throw
+    result.cause = err.cause instanceof Error ? safeErrorSerializer(err.cause) : String(err.cause);
   }
 
   return result;

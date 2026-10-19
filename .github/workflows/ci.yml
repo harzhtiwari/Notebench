@@ -27,6 +27,7 @@ jobs:
   quality-gate:
     name: Test & Build Matrix
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         node: [22]
@@ -46,10 +47,14 @@ jobs:
         run: pnpm lint:licenses
       - name: Architectural Guardrails
         run: pnpm guard
+      - name: Dependency Boundaries (dependency-cruiser)
+        run: pnpm lint:boundaries
       - name: Dead Code Audit
         run: pnpm knip
       - name: Production Build
         run: pnpm build
+      - name: Design Token Lint (built pages + contrast)
+        run: pnpm lint:tokens
       - name: Typecheck
         run: pnpm typecheck
       - name: Lint
@@ -62,7 +67,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           bash scripts/backup.sh .tmp/backups
-          LATEST_BACKUP=$(ls -d .tmp/backups/* | tail -n 1)
+          # Tarball only — the .sha256 sidecar sits next to it and sorts after it.
+          LATEST_BACKUP=$(ls -d .tmp/backups/*.tar.gz | tail -n 1)
           bash scripts/restore.sh "$LATEST_BACKUP"
           rm -rf .tmp/backups .notebook
       - name: Changeset Check (Advisory in Alpha)
@@ -77,3 +83,36 @@ jobs:
             .tmp/logs/
             .tmp/reports/
           retention-days: 7
+
+  postgres-integration:
+    name: PostgreSQL Adapter Verification (pgvector)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install Astral uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile || pnpm install
+      - name: Build Workspace Packages
+        run: pnpm build
+      - name: PostgreSQL Adapter Integration Tests
+        run: pnpm test:postgres

@@ -1,10 +1,12 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "cacheDir": ".tmp/cache/turbo",
+  "globalEnv": ["LOG_LEVEL", "NODE_ENV", "HOST", "PATH", "PORT", "NOTEBENCH_SERVER_PORT_FILE", "NB_SERVER_PORT_FILE", "NOTEBENCH_RUN_REAL_BUILD", "NOTEBENCH_SERVER_ORIGIN", "NB_SERVER_ORIGIN"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "package.json", "tsconfig*.json"],
+      "inputs": ["$TURBO_DEFAULT$"],
       "outputs": ["dist/**", "out/**"]
     },
     "typecheck": {
@@ -13,11 +15,12 @@
       "outputs": []
     },
     "lint": {
-      "inputs": ["src/**", "package.json", ".eslintrc*", "eslint.config*"],
+      "inputs": ["src/**", "test/**", "package.json", ".eslintrc*", "eslint.config*", "**/tsconfig*.json"],
       "outputs": []
     },
     "test": {
       "inputs": ["src/**", "package.json"],
+      "env": ["POSTGRES_URL", "VITEST_WORKER_ID"],
       "outputs": []
     },
     "clean": {

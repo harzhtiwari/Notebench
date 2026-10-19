@@ -10,8 +10,25 @@ permissions:
   id-token: write
 
 jobs:
+  release-gate:
+    name: Release Gate (spec 9.10)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install Astral uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run Release Gate
+        run: bash scripts/release-gate.sh
   release:
     name: Changesets Release Orchestration
+    needs: [release-gate]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

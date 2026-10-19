@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-describe("@notebook/tsconfig package integrity", () => {
+describe("@notebench/tsconfig package integrity", () => {
   const tsconfigDir = resolve(__dirname);
 
   it("exports package.json with correct subpath exports", () => {
@@ -10,7 +10,7 @@ describe("@notebook/tsconfig package integrity", () => {
     expect(existsSync(pkgPath)).toBe(true);
 
     const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-    expect(pkg.name).toBe("@notebook/tsconfig");
+    expect(pkg.name).toBe("@notebench/tsconfig");
     expect(pkg.private).toBe(true);
     expect(pkg.exports["./base.json"]).toBe("./base.json");
     expect(pkg.exports["./build.json"]).toBe("./build.json");

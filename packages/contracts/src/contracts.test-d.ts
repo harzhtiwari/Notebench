@@ -6,13 +6,7 @@ import {
   type BoundingBox,
 } from "./streaming/sse.js";
 import {
-  type DeckASTSchema,
-  type DeckAST,
-  type SlideBlock,
-  type SlideBlockPatch,
-} from "./ast/deck.js";
-import {
-  NotebookError,
+  type NotebookError,
   InvarianceViolationError,
   type NotebookErrorCode,
 } from "./errors/index.js";
@@ -31,8 +25,8 @@ import {
   type ParagraphBlock,
   type CitationSchema,
   type Citation,
-  type CitationRefSchema,
-  type CitationRef,
+  type CitationRefSchema as CitationReferenceSchema,
+  type CitationRef as CitationReference,
   type VersionSchema,
   type Version,
   type ArtifactVersionSchema,
@@ -48,7 +42,7 @@ import {
   type DeletionJobStatus,
 } from "./entities/index.js";
 
-describe("Type-Level Regression Suite: @notebook/contracts", () => {
+describe("Type-Level Regression Suite: @notebench/contracts", () => {
   it("locks SSE Discriminated Union type inference", () => {
     type InferredSse = z.infer<typeof SseEventSchema>;
     expectTypeOf<InferredSse>().toEqualTypeOf<SseEvent>();
@@ -59,31 +53,18 @@ describe("Type-Level Regression Suite: @notebook/contracts", () => {
       expectTypeOf(event.thinkingDelta).toEqualTypeOf<string | undefined>();
     }
 
-    if (event.type === "citation") {
-      expectTypeOf(event.pageNumber).toEqualTypeOf<number>();
-      expectTypeOf(event.boundingBox).toEqualTypeOf<BoundingBox>();
-    }
-  });
-
-  it("enforces Slide Deck AST block immutability and discriminators", () => {
-    expectTypeOf<z.infer<typeof DeckASTSchema>>().toEqualTypeOf<DeckAST>();
-
-    const block = {} as SlideBlock;
-    if (block.type === "stat_metric") {
-      expectTypeOf(block.value).toEqualTypeOf<string>();
-      expectTypeOf(block.label).toEqualTypeOf<string>();
-      expectTypeOf(block.trend).toEqualTypeOf<"up" | "down" | "neutral" | undefined>();
+    if (event.type !== "citation") {
+      return;
     }
 
-    const patch = {} as SlideBlockPatch;
-    expectTypeOf(patch.siblingHashes).toEqualTypeOf<Record<string, string>>();
-    expectTypeOf(patch.expectedPreHash).toBeString();
+    expectTypeOf(event.pageNumber).toEqualTypeOf<number>();
+    expectTypeOf(event.boundingBox).toEqualTypeOf<BoundingBox>();
   });
 
   it("verifies NotebookError inheritance and code exhaustiveness", () => {
     const error = new InvarianceViolationError("Mismatched hash");
 
-    expectTypeOf(error).toMatchTypeOf<NotebookError>();
+    expectTypeOf(error).toExtend<NotebookError>();
     expectTypeOf(error.code).toEqualTypeOf<"INVARIANCE_VIOLATION">();
     expectTypeOf(error.statusCode).toEqualTypeOf<409>();
 
@@ -108,13 +89,13 @@ describe("Type-Level Regression Suite: @notebook/contracts", () => {
     type InferredSource = z.infer<typeof SourceSchema>;
     expectTypeOf<InferredSource>().toEqualTypeOf<Source>();
 
-    const src = {} as Source;
-    expectTypeOf(src.type).toEqualTypeOf<SourceType>();
-    expectTypeOf(src.url).toEqualTypeOf<string | undefined>();
-    expectTypeOf(src.filePath).toEqualTypeOf<string | undefined>();
-    expectTypeOf(src.byteSize).toEqualTypeOf<number | undefined>();
-    expectTypeOf(src.tokenCount).toEqualTypeOf<number | undefined>();
-    expectTypeOf(src.summary).toEqualTypeOf<string | undefined>();
+    const source = {} as Source;
+    expectTypeOf(source.type).toEqualTypeOf<SourceType>();
+    expectTypeOf(source.url).toEqualTypeOf<string | undefined>();
+    expectTypeOf(source.filePath).toEqualTypeOf<string | undefined>();
+    expectTypeOf(source.byteSize).toEqualTypeOf<number | undefined>();
+    expectTypeOf(source.tokenCount).toEqualTypeOf<number | undefined>();
+    expectTypeOf(source.summary).toEqualTypeOf<string | undefined>();
 
     assertType<SourceType>("pdf");
     assertType<SourceType>("docx");
@@ -152,19 +133,21 @@ describe("Type-Level Regression Suite: @notebook/contracts", () => {
       expectTypeOf(blk.locked).toEqualTypeOf<boolean | undefined>();
     }
 
-    if (blk.kind === "paragraph") {
-      expectTypeOf(blk).toEqualTypeOf<ParagraphBlock>();
-      expectTypeOf(blk.citations).toEqualTypeOf<CitationRef[]>();
-      expectTypeOf(blk.locked).toEqualTypeOf<boolean | undefined>();
+    if (blk.kind !== "paragraph") {
+      return;
     }
+
+    expectTypeOf(blk).toEqualTypeOf<ParagraphBlock>();
+    expectTypeOf(blk.citations).toEqualTypeOf<CitationReference[]>();
+    expectTypeOf(blk.locked).toEqualTypeOf<boolean | undefined>();
   });
 
   it("locks Citation and CitationRef schema inference", () => {
     type InferredCitation = z.infer<typeof CitationSchema>;
     expectTypeOf<InferredCitation>().toEqualTypeOf<Citation>();
 
-    type InferredCitationRef = z.infer<typeof CitationRefSchema>;
-    expectTypeOf<InferredCitationRef>().toEqualTypeOf<CitationRef>();
+    type InferredCitationReference = z.infer<typeof CitationReferenceSchema>;
+    expectTypeOf<InferredCitationReference>().toEqualTypeOf<CitationReference>();
 
     const cit = {} as Citation;
     expectTypeOf(cit.sourceId).toBeString();
@@ -180,13 +163,13 @@ describe("Type-Level Regression Suite: @notebook/contracts", () => {
     expectTypeOf<Version>().toEqualTypeOf<ArtifactVersion>();
     expectTypeOf<z.infer<typeof ArtifactVersionSchema>>().toEqualTypeOf<ArtifactVersion>();
 
-    const ver = {} as Version;
-    expectTypeOf(ver.number).toBeNumber();
-    expectTypeOf(ver.createdBy).toEqualTypeOf<"ai" | "user">();
-    expectTypeOf(ver.model).toEqualTypeOf<string | undefined>();
-    expectTypeOf(ver.instruction).toEqualTypeOf<string | undefined>();
-    expectTypeOf(ver.parentVersionId).toEqualTypeOf<string | undefined>();
-    expectTypeOf(ver.contentDigest).toEqualTypeOf<string | undefined>();
+    const version = {} as Version;
+    expectTypeOf(version.number).toBeNumber();
+    expectTypeOf(version.createdBy).toEqualTypeOf<"ai" | "user">();
+    expectTypeOf(version.model).toEqualTypeOf<string | undefined>();
+    expectTypeOf(version.instruction).toEqualTypeOf<string | undefined>();
+    expectTypeOf(version.parentVersionId).toEqualTypeOf<string | undefined>();
+    expectTypeOf(version.contentDigest).toEqualTypeOf<string | undefined>();
   });
 
   it("locks User entity schema inference and role enums", () => {

@@ -1,0 +1,36 @@
+import { defineConfig } from "tsdown";
+
+export default defineConfig({
+  entry: ["src/index.ts"],
+  format: ["esm"],
+  dts: true,
+  clean: true,
+  target: "es2022",
+  platform: "neutral",
+  sourcemap: true,
+  treeshake: true,
+  attw: { profile: "esm-only", level: "warn" },
+  publint: { level: "warn" },
+  deps: {
+    neverBundle: ["react", "react-dom"],
+    onlyImport: [
+      "@notebench/contracts",
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
+      "@phosphor-icons/react",
+      "@radix-ui/react-accordion",
+      "@radix-ui/react-dialog",
+      "@radix-ui/react-dropdown-menu",
+      "@radix-ui/react-popover",
+      "@radix-ui/react-scroll-area",
+      "@radix-ui/react-slot",
+      "@radix-ui/react-tabs",
+      "@radix-ui/react-tooltip",
+      "class-variance-authority",
+      "clsx",
+      "tailwind-merge",
+      "react-resizable-panels",
+    ],
+  },
+});

@@ -3,7 +3,7 @@ import { DocumentASTSchema } from "./document.js";
 
 describe("ProseMirror / Tiptap Document AST (DocumentAST)", () => {
   it("validates a structured document with headings, paragraphs, and inline citations", () => {
-    const validDoc = {
+    const validDocument = {
       type: "doc",
       content: [
         {
@@ -54,17 +54,17 @@ describe("ProseMirror / Tiptap Document AST (DocumentAST)", () => {
       ],
     };
 
-    const result = DocumentASTSchema.safeParse(validDoc);
+    const result = DocumentASTSchema.safeParse(validDocument);
     expect(result.success).toBe(true);
   });
 
   it("rejects an invalid root node that is not type doc", () => {
-    const invalidDoc = {
+    const invalidDocument = {
       type: "not-a-doc",
       content: [],
     };
 
-    const result = DocumentASTSchema.safeParse(invalidDoc);
+    const result = DocumentASTSchema.safeParse(invalidDocument);
     expect(result.success).toBe(false);
   });
 });

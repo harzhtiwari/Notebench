@@ -5,15 +5,18 @@ import {
   ArtifactSchema,
   BlockSchema,
   CitationSchema,
-  CitationRefSchema,
+  CitationRefSchema as CitationReferenceSchema,
   VersionSchema,
   ArtifactVersionSchema,
   UserSchema,
   SessionSchema,
   DeletionJobSchema,
+  NotebookSummarySchema,
+  DuplicateNotebookInputSchema,
+  DashboardMetricsSchema,
 } from "./index.js";
 
-describe("Core Entity Schemas (@notebook/contracts)", () => {
+describe("Core Entity Schemas (@notebench/contracts)", () => {
   const userId = "11111111-1111-4111-8111-111111111111";
   const notebookId = "22222222-2222-4222-8222-222222222222";
   const sourceId = "33333333-3333-4333-8333-333333333333";
@@ -54,6 +57,84 @@ describe("Core Entity Schemas (@notebook/contracts)", () => {
     });
   });
 
+  describe("NotebookSummarySchema", () => {
+    it("parses valid notebook summary with aggregates", () => {
+      const summary = {
+        id: notebookId,
+        userId,
+        title: "Deep Learning Research",
+        trashedAt: null,
+        createdAt: now,
+        updatedAt: now,
+        sourcesCount: 3,
+        artifactsCount: 2,
+        storageBytes: 1_048_576,
+        sourceFileNames: ["paper.pdf", "notes.md", "data.csv"],
+      };
+
+      const parsed = NotebookSummarySchema.parse(summary);
+      expect(parsed.sourcesCount).toBe(3);
+      expect(parsed.artifactsCount).toBe(2);
+      expect(parsed.storageBytes).toBe(1_048_576);
+      expect(parsed.sourceFileNames).toEqual(["paper.pdf", "notes.md", "data.csv"]);
+    });
+
+    it("applies defaults for counts and filenames", () => {
+      const summary = {
+        id: notebookId,
+        userId,
+        title: "Simple Notebook",
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const parsed = NotebookSummarySchema.parse(summary);
+      expect(parsed.sourcesCount).toBe(0);
+      expect(parsed.artifactsCount).toBe(0);
+      expect(parsed.storageBytes).toBe(0);
+      expect(parsed.sourceFileNames).toEqual([]);
+    });
+  });
+
+  describe("DuplicateNotebookInputSchema", () => {
+    it("applies canonical defaults for duplicate scope", () => {
+      const parsed = DuplicateNotebookInputSchema.parse({});
+      expect(parsed.duplicateSources).toBe(true);
+      expect(parsed.duplicateArtifacts).toBe(true);
+      expect(parsed.includeChatHistory).toBe(false);
+      expect(parsed.title).toBeUndefined();
+    });
+
+    it("parses custom duplicate title and flags", () => {
+      const parsed = DuplicateNotebookInputSchema.parse({
+        title: "Forked Notebook",
+        duplicateSources: true,
+        duplicateArtifacts: false,
+        includeChatHistory: false,
+      });
+      expect(parsed.title).toBe("Forked Notebook");
+      expect(parsed.duplicateArtifacts).toBe(false);
+    });
+  });
+
+  describe("DashboardMetricsSchema", () => {
+    it("parses valid dashboard metrics and enforces 5.0 GB safe cap default", () => {
+      const metrics = {
+        storageUsedBytes: 42_800_000,
+        notebookCount: 3,
+        sourceCount: 12,
+        artifactCount: 8,
+      };
+
+      const parsed = DashboardMetricsSchema.parse(metrics);
+      expect(parsed.storageUsedBytes).toBe(42_800_000);
+      expect(parsed.storageSafeCapBytes).toBe(5 * 1024 * 1024 * 1024);
+      expect(parsed.notebookCount).toBe(3);
+      expect(parsed.sourceCount).toBe(12);
+      expect(parsed.artifactCount).toBe(8);
+    });
+  });
+
   describe("SourceSchema", () => {
     it("parses valid source across document and web types", () => {
       const source = {
@@ -62,8 +143,8 @@ describe("Core Entity Schemas (@notebook/contracts)", () => {
         notebookId,
         title: "Attention Is All You Need.pdf",
         type: "pdf" as const,
-        byteSize: 2048576,
-        tokenCount: 15420,
+        byteSize: 2_048_576,
+        tokenCount: 15_420,
         contentHash: "a".repeat(64),
         summary: "Seminal paper introducing the Transformer architecture.",
         createdAt: now,
@@ -72,7 +153,7 @@ describe("Core Entity Schemas (@notebook/contracts)", () => {
 
       const parsed = SourceSchema.parse(source);
       expect(parsed.type).toBe("pdf");
-      expect(parsed.tokenCount).toBe(15420);
+      expect(parsed.tokenCount).toBe(15_420);
     });
 
     it("rejects negative byteSize or tokenCount", () => {
@@ -137,7 +218,7 @@ describe("Core Entity Schemas (@notebook/contracts)", () => {
 
   describe("Citation & CitationRef Schema", () => {
     it("parses citation reference with precise bounding box coordinates", () => {
-      const citationRef = {
+      const citationReference = {
         sourceId,
         chunkId,
         snippet: "Transformers rely entirely on self-attention mechanisms.",
@@ -149,13 +230,13 @@ describe("Core Entity Schemas (@notebook/contracts)", () => {
         },
       };
 
-      const parsedRef = CitationRefSchema.parse(citationRef);
-      expect(parsedRef.locator.page).toBe(3);
-      expect(parsedRef.locator.box).toEqual([0.1, 0.2, 0.8, 0.4]);
+      const parsedReference = CitationReferenceSchema.parse(citationReference);
+      expect(parsedReference.locator.page).toBe(3);
+      expect(parsedReference.locator.box).toEqual([0.1, 0.2, 0.8, 0.4]);
 
       const citation = {
         id: chunkId,
-        ...citationRef,
+        ...citationReference,
         citationIndex: 1,
       };
       const parsedCitation = CitationSchema.parse(citation);
@@ -228,7 +309,7 @@ describe("Core Entity Schemas (@notebook/contracts)", () => {
       const math = BlockSchema.parse({
         id: blockId,
         kind: "math",
-        latex: "\\text{Attention}(Q, K, V) = \\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V",
+        latex: String.raw`\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V`,
       });
       expect(math.kind).toBe("math");
 
@@ -298,7 +379,7 @@ describe("Core Entity Schemas (@notebook/contracts)", () => {
         userAgent: "Mozilla/5.0 Notebench Desktop",
         ipAddress: "127.0.0.1",
         lastActiveAt: now,
-        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
         createdAt: now,
       };
 
@@ -339,7 +420,7 @@ describe("Core Entity Schemas (@notebook/contracts)", () => {
           level,
           status: "in_progress" as const,
           progress: 50,
-          freedBytes: 1048576,
+          freedBytes: 1_048_576,
           deletedCounts: {
             sources: 2,
             chunks: 50,

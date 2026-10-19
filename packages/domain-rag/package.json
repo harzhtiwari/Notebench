@@ -1,0 +1,32 @@
+{
+  "name": "@notebench/domain-rag",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@notebench/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@notebench/eslint-config": "workspace:*",
+    "@notebench/tsconfig": "workspace:*",
+    "@types/node": "^26.6.5",
+    "eslint": "^10.0.0",
+    "tsdown": "^0.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  }
+}

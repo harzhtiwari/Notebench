@@ -1,0 +1,162 @@
+"use client";
+
+import { useEffect, useMemo, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent } from "react";
+import { Well, WellDescription, WellTitle } from "@notebench/ui";
+import {
+  createMemoryRouter,
+  parseRoute,
+  resolveAppPath,
+  shouldInterceptNavigation,
+  type ScreenId,
+} from "../lib/router";
+import { resolveScreen } from "../lib/screens";
+import { SetupScreen } from "../screens/setup-screen";
+import { LoginScreen } from "../screens/login-screen";
+
+function liveUrl(): string {
+  return `${globalThis.location.pathname}${globalThis.location.search}${globalThis.location.hash}`;
+}
+
+/**
+Stable no-op subscription for the mount marker: the client snapshot never
+changes after hydration, so there is nothing to subscribe to or to release.
+*/
+function subscribeToMountSnapshot(): () => void {
+  return noopMountCleanup;
+}
+
+/**
+Constant-store cleanup for `subscribeToMountSnapshot`: the snapshot never
+changes after hydration, so there is nothing to release.
+*/
+function noopMountCleanup(): void {
+  // Nothing to release.
+}
+
+function isMountedOnClient(): boolean {
+  return true;
+}
+
+function isMountedOnServer(): boolean {
+  return false;
+}
+
+/**
+Removed stub screens (health, dashboard, notebook detail, trash, models,
+ui-preview) render a valid shell instead of a document reload or a server
+404. The `route-not-found` marker is part of the shell contract asserted by
+app-root.test.tsx and the dev warm-up probe (tools/dev/src/warmup-browser.ts).
+*/
+function NotFoundScreen({ path }: { path: string }): React.JSX.Element {
+  return (
+    <div
+      data-testid="route-not-found"
+      className="flex min-h-screen items-center justify-center bg-[var(--nb-ground)] p-4"
+    >
+      <Well className="max-w-md p-6 text-center">
+        <WellTitle>Route not found</WellTitle>
+        <WellDescription>No screen is registered for {path}.</WellDescription>
+      </Well>
+    </div>
+  );
+}
+
+/**
+Persistent client root (ticket 06). Shared shell state lives here, above the
+screen boundary, so switching screens never remounts it. In-shell link
+clicks that the owned router claims become `history.pushState` updates —
+no document request, no per-page compilation round-trip. Native back/forward
+flows back through `popstate` into the same router.
+*/
+export function AppRoot({ initialPath }: { initialPath: string }) {
+  const router = useMemo(() => createMemoryRouter(initialPath), []);
+  const [entry, setEntry] = useState(router.current);
+  // Stable app-mounted marker (warm-up probe): flipped only after real
+  // mount. Navigation-critical screens load eagerly (see lib/screens), so a
+  // mounted shell means their preload completed — the probe never mistakes
+  // server-rendered HTML for a live app.
+  const isMounted = useSyncExternalStore(
+    subscribeToMountSnapshot,
+    isMountedOnClient,
+    isMountedOnServer,
+  );
+
+  useEffect(() => router.subscribe(setEntry), [router]);
+
+  // Router → URL bar: every owned navigation is a pushState, never a reload.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    return router.subscribe((next) => {
+      const url = `${next.path}${next.search}${next.hash}`;
+      if (url !== liveUrl()) globalThis.history.pushState(null, "", url);
+    });
+  }, [router]);
+
+  // URL bar → router: native back/forward lands here.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPopState = (): void => {
+      router.navigate(liveUrl());
+    };
+    globalThis.addEventListener("popstate", onPopState);
+    return () => { globalThis.removeEventListener("popstate", onPopState); };
+  }, [router]);
+
+  // Mount correction, once: the Fastify static fallback serves index.html for
+  // unknown deep links (prerendered prop "/") and the server never sees the
+  // hash, so adopt the live URL when it carries more than the prop did.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const prop = parseRoute(initialPath);
+    const url = liveUrl();
+    const current = parseRoute(url);
+    const shouldAdoptRootShell = prop.path === "/" && current.path !== "/";
+    const shouldAdoptLiveDeepLink = url !== initialPath && current.path === prop.path;
+    if (shouldAdoptRootShell || shouldAdoptLiveDeepLink) router.navigate(url);
+  }, [router, initialPath]);
+
+  function handleShellClick(event: ReactMouseEvent<HTMLElement>): void {
+    const anchor = (event.target as HTMLElement | null)?.closest("a");
+    if (anchor === null || anchor === undefined) return;
+    const href = anchor.getAttribute("href");
+    if (href === null) return;
+    const target = resolveAppPath(href, entry.path);
+    if ((target === null) || !shouldInterceptNavigation({
+        href: target,
+        target: anchor.getAttribute("target") ?? undefined,
+        button: event.button,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+        download: anchor.hasAttribute("download"),
+      })) {
+      return;
+    }
+    event.preventDefault();
+    router.navigate(target);
+  }
+
+  const screen = resolveScreen(`${entry.path}${entry.search}${entry.hash}`);
+  const screens: Record<ScreenId, React.JSX.Element> = {
+    setup: <SetupScreen navigate={(to) => { router.navigate(to); }} />,
+    login: <LoginScreen navigate={(to) => { router.navigate(to); }} />,
+    health: <NotFoundScreen path={entry.path} />,
+    dashboard: <NotFoundScreen path={entry.path} />,
+    notebook: <NotFoundScreen path={entry.path} />,
+    trash: <NotFoundScreen path={entry.path} />,
+    models: <NotFoundScreen path={entry.path} />,
+    "ui-preview": <NotFoundScreen path={entry.path} />,
+    "not-found": <NotFoundScreen path={entry.path} />,
+  };
+
+  return (
+    <div
+      data-testid="app-shell"
+      data-app-mounted={isMounted ? "true" : "false"}
+      onClickCapture={handleShellClick}
+    >
+      {screens[screen]}
+    </div>
+  );
+}

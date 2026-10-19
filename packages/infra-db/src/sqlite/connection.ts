@@ -1,48 +1,67 @@
 import Database from "better-sqlite3";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import { dirname, resolve } from "node:path";
-import { mkdirSync } from "node:fs";
+import path from "node:path";
+import { mkdirSync, existsSync } from "node:fs";
 import { sqliteSchema } from "../schema/index.js";
 
 /**
- * Default persistent SQLite database path conforming to ADR 0004.
- */
-export const DEFAULT_SQLITE_DB_PATH = resolve(".notebook/db/app.sqlite");
+Resolves the monorepo root by locating pnpm-workspace.yaml upwards from a given directory.
+Falls back to process.cwd() if not found.
+*/
+export function findMonorepoRoot(startDir = process.cwd()): string {
+  let current = path.resolve(startDir);
+  while (true) {
+    if (existsSync(path.join(current, "pnpm-workspace.yaml"))) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return path.resolve(startDir);
+    }
+    current = parent;
+  }
+}
+
+/**
+Default persistent SQLite database path conforming to ADR 0004.
+Always anchors to the monorepo root .notebook/ directory regardless of subpackage cwd.
+*/
+export const DEFAULT_SQLITE_DB_PATH = path.join(findMonorepoRoot(), ".notebook", "db", "app.sqlite");
 
 export interface SqliteDatabaseConfig {
   /**
-   * File path to the SQLite database.
-   * Defaults to .notebook/db/app.sqlite.
-   */
+  File path to the SQLite database.
+  Defaults to .notebook/db/app.sqlite.
+  */
   dbPath?: string | undefined;
   /**
-   * Timeout in ms when database is locked.
-   * Defaults to 5000ms.
-   */
+  Timeout in ms when database is locked.
+  Defaults to 5000ms.
+  */
   busyTimeout?: number | undefined;
   /**
-   * Disk synchronization mode.
-   * Defaults to NORMAL for safe, high-performance WAL operation.
-   */
+  Disk synchronization mode.
+  Defaults to NORMAL for safe, high-performance WAL operation.
+  */
   synchronous?: ("OFF" | "NORMAL" | "FULL" | "EXTRA") | undefined;
   /**
-   * Whether to enforce foreign keys.
-   * Defaults to true.
-   */
+  Whether to enforce foreign keys.
+  Defaults to true.
+  */
   foreignKeys?: boolean | undefined;
   /**
-   * Open the database in read-only mode.
-   * Defaults to false.
-   */
+  Open the database in read-only mode.
+  Defaults to false.
+  */
   readOnly?: boolean | undefined;
   /**
-   * If true, throws if database file does not exist.
-   * Defaults to false.
-   */
+  If true, throws if database file does not exist.
+  Defaults to false.
+  */
   fileMustExist?: boolean | undefined;
   /**
-   * Optional custom SQLite Database instance (e.g. for testing or memory databases).
-   */
+  Optional custom SQLite Database instance (e.g. for testing or memory databases).
+  */
   existingDb?: Database.Database | undefined;
 }
 
@@ -54,12 +73,17 @@ export interface SqliteDatabaseInstance {
 }
 
 /**
- * Factory function creating and configuring an embedded SQLite database in WAL mode.
- */
+Factory function creating and configuring an embedded SQLite database in WAL mode.
+*/
 export function createSqliteDatabase(
   config: SqliteDatabaseConfig = {}
 ): SqliteDatabaseInstance {
-  const dbPath = config.dbPath ? resolve(config.dbPath) : DEFAULT_SQLITE_DB_PATH;
+  const dbPath =
+    config.dbPath === ":memory:"
+      ? ":memory:"
+      : (config.dbPath
+        ? path.resolve(config.dbPath)
+        : DEFAULT_SQLITE_DB_PATH);
 
   let sqlite: Database.Database;
 
@@ -68,7 +92,7 @@ export function createSqliteDatabase(
   } else {
     // Ensure parent directory exists for file-backed databases
     if (dbPath !== ":memory:") {
-      mkdirSync(dirname(dbPath), { recursive: true });
+      mkdirSync(path.dirname(dbPath), { recursive: true });
     }
 
     sqlite = new Database(dbPath, {
@@ -93,8 +117,8 @@ export function createSqliteDatabase(
   sqlite.pragma(`synchronous = ${synchronous}`);
 
   // 4. Foreign key integrity enforcement
-  const foreignKeys = config.foreignKeys ?? true;
-  sqlite.pragma(`foreign_keys = ${foreignKeys ? "ON" : "OFF"}`);
+  const isForeignKeys = config.foreignKeys ?? true;
+  sqlite.pragma(`foreign_keys = ${isForeignKeys ? "ON" : "OFF"}`);
 
   // 5. Wrap with Drizzle ORM
   const db = drizzle(sqlite, { schema: sqliteSchema });

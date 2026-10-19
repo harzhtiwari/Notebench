@@ -1,5 +1,5 @@
 {
-  "name": "@notebook/infra-db",
+  "name": "@notebench/infra-db",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -30,22 +30,25 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "test": "vitest run"
   },
   "dependencies": {
-    "@notebook/contracts": "workspace:*",
-    "@notebook/logger": "workspace:*",
-    "better-sqlite3": "12.11.1",
+    "@notebench/contracts": "workspace:*",
+    "@notebench/logger": "workspace:*",
+    "better-sqlite3": "13.0.3",
     "drizzle-orm": "^0.45.4",
     "pg": "^8.13.3"
   },
   "devDependencies": {
-    "@notebook/tsconfig": "workspace:*",
+    "@notebench/eslint-config": "workspace:*",
+    "@notebench/tsconfig": "workspace:*",
     "@types/better-sqlite3": "^9.6.0",
-    "@types/node": "^22.13.1",
-    "@types/pg": "^8.11.11",
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.31.11",
-    "typescript": "^5.7.3",
-    "vitest": "^3.0.5"
+    "eslint": "^10.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
   }
 }

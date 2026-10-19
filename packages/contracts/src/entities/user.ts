@@ -4,18 +4,18 @@ export const UserRoleSchema = z.enum(["owner", "member"]);
 export type UserRole = z.infer<typeof UserRoleSchema>;
 
 export const UserSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email().optional(),
+  id: z.uuid(),
+  email: z.email().optional(),
   displayName: z.string().optional(),
   passcodeHash: z.string().optional(),
   role: UserRoleSchema.default("owner"),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 });
 export type User = z.infer<typeof UserSchema>;
 
 export const CreateUserInputSchema = z.object({
-  email: z.string().email().optional(),
+  email: z.email().optional(),
   displayName: z.string().optional(),
   passcode: z.string().min(4).optional(),
 });
